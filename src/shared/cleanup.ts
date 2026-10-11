@@ -7,6 +7,7 @@ export const CLEANUP_CHANNELS = {
   UNHIDE: 'cleanup:unhide',
   LIST_HIDDEN: 'cleanup:list-hidden',
   TRASH: 'cleanup:trash',
+  DISMISS: 'cleanup:dismiss',
 } as const
 
 export interface DupItem {
@@ -24,7 +25,7 @@ export interface DupItem {
 }
 
 export interface DupGroup {
-  /** 稳定 id：组内 hash 排序后拼接，重扫后同一组 id 不变 */
+  /** 稳定 id：组内 hash 排序后的 sha1，重扫后同一组 id 不变；"不是重复"按它记住 */
   id: string
   items: DupItem[]
   /** 建议保留的那张 */

@@ -244,6 +244,8 @@ const api = {
     hide: (hashes: string[]): Promise<void> => ipcRenderer.invoke(CLEANUP_CHANNELS.HIDE, hashes),
     unhide: (hashes: string[]): Promise<void> => ipcRenderer.invoke(CLEANUP_CHANNELS.UNHIDE, hashes),
     listHidden: (): Promise<HiddenItem[]> => ipcRenderer.invoke(CLEANUP_CHANNELS.LIST_HIDDEN),
+    /** 记住"不是重复"：之后扫描不再列出这些组 */
+    dismiss: (groupIds: string[]): Promise<void> => ipcRenderer.invoke(CLEANUP_CHANNELS.DISMISS, groupIds),
     /** 主进程会先弹原生确认框；用户取消时 cancelled = true */
     trash: (hashes: string[]): Promise<TrashResult> => ipcRenderer.invoke(CLEANUP_CHANNELS.TRASH, hashes),
   },

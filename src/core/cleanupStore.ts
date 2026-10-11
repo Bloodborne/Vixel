@@ -53,6 +53,8 @@ export class CleanupStore {
         ORDER BY h.created_at DESC
       `),
       hiddenHashes: db.prepare(`SELECT file_hash FROM hidden_items`).pluck(),
+      dismiss: db.prepare(`INSERT OR IGNORE INTO dismissed_dup_groups (group_id) VALUES (?)`),
+      dismissedIds: db.prepare(`SELECT group_id FROM dismissed_dup_groups`).pluck(),
       livePaths: db.prepare(`
         SELECT p.file_path as filePath, p.file_size as fileSize, f.path as folderPath
         FROM photos p JOIN watched_folders f ON f.id = p.folder_id
@@ -73,7 +75,7 @@ export class CleanupStore {
   /** 扫描（同一时间只跑一个；库没变直接返回缓存） */
   scan(onProgress?: (done: number, total: number) => void): Promise<DupScanResult> {
     const signature = String(this.stmts.signature.get())
-    if (this.cache && this.cache.signature === signature) return Promise.resolve({ ...this.cache.result, cached: true })
+    if (this.cache && this.cache.signature === signature) return Promise.resolve(this.withoutDismissed({ ...this.cache.result, cached: true }))
     if (this.running) return this.running
     this.running = (async () => {
       try {
@@ -85,12 +87,24 @@ export class CleanupStore {
         const groups = await groupNearDuplicates(candidates, this.getVector, { onProgress })
         const result: DupScanResult = { groups, scanned: candidates.length, reclaimableBytes: reclaimableBytes(groups), cached: false }
         this.cache = { signature: String(this.stmts.signature.get()), result }
-        return result
+        return this.withoutDismissed(result)
       } finally {
         this.running = null
       }
     })()
     return this.running
+  }
+
+  /** 用户标为"不是重复"的组不再出现（缓存里保留完整结果，返回时过滤） */
+  private withoutDismissed(result: DupScanResult): DupScanResult {
+    const dismissed = new Set(this.stmts.dismissedIds.all() as string[])
+    if (dismissed.size === 0) return result
+    const groups = result.groups.filter((g) => !dismissed.has(g.id))
+    return { ...result, groups, reclaimableBytes: reclaimableBytes(groups) }
+  }
+
+  dismiss(groupIds: string[]): void {
+    this.raw.transaction(() => { for (const id of groupIds) this.stmts.dismiss.run(id) })()
   }
 
   hide(hashes: string[], reason: HiddenReason = 'near-duplicate'): void {

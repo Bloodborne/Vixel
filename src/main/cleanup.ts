@@ -40,6 +40,10 @@ export function registerCleanupIpc(db: DatabaseInstance, onLibraryChanged: () =>
 
   ipcMain.handle(CLEANUP_CHANNELS.LIST_HIDDEN, async () => store.listHidden())
 
+  ipcMain.handle(CLEANUP_CHANNELS.DISMISS, async (_event, groupIds: string[]) => {
+    store.dismiss(groupIds.filter((id) => typeof id === 'string'))
+  })
+
   ipcMain.handle(CLEANUP_CHANNELS.TRASH, async (event, hashes: string[]): Promise<TrashResult> => {
     const targets = store.trashTargets(hashes.filter((h) => typeof h === 'string'))
     if (targets.length === 0) return { cancelled: false, trashed: 0, failed: 0 }

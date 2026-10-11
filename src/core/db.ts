@@ -248,7 +248,21 @@ CREATE TABLE IF NOT EXISTS hidden_items (
   reason      TEXT NOT NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 近重复清理里标为"不是重复"的组（组 id = 成员 hash 排序后的 sha1；成员变了 id 就变，组会重新出现）
+CREATE TABLE IF NOT EXISTS dismissed_dup_groups (
+  group_id    TEXT PRIMARY KEY,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
+
+/** 后来加的表（只读打开旧库时用空 TEMP 表顶替，见 initDatabase） */
+const LATE_TABLES: Record<string, string> = {
+  favorites: 'file_hash TEXT PRIMARY KEY, created_at DATETIME',
+  hidden_items: 'file_hash TEXT PRIMARY KEY, reason TEXT, created_at DATETIME',
+  dismissed_dup_groups: 'group_id TEXT PRIMARY KEY, created_at DATETIME',
+  smart_albums: 'id INTEGER PRIMARY KEY, name TEXT, query TEXT, filters TEXT, sort_order INTEGER, created_at DATETIME, updated_at DATETIME',
+}
 
 // 照片查询共用列（表别名 p）。LEFT JOIN videos v 补出媒体类型和时长：
 // 视频/音频的代表图（首帧 / 封面 / 波形）也是 photos 行，靠 video_id 关联
@@ -694,6 +708,15 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     db.pragma('wal_checkpoint(PASSIVE)')
   }
 
+  if (readonly) {
+    // 应用还没升级过的旧库缺少后加的表：只读连接不能建表，用同名空 TEMP 表顶上，
+    // 否则引用它们的语句一 prepare 就失败。只在主库缺表时建（TEMP 会遮住同名主表）
+    const has = db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).pluck()
+    for (const [name, cols] of Object.entries(LATE_TABLES)) {
+      if (!has.get(name)) db.exec(`CREATE TEMP TABLE ${name} (${cols})`)
+    }
+  }
+
   if (!readonly && options?.runCleanup !== false) {
     cleanupStaleVecMap(db)
   }
@@ -710,6 +733,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       SELECT wf.*, COUNT(p.id) as photoCount
       FROM watched_folders wf
       LEFT JOIN photos p ON wf.id = p.folder_id AND p.deleted_at IS NULL
+        AND p.file_hash NOT IN (SELECT file_hash FROM hidden_items)
       GROUP BY wf.id
       ORDER BY wf.created_at DESC
     `),
@@ -1270,7 +1294,8 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     `),
     getPeople: db.prepare(`
       SELECT p.id, p.name, p.cover_face_id as coverFaceId, p.face_count as faceCount,
-             (SELECT COUNT(DISTINCT f.file_hash) FROM faces f WHERE f.person_id = p.id) as photoCount,
+             (SELECT COUNT(DISTINCT f.file_hash) FROM faces f WHERE f.person_id = p.id
+                AND f.file_hash NOT IN (SELECT file_hash FROM hidden_items)) as photoCount,
              p.hidden, p.created_at as createdAt
       FROM people p
       WHERE p.face_count > 0
@@ -1284,6 +1309,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       FROM photos ph
       WHERE ph.deleted_at IS NULL
         AND ph.file_hash IN (SELECT DISTINCT f.file_hash FROM faces f WHERE f.person_id = ?)
+        AND ph.file_hash NOT IN (SELECT file_hash FROM hidden_items)
         AND ph.id = (
           SELECT MIN(p2.id) FROM photos p2
           WHERE p2.file_hash = ph.file_hash AND p2.deleted_at IS NULL

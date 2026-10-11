@@ -18,6 +18,7 @@
  * 时间窗口内本身就有“同一时刻”的证据，取 0.93：连拍基本都能连上，离随机最大值 0.896 还有余量；
  * 同名主干是更强的证据（同一张底片导出 / 编辑），取 0.90。
  */
+import { createHash } from 'crypto'
 import type { DupGroup, DupItem } from '../shared/cleanup'
 
 export const TIME_WINDOW_MS = 120_000
@@ -158,7 +159,7 @@ export async function groupNearDuplicates(
     if (members.length < 2) continue
     const dupItems: DupItem[] = members.map(({ ts: _ts, ...rest }) => rest)
     out.push({
-      id: members.map((m) => m.fileHash).sort().join(':').slice(0, 64) + `:${members.length}`,
+      id: createHash('sha1').update(members.map((m) => m.fileHash).sort().join(':')).digest('hex'),
       items: dupItems,
       keeperHash: pickKeeper(dupItems),
       similarity: Math.max(...members.map((m) => edgeBest.get(m.fileHash) ?? 0)),

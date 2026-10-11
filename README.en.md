@@ -22,6 +22,8 @@ Local AI search for photos, videos and audio. Fully offline, no account, nothing
 - **Search text inside images and video frames.** Local PaddleOCR v5 reads screenshots, receipts, signs, whiteboards. Strong on Chinese and English.
 - **People.** Face detection and clustering, with a quality gate so only confident matches are grouped automatically; merge, rename, hide.
 - **Honest results.** Semantic, OCR and filename hits are fused with RRF, and a relevance gate decides whether anything really matches. If nothing does, Vixel says so instead of padding the page.
+- **Favorites, filters and smart albums.** Press F to favorite; filter by orientation, resolution, duration or person on top of any search; save a search + filters as a smart album that stays up to date.
+- **Clean up similar photos.** Finds burst shots, re-exports and lightly edited copies, suggests which one to keep, and hides the rest in Vixel or moves them to the Trash after you confirm.
 - **Offline map, similar photos, de-duplication, HEIC / RAW, quick look, dark mode.**
 - **CLI for scripts and agents:** `vixel search "sunset at the beach" --json`.
 

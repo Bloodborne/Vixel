@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Favorites**: press F (or use the heart in the inspector / context menu) to favorite; a Favorites
+  view in the sidebar. Stored per content hash in Vixel's database — originals are never touched.
+- **Filter bar**: orientation, resolution, duration, person and favorites, combined with search and
+  the date filter.
+- **Smart albums**: save a search plus its filters as a live album in the sidebar (the ☆ in the search
+  box now saves an album; earlier saved searches are converted once).
+- **Clean Up Similar Photos**: groups burst shots, re-exports and lightly edited copies using the
+  existing image embeddings (time-window + filename-stem comparison, scales to large libraries),
+  suggests a keeper, and lets you hide extras in Vixel or move them to the Trash after confirmation.
 - English interface. Follows the system language; switch between System / 简体中文 / English in
   Settings → General. All UI strings live in typed dictionaries under `src/shared/i18n/`.
 - Favorites: press F (or use the heart in the inspector / context menu) to favorite photos and

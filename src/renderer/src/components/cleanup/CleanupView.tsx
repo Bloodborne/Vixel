@@ -177,7 +177,7 @@ export function CleanupView({ onOpenPhoto }: { onOpenPhoto: (photoId: number) =>
                 onOpen={onOpenPhoto}
                 onHide={() => void hideExtras([g])}
                 onTrash={() => void trashExtras([g])}
-                onDismiss={() => setDismissed((s) => new Set(s).add(g.id))}
+                onDismiss={() => { setDismissed((s) => new Set(s).add(g.id)); void window.api.cleanup.dismiss([g.id]) }}
               />
             ))}
           </div>
