@@ -20,16 +20,27 @@ import { useSmartAlbums, sameAlbumState, splitAlbumFilters } from './lib/smartAl
 import type { Tag } from '../../shared/tags'
 import type {
   SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction, MediaFilters, SmartAlbum,
+  ImageQueryInput,
   IndexProgress as IndexProgressType,
 } from '../../shared/types'
 
 /** 空查询浏览时一次取够整个资料库（网格是虚拟化的，渲染成本与总数无关） */
 const BROWSE_LIMIT = 20000
-/** "查找相似内容"一次取多少 */
-const SIMILAR_LIMIT = 60
 /** 窗口窄于此宽度时检查器改为浮在网格上，不再挤占网格宽度 */
 const INSPECTOR_DOCK_MIN_WINDOW = 1100
 const INSPECTOR_WIDTH = 272
+
+/** 拖入 / 粘贴的文件算不算图片：mime 优先，没有 mime（RAW 等）看扩展名 */
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|avif|bmp|tiff?|heic|heif|cr2|cr3|nef|arw|dng|raf|orf|rw2)$/i
+const isImageFile = (f: File): boolean => f.type.startsWith('image/') || (!f.type && IMAGE_EXT_RE.test(f.name))
+
+/** 以图搜图的查询状态：input 发给主进程，thumb 给搜索框芯片（bytes 用本地 blob URL，退出时 revoke） */
+interface ImageQueryState {
+  input: Pick<ImageQueryInput, 'path' | 'bytes' | 'fileHash'>
+  name: string
+  thumb: string | null
+  localUrl?: string
+}
 
 function isTextInput(el: EventTarget | null): boolean {
   const t = el as HTMLElement | null
@@ -85,6 +96,10 @@ function App(): JSX.Element {
   const [source, setSource] = useState<Source>({ type: 'library', kind: 'all' })
   const [counts, setCounts] = useState<LibraryCounts | null>(null)
   const [folders, setFolders] = useState<WatchedFolder[]>([])
+  // 以图搜图：查询图 + 返回的提示（查询图在库里 / 解码或模型错误）；拖拽悬停时工具栏显示落点
+  const [imageQuery, setImageQuery] = useState<ImageQueryState | null>(null)
+  const [imageNotice, setImageNotice] = useState<{ inLibrary?: boolean; error?: 'decode-failed' | 'model-not-ready' } | null>(null)
+  const [imageDrag, setImageDrag] = useState(false)
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try { return localStorage.getItem('shell.sidebarHidden') === '1' } catch { return false }
   })
@@ -108,26 +123,26 @@ function App(): JSX.Element {
   const [narrow, setNarrow] = useState(() => window.innerWidth < INSPECTOR_DOCK_MIN_WINDOW)
 
   const hasSearchQuery = !!query.trim()
+  const hasImageQuery = !!imageQuery
   // 信息密度：浏览默认沉浸式，搜索结果默认信息式；按 G 临时翻转，换查询 / 来源后回到默认
   const [densityOverride, setDensityOverride] = useState<GridDensity | null>(null)
-  const density: GridDensity = densityOverride ?? (hasSearchQuery ? 'info' : 'immersive')
+  const density: GridDensity = densityOverride ?? (hasSearchQuery || hasImageQuery ? 'info' : 'immersive')
   const toggleDensity = useCallback(() => {
     setDensityOverride(density === 'info' ? 'immersive' : 'info')
   }, [density])
   // 来源按内容签名比较：重复点击同一侧栏项（对象引用变了）不应重置密度
   const sourceKey = source.type === 'library' ? `library:${source.kind}`
     : source.type === 'folder' ? `folder:${source.id}`
-    : source.type === 'similar' ? `similar:${source.photoId}`
     : source.type === 'album' ? `album:${source.id}`
     : source.type === 'tag' ? `tag:${source.id}`
     : source.type
-  useEffect(() => { setDensityOverride(null) }, [query, sourceKey])
-  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'similar' || source.type === 'favorites' ||
+  useEffect(() => { setDensityOverride(null) }, [query, sourceKey, imageQuery])
+  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'favorites' ||
     source.type === 'album' || source.type === 'tag'
 
   // 查询条件放 ref：索引进度刷新等所有 doSearch 调用都自动带上当前来源 + 日期，
   // 不用每个调用点各自传参，也不会因闭包拿到旧值
-  const filters = useRef<{ query: string; from: string; to: string; source: Source; extra: ExtraFilters }>({ query: '', from: '', to: '', source, extra: {} })
+  const filters = useRef<{ query: string; from: string; to: string; source: Source; extra: ExtraFilters; image: ImageQueryState['input'] | null }>({ query: '', from: '', to: '', source, extra: {}, image: null })
 
   // 智能相册：doSearch 从 ref 取相册的来源范围（类型 / 文件夹）
   const { albums, upsert: upsertAlbum } = useSmartAlbums()
@@ -135,8 +150,7 @@ function App(): JSX.Element {
   albumsRef.current = albums
 
   const doSearch = useCallback(async (): Promise<SearchResult[]> => {
-    const { query: q, from, to, source: src, extra } = filters.current
-    if (src.type === 'similar') return window.api.findSimilar(src.photoId, SIMILAR_LIMIT)
+    const { query: q, from, to, source: src, extra, image } = filters.current
     const album = src.type === 'album' ? albumsRef.current.find((a) => a.id === src.id) : undefined
     const scope = album ? splitAlbumFilters(album.filters).scope : {}
     const kind = src.type === 'library' && src.kind !== 'all' ? src.kind : scope.kind
@@ -149,6 +163,14 @@ function App(): JSX.Element {
       ...(folderId != null ? { folderId } : {}),
       ...(src.type === 'favorites' ? { favorite: true } : {}),
       ...(src.type === 'tag' ? { tagIds: withTag(extra.tagIds, src.id) } : {}),
+    }
+    // 以图搜图：文字一并给出时主进程走多模态编码（图 + 文一个向量）
+    if (image) {
+      const r = await window.api.searchByImage({ ...image, text: q.trim() || undefined }, undefined, Object.keys(options).length ? options : undefined)
+      setImageNotice(r.error ? { error: r.error } : r.queryInLibrary ? { inLibrary: true } : null)
+      // 路径 / 库内 hash 查询没有本地预览：芯片缩略图用主进程生成的 data URL 补上
+      if (r.queryThumb) setImageQuery((cur) => (cur && !cur.thumb ? { ...cur, thumb: r.queryThumb! } : cur))
+      return r.results
     }
     return window.api.search(q, q.trim() ? undefined : BROWSE_LIMIT, Object.keys(options).length ? options : undefined)
   }, [])
@@ -191,15 +213,16 @@ function App(): JSX.Element {
       }
       timer = null
       refreshLibrary()
-      if (!filters.current.query.trim() && filters.current.source.type !== 'map' && filters.current.source.type !== 'people' && filters.current.source.type !== 'cleanup') {
+      // 以图搜图不自动重跑：路径 / 字节查询每次都要过一遍模型，索引期间 5s 一次太贵
+      if (!filters.current.query.trim() && !filters.current.image && filters.current.source.type !== 'map' && filters.current.source.type !== 'people' && filters.current.source.type !== 'cleanup') {
         doSearch().then(setSearchResults).catch(() => {})
       }
     }
     let modelReady = false
     const unsubscribe = window.api.onIndexProgress((progress) => {
       setIndexProgress(progress)
-      // 模型加载完成前发出的查询只有文件名 / OCR 命中；就绪时重跑一次，补上语义结果
-      if (!modelReady && progress.aiModelReady && filters.current.query.trim()) {
+      // 模型加载完成前发出的查询只有文件名 / OCR 命中（以图搜图则整个失败）；就绪时重跑一次补上
+      if (!modelReady && progress.aiModelReady && (filters.current.query.trim() || filters.current.image)) {
         doSearch().then(setSearchResults).catch(() => {})
       }
       modelReady = progress.aiModelReady
@@ -225,7 +248,13 @@ function App(): JSX.Element {
     setDateTo(to)
     setExtraFilters(extra)
     if (from || to) setShowDateFilter(true)
-    filters.current = { query: album.query, from, to, extra, source: next }
+    // 相册是"查询 + 筛选"的快照，不含查询图：打开时清掉以图搜图
+    setImageQuery((prev) => {
+      if (prev?.localUrl) URL.revokeObjectURL(prev.localUrl)
+      return null
+    })
+    setImageNotice(null)
+    filters.current = { query: album.query, from, to, extra, source: next, image: null }
     setSelectedIds(new Set())
     setFocusId(null)
     anchorId.current = null
@@ -245,8 +274,123 @@ function App(): JSX.Element {
     setFocusId(null)
     anchorId.current = null
     setScrollResetKey((k) => k + 1)
-    if (next.type === 'library' || next.type === 'folder' || next.type === 'similar' || next.type === 'favorites' || next.type === 'tag') runSearch()
+    if (next.type === 'library' || next.type === 'folder' || next.type === 'favorites' || next.type === 'tag') runSearch()
   }, [runSearch, openAlbum])
+
+  // ---------- 以图搜图 ----------
+  /** 设查询图并立刻搜索；localUrl 是粘贴 / 浏览器拖入字节的本地预览（换图 / 清除时 revoke） */
+  const startImageQuery = useCallback((input: ImageQueryState['input'], name: string, thumb: string | null, localUrl?: string) => {
+    setImageQuery((prev) => {
+      if (prev?.localUrl) URL.revokeObjectURL(prev.localUrl)
+      return { input, name, thumb, localUrl }
+    })
+    setImageNotice(null)
+    filters.current = { ...filters.current, image: input }
+    setSelectedIds(new Set())
+    setFocusId(null)
+    anchorId.current = null
+    setScrollResetKey((k) => k + 1)
+    // 在地图 / 人物 / 清理里发起：回到当前资料库（和输入文字查询同款行为）
+    const st = filters.current.source.type
+    if (st === 'map' || st === 'people' || st === 'cleanup') {
+      const back: Source = { type: 'library', kind: 'all' }
+      setSource(back)
+      filters.current.source = back
+    }
+    runSearch()
+  }, [runSearch])
+
+  const clearImageQuery = useCallback(() => {
+    setImageQuery((prev) => {
+      if (prev?.localUrl) URL.revokeObjectURL(prev.localUrl)
+      return null
+    })
+    setImageNotice(null)
+    if (!filters.current.image) return
+    filters.current = { ...filters.current, image: null }
+    setSelectedIds(new Set())
+    setFocusId(null)
+    anchorId.current = null
+    setScrollResetKey((k) => k + 1)
+    runSearch()
+  }, [runSearch])
+
+  /** 拖入 / 粘贴的文件：有本地路径（Finder）传路径，没有（浏览器 / 截图粘贴）读字节 */
+  const queryWithFile = useCallback(async (file: File) => {
+    const path = window.api.getPathForFile(file)
+    if (path) {
+      startImageQuery({ path }, file.name || path, null)
+    } else {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const url = URL.createObjectURL(file)
+      startImageQuery({ bytes }, file.name || t.imagesearch.queryImage, url, url)
+    }
+  }, [startImageQuery])
+
+  const handleImageDrop = useCallback((files: File[]) => {
+    setImageDrag(false)
+    const file = files.find(isImageFile)
+    // 非图片的拖放维持原行为（忽略）
+    if (file) void queryWithFile(file)
+  }, [queryWithFile])
+
+  // 窗口级拖拽跟踪：带文件的拖动悬停时工具栏显示落点；其它位置的 drop 一律吞掉
+  // （阻止 Chromium 直接导航到文件；网格区的落点保留给之后的"导入收件箱"，这里不处理）
+  useEffect(() => {
+    let depth = 0
+    // 拖动中只能看到 mime，看不到文件名：image/* 或未知类型（RAW 常为空）才算；PDF / 文本拖动不出落点
+    const hasImage = (e: DragEvent): boolean =>
+      !!e.dataTransfer && Array.from(e.dataTransfer.items ?? []).some((i) => i.kind === 'file' && (i.type === '' || i.type.startsWith('image/')))
+    const onEnter = (e: DragEvent): void => {
+      if (!hasImage(e)) return
+      depth++
+      setImageDrag(true)
+    }
+    const onLeave = (): void => {
+      if (depth > 0 && --depth === 0) setImageDrag(false)
+    }
+    const onOver = (e: DragEvent): void => { if (hasImage(e)) e.preventDefault() }
+    const onDrop = (e: DragEvent): void => {
+      depth = 0
+      setImageDrag(false)
+      e.preventDefault()
+    }
+    window.addEventListener('dragenter', onEnter)
+    window.addEventListener('dragleave', onLeave)
+    window.addEventListener('dragover', onOver)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragenter', onEnter)
+      window.removeEventListener('dragleave', onLeave)
+      window.removeEventListener('dragover', onOver)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [])
+
+  // 粘贴图片（⌘V）：搜索框聚焦，或焦点不在任何可编辑元素上时生效；非图片粘贴不拦
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent): void => {
+      const el = document.activeElement
+      if (isTextInput(el) && !(el as HTMLElement).hasAttribute('data-search-input')) return
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.kind === 'file' && i.type.startsWith('image/'))
+      const file = item?.getAsFile()
+      if (!file) return
+      e.preventDefault()
+      void queryWithFile(file)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [queryWithFile])
+
+  // 截图巡检 / 自动化测试入口：主进程 executeJavaScript 派发（capture.ts 的 image-search 步骤）
+  useEffect(() => {
+    const onEvent = (e: Event): void => {
+      const d = (e as CustomEvent).detail as { path?: string } | undefined
+      if (d?.path) startImageQuery({ path: d.path }, d.path.split('/').pop() ?? 'image', null)
+    }
+    window.addEventListener('vixel:image-search', onEvent)
+    return () => window.removeEventListener('vixel:image-search', onEvent)
+  }, [startImageQuery])
 
   const handleSearch = useCallback((q: string) => {
     setQuery(q)
@@ -256,9 +400,9 @@ function App(): JSX.Element {
     setFocusId(null)
     anchorId.current = null
     setScrollResetKey((k) => k + 1)
-    // 在地图 / 人物 / 相似里输入查询：回到当前资料库
+    // 在地图 / 人物 / 清理里输入查询：回到当前资料库
     const t = filters.current.source.type
-    if (q.trim() && (t === 'map' || t === 'people' || t === 'similar' || t === 'cleanup')) {
+    if (q.trim() && (t === 'map' || t === 'people' || t === 'cleanup')) {
       const back: Source = { type: 'library', kind: 'all' }
       setSource(back)
       filters.current.source = back
@@ -266,14 +410,14 @@ function App(): JSX.Element {
     runSearch()
   }, [runSearch])
 
-  // 搜索历史：查询停稳 1.5 秒且有结果才记为"最近"，边打字边出的中间结果不算
+  // 搜索历史：查询停稳 1.5 秒且有结果才记为"最近"，边打字边出的中间结果不算；以图搜图不记
   const history = useSearchHistory()
   const { addRecent, removeRecent } = history
   useEffect(() => {
-    if (!query.trim() || isSearching || searchResults.length === 0) return
+    if (!query.trim() || imageQuery || isSearching || searchResults.length === 0) return
     const t = setTimeout(() => addRecent(query), 1500)
     return () => clearTimeout(t)
-  }, [query, isSearching, searchResults, addRecent])
+  }, [query, imageQuery, isSearching, searchResults, addRecent])
   const activeQuery = isGrid && hasSearchQuery ? normalizeQuery(query) : null
 
   // ---------- 智能相册 ----------
@@ -296,7 +440,8 @@ function App(): JSX.Element {
     : albums.find((a) => sameAlbumState(a, query, stateFilters))
   // 在相册里改了查询 / 筛选：不自动写回，标题旁给"更新相册"
   const albumDirty = !!currentAlbum && !sameAlbumState(currentAlbum, query, stateFilters)
-  const canSaveAlbum = isGrid && source.type !== 'similar' && (!!query.trim() || Object.keys(stateFilters).length > 0)
+  // 以图搜图没法存进相册（查询图无处持久化），其余条件照常
+  const canSaveAlbum = isGrid && !imageQuery && (!!query.trim() || Object.keys(stateFilters).length > 0)
   const albumState = useRef({ query, stateFilters, matchingAlbum, folders })
   albumState.current = { query, stateFilters, matchingAlbum, folders }
 
@@ -556,9 +701,10 @@ function App(): JSX.Element {
     try { await navigator.clipboard.writeText(paths.join('\n')) } catch (e) { console.error('Copy failed:', e) }
   }, [])
 
-  const findSimilarTo = useCallback((r: SearchResult) => {
-    handleSelectSource({ type: 'similar', photoId: r.photo.id, name: r.photo.fileName })
-  }, [handleSelectSource])
+  // 以此图搜索：直接用库里已存的向量（不再过模型），连视频片段一起搜；芯片缩略图用现成的 vixel://thumb
+  const searchWithItem = useCallback((r: SearchResult) => {
+    startImageQuery({ fileHash: r.photo.fileHash }, r.photo.fileName, `vixel://thumb/${r.photo.id}`)
+  }, [startImageQuery])
 
   // 收藏：有任何一项没收藏就全部收藏，否则全部取消（与访达标签、照片 App 一致）。
   // 只改动受影响的结果对象，网格里其余卡片不重渲染
@@ -583,11 +729,11 @@ function App(): JSX.Element {
       case 'quick-look': setQuickLookId(first.photo.id); break
       case 'reveal': revealItems(items); break
       case 'copy-path': copyPaths(items); break
-      case 'find-similar': findSimilarTo(first); break
+      case 'search-by-image': searchWithItem(first); break
       case 'open-external': if (first.photo.videoId != null) window.api.openSourceVideo(first.photo.videoId); break
       case 'toggle-favorite': toggleFavorite(items); break
     }
-  }, [revealItems, copyPaths, findSimilarTo, toggleFavorite])
+  }, [revealItems, copyPaths, searchWithItem, toggleFavorite])
 
   const handleItemContextMenu = useCallback(async (index: number, e: React.MouseEvent) => {
     e.preventDefault()
@@ -603,7 +749,9 @@ function App(): JSX.Element {
       items = [r]
     }
     const isMedia = items.length === 1 && mediaKindOf(r.photo) !== 'image' && r.photo.videoId != null
-    const action = await window.api.showItemMenu({ count: items.length, isMedia, favorite: items.every((x) => x.photo.favorite) })
+    // 音频的代表图是封面 / 波形，没有图片向量，不给"以此图搜索"
+    const canImageSearch = items.length === 1 && mediaKindOf(r.photo) !== 'audio'
+    const action = await window.api.showItemMenu({ count: items.length, isMedia, favorite: items.every((x) => x.photo.favorite), canImageSearch })
     if (action) runItemAction(action, items)
   }, [selectOnly, runItemAction])
 
@@ -724,6 +872,7 @@ function App(): JSX.Element {
       if (isTextInput(e.target)) return
       if (selected) setSelected(null)
       else if (!showTasks && selectedIds.size > 0) clearSelection()
+      else if (!showTasks && imageQuery) clearImageQuery()
       return
     }
     // F：收藏当前详情 / 快速查看 / 选中项（详情页里也可用）
@@ -776,7 +925,6 @@ function App(): JSX.Element {
       case 'map': return t.shell.map
       case 'people': return t.shell.people
       case 'cleanup': return t.cleanup.title
-      case 'similar': return t.shell.similarTo(source.name)
       case 'favorites': return t.organize.favorites
       case 'album': return currentAlbum?.name ?? t.albums.untitled
       case 'tag': return currentTag?.name ?? t.tags.section
@@ -785,8 +933,8 @@ function App(): JSX.Element {
 
   const breakdown = useMemo(() => countLine(searchResults.map((r) => r.photo)), [searchResults])
   const subtitle = isGrid
-    ? source.type === 'similar'
-      ? t.common.items(searchResults.length) + t.shell.sortedBySimilarity
+    ? hasImageQuery
+      ? `${t.imagesearch.title}${hasSearchQuery ? t.common.sep + t.shell.quoted(query.trim()) : ''}${t.common.sep}${t.common.items(searchResults.length)}`
       : hasSearchQuery
       ? `${t.shell.quoted(query.trim())}${t.common.sep}${t.common.items(searchResults.length)}`
       : searchResults.length > 0 ? `${t.common.items(searchResults.length)}${hasDateFilter ? t.shell.dateFiltered : hasExtraFilters(extraFilters) ? t.organize.filtered : ''}` : undefined
@@ -841,13 +989,17 @@ function App(): JSX.Element {
             </button>
           ) : undefined}
           isSearching={isSearching}
-          resultCount={hasSearchQuery ? searchResults.length : undefined}
+          resultCount={hasSearchQuery || hasImageQuery ? searchResults.length : undefined}
           dateActive={showDateFilter || hasDateFilter}
           onToggleDate={() => setShowDateFilter((s) => !s)}
           filterActive={showFilters || hasExtraFilters(extraFilters)}
           filterCount={countExtraFilters(extraFilters)}
           onToggleFilter={() => setShowFilters((s) => !s)}
           onOpenSettings={() => window.api.openSettings()}
+          imageDrag={imageDrag}
+          onImageDrop={handleImageDrop}
+          queryImage={imageQuery ? { thumb: imageQuery.thumb, name: imageQuery.name } : null}
+          onClearImage={clearImageQuery}
         />
 
         {/* 日期过滤栏 */}
@@ -879,7 +1031,7 @@ function App(): JSX.Element {
         )}
 
         {/* 筛选栏：展开时列出全部选项；收起但有生效条件时只显示条件标签 */}
-        {isGrid && source.type !== 'similar' && (showFilters || hasExtraFilters(extraFilters)) && (
+        {isGrid && (showFilters || hasExtraFilters(extraFilters)) && (
           <FilterBar
             value={extraFilters}
             expanded={showFilters}
@@ -900,6 +1052,15 @@ function App(): JSX.Element {
             <MapView onSelect={handleSelectPhoto} />
           ) : searchResults.length > 0 ? (
             <div className="h-full flex flex-col">
+            {/* 查询图本身在库里：已排除，如实说明 */}
+            {imageNotice?.inLibrary && (
+              <div className="mx-3 mt-3 px-3.5 py-2.5 rounded-lg bg-surface-2 border border-line text-callout text-ink-2 flex items-center gap-2">
+                <svg className="w-4 h-4 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+                  <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path strokeLinecap="round" d="M5 17l4.5-4.5 3 3L17 11l2 2" />
+                </svg>
+                <span>{t.imagesearch.selfExcluded}</span>
+              </div>
+            )}
             {/* 没有明显突出的结果：如实说明下面只是按相似度排的最接近几项。
                 措辞不说"没有相关内容"——小库里宽泛的查询（"山"）结果其实可能是对的，只是统计上不突出 */}
             {searchResults[0]?.lowConfidence && (
@@ -907,13 +1068,13 @@ function App(): JSX.Element {
                 <svg className="w-4 h-4 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
                   <circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M20 20l-3.5-3.5" />
                 </svg>
-                <span>{t.shell.lowConfidence(query.trim())}</span>
+                <span>{hasImageQuery ? t.imagesearch.lowConfidence : t.shell.lowConfidence(query.trim())}</span>
               </div>
             )}
             <div className="flex-1 min-h-0">
             <PhotoGrid
               results={searchResults}
-              isSearching={hasSearchQuery && source.type !== 'similar'}
+              isSearching={hasSearchQuery || hasImageQuery}
               density={density}
               thumbSize={thumbSize}
               selectedIds={selectedIds}
@@ -928,6 +1089,12 @@ function App(): JSX.Element {
             />
             </div>
             </div>
+          ) : imageNotice?.error ? (
+            <EmptyState
+              icon="search"
+              title={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeTitle : t.imagesearch.errorModelTitle}
+              hint={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeHint : t.imagesearch.errorModelHint}
+            />
           ) : libraryEmpty ? (
             <EmptyState
               icon="image"
@@ -942,9 +1109,11 @@ function App(): JSX.Element {
           ) : (
             <EmptyState
               icon="search"
-              title={hasSearchQuery ? t.shell.noMatchTitle : t.shell.nothingHereTitle}
+              title={hasSearchQuery || hasImageQuery ? t.shell.noMatchTitle : t.shell.nothingHereTitle}
               hint={hasExtraFilters(extraFilters)
                 ? t.organize.noFilterMatchHint
+                : hasImageQuery
+                ? t.imagesearch.noMatchHint
                 : hasSearchQuery
                 ? t.shell.noMatchHint
                 : hasDateFilter ? t.shell.widenDateHint : t.shell.otherCategoryHint}

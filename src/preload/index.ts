@@ -1,9 +1,10 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace } from '../shared/types'
+import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace, type ImageQueryInput, type ImageSearchResponse } from '../shared/types'
 import type { Locale, LocaleSetting } from '../shared/i18n'
 import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type HiddenItem, type TrashResult } from '../shared/cleanup'
 import { COLLECT_CHANNELS, type CollectResult, type CollectServerStatus, type InboxInfo, type ItemSource } from '../shared/collect'
 import { TAG_CHANNELS, type Tag, type TagMenuAction, type TagsForSelection } from '../shared/tags'
+import { AUTOTAG_CHANNELS, type AutoTagStatus } from '../shared/autotags'
 
 const api = {
   // 搜索
@@ -12,6 +13,14 @@ const api = {
   },
   findSimilar: (photoId: number, limit?: number): Promise<SearchResult[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FIND_SIMILAR, photoId, limit)
+  },
+  /** 以图搜图：路径（Finder 拖入）/ 字节（粘贴、浏览器拖入）/ 库内 hash（右键"以此图搜索"）三选一 */
+  searchByImage: (input: ImageQueryInput, limit?: number, options?: MediaFilters): Promise<ImageSearchResponse> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SEARCH_BY_IMAGE, input, limit, options)
+  },
+  /** 拖入的 File 对应的本地路径；浏览器拖来的没有路径时返回空串（改传字节） */
+  getPathForFile: (file: File): string => {
+    try { return webUtils.getPathForFile(file) } catch { return '' }
   },
   getPhotosWithGPS: (): Promise<import('../shared/types').Photo[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_PHOTOS_WITH_GPS)
@@ -53,7 +62,7 @@ const api = {
     }
   },
   /** 弹出原生右键菜单，resolve 为选中的动作；菜单关闭未选则为 null */
-  showItemMenu: (opts: { count: number; isMedia: boolean; favorite: boolean }): Promise<ItemMenuAction | null> => {
+  showItemMenu: (opts: { count: number; isMedia: boolean; favorite: boolean; canImageSearch: boolean }): Promise<ItemMenuAction | null> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SHOW_ITEM_MENU, opts)
   },
   /** 收藏 / 取消收藏（按内容 hash，同内容的副本一起变） */
@@ -277,6 +286,19 @@ const api = {
     trash: (hashes: string[]): Promise<TrashResult> => ipcRenderer.invoke(CLEANUP_CHANNELS.TRASH, hashes),
   },
 
+  // 自动标签（离线，按词表）
+  autoTags: {
+    status: (): Promise<AutoTagStatus> => ipcRenderer.invoke(AUTOTAG_CHANNELS.STATUS),
+    setEnabled: (on: boolean): Promise<AutoTagStatus> => ipcRenderer.invoke(AUTOTAG_CHANNELS.SET_ENABLED, on),
+    /** 清掉未确认的自动标签，全部重新判定 */
+    rerun: (): Promise<AutoTagStatus> => ipcRenderer.invoke(AUTOTAG_CHANNELS.RERUN),
+    onChanged: (callback: (s: AutoTagStatus) => void): (() => void) => {
+      const handler = (_: unknown, s: AutoTagStatus): void => callback(s)
+      ipcRenderer.on(AUTOTAG_CHANNELS.CHANGED, handler)
+      return () => { ipcRenderer.removeListener(AUTOTAG_CHANNELS.CHANGED, handler) }
+    },
+  },
+
   // 标签（按内容 hash）
   tags: {
     list: (): Promise<Tag[]> => ipcRenderer.invoke(TAG_CHANNELS.LIST),
@@ -284,6 +306,8 @@ const api = {
     /** 名字不存在就新建；返回标签 id */
     add: (hashes: string[], name: string): Promise<number | null> => ipcRenderer.invoke(TAG_CHANNELS.ADD, hashes, name),
     remove: (hashes: string[], tagId: number): Promise<void> => ipcRenderer.invoke(TAG_CHANNELS.REMOVE, hashes, tagId),
+    /** 自动标签的 ✓：变成用户标签 */
+    confirmAuto: (hashes: string[], tagId: number): Promise<void> => ipcRenderer.invoke(TAG_CHANNELS.CONFIRM_AUTO, hashes, tagId),
     /** 和已有标签重名就合并过去；返回最终的标签 id */
     rename: (tagId: number, name: string): Promise<number | null> => ipcRenderer.invoke(TAG_CHANNELS.RENAME, tagId, name),
     /** 侧栏右键菜单：合并 / 删除在主进程执行完才返回；'rename' 由调用方进入行内编辑 */

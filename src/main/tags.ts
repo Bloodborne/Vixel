@@ -71,6 +71,13 @@ export function registerTagIpc(db: DatabaseInstance): TagStore {
     broadcastTagsChanged()
   })
 
+  // 自动标签的 ✓：变成用户标签
+  ipcMain.handle(TAG_CHANNELS.CONFIRM_AUTO, async (_e, list: unknown, tagId: unknown) => {
+    if (typeof tagId !== 'number') return
+    store.confirmAuto(hashes(list), tagId)
+    broadcastTagsChanged()
+  })
+
   ipcMain.handle(TAG_CHANNELS.RENAME, async (_e, tagId: unknown, name: unknown) => {
     if (typeof tagId !== 'number' || typeof name !== 'string') return null
     const id = store.rename(tagId, name)

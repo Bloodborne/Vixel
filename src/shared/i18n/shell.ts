@@ -39,8 +39,6 @@ const zh = {
   searchPlaceholder: '搜索：物体、场景、图内文字、文件名…',
   // 标题 / 副标题
   folder: '文件夹',
-  similarTo: (name: string) => `与“${name}”相似`,
-  sortedBySimilarity: ' · 按相似度排序',
   quoted: (q: string) => `“${q}”`,
   dateFiltered: ' · 已按时间过滤',
   // 日期过滤栏
@@ -93,8 +91,6 @@ const en: typeof zh = {
   settingsTitle: (key) => `Settings (${key})`,
   searchPlaceholder: 'Search objects, scenes, text in images, file names…',
   folder: 'Folder',
-  similarTo: (name) => `Similar to “${name}”`,
-  sortedBySimilarity: ' · sorted by similarity',
   quoted: (q) => `“${q}”`,
   dateFiltered: ' · filtered by date',
   date: 'Date',

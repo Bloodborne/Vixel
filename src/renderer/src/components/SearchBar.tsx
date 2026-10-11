@@ -11,9 +11,12 @@ interface SearchBarProps {
   saved?: boolean
   saveTitle?: string
   onToggleSave?: () => void
+  /** 以图搜图：查询图芯片（缩略图 + ×）；设了之后文字变成"图 + 文"补充描述 */
+  image?: { thumb: string | null; name: string } | null
+  onClearImage?: () => void
 }
 
-export function SearchBar({ value, onSearch, isSearching, resultCount, saved, saveTitle, onToggleSave }: SearchBarProps): JSX.Element {
+export function SearchBar({ value, onSearch, isSearching, resultCount, saved, saveTitle, onToggleSave, image, onClearImage }: SearchBarProps): JSX.Element {
   const [query, setQuery] = useState(value)
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -52,7 +55,12 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, sa
   }
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Escape' && query) {
+    if (e.key !== 'Escape') return
+    // Esc 先清查询图，再清文字；都没有才冒泡给全局（关浮层等）
+    if (image && onClearImage) {
+      e.stopPropagation()
+      onClearImage()
+    } else if (query) {
       e.stopPropagation()
       handleClear()
     }
@@ -75,8 +83,8 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, sa
     }
   }, [])
 
-  // 搜索结果计数提示
-  const showResultHint = query.trim() && !isSearching && resultCount !== undefined
+  // 搜索结果计数提示（以图搜图时没有文字也显示）
+  const showResultHint = (query.trim() || image) && !isSearching && resultCount !== undefined
 
   return (
     <form onSubmit={handleSubmit} className="relative">
@@ -93,6 +101,32 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, sa
         )}
       </div>
 
+      {/* 查询图芯片（以图搜图）：缩略图 + ×；文字输入保留，变成"图 + 文"补充描述 */}
+      {image && (
+        <div className="absolute inset-y-0 left-7 flex items-center" data-image-chip>
+          <span className="flex items-center gap-1 h-[22px] pl-[3px] pr-0.5 rounded bg-accent-fill border border-accent/35" title={image.name}>
+            {image.thumb ? (
+              <img src={image.thumb} alt={t.imagesearch.queryImage} className="w-4 h-4 rounded-[3px] object-cover" />
+            ) : (
+              <svg className="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path strokeLinecap="round" d="M5 17l4.5-4.5 3 3L17 11l2 2" />
+              </svg>
+            )}
+            <button
+              type="button"
+              onClick={onClearImage}
+              title={t.imagesearch.clearQuery}
+              data-clear-image
+              className="w-4 h-4 rounded flex items-center justify-center text-accent hover:bg-accent/20 transition-colors"
+            >
+              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+                <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </span>
+        </div>
+      )}
+
       <input
         ref={inputRef}
         id="search-input"
@@ -103,8 +137,8 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, sa
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onKeyDown={handleKeyDown}
-        placeholder={t.shell.searchPlaceholder}
-        className="w-full h-7 pl-8 pr-24 text-body rounded-md bg-fill border border-line text-ink placeholder-ink-4 focus:outline-none focus:border-accent/50 focus:bg-raised transition-colors duration-fast"
+        placeholder={image ? t.imagesearch.placeholderWithImage : t.shell.searchPlaceholder}
+        className={`w-full h-7 ${image ? 'pl-[76px]' : 'pl-8'} pr-24 text-body rounded-md bg-fill border border-line text-ink placeholder-ink-4 focus:outline-none focus:border-accent/50 focus:bg-raised transition-colors duration-fast`}
       />
 
       <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
@@ -114,8 +148,8 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, sa
             {t.common.items(resultCount ?? 0)}
           </span>
         )}
-        {/* 存为智能相册 */}
-        {query.trim() && onToggleSave && (
+        {/* 存为智能相册（以图搜图存不进相册，不显示） */}
+        {query.trim() && !image && onToggleSave && (
           <button
             type="button"
             onClick={onToggleSave}

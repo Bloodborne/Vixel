@@ -7,14 +7,13 @@ import { t } from '../../../../shared/i18n'
 
 export type KindFilter = 'all' | 'image' | 'video' | 'audio'
 
-/** 侧边栏选中的"来源"：资料库某一类 / 某个文件夹 / 地图 / 人物；similar 由右键"查找相似内容"进入，不在侧栏里 */
+/** 侧边栏选中的"来源"：资料库某一类 / 某个文件夹 / 地图 / 人物 */
 export type Source =
   | { type: 'library'; kind: KindFilter }
   | { type: 'folder'; id: number }
   | { type: 'map' }
   | { type: 'people' }
   | { type: 'cleanup' }
-  | { type: 'similar'; photoId: number; name: string }
   | { type: 'favorites' }
   | { type: 'album'; id: number }
   | { type: 'tag'; id: number }
@@ -85,7 +84,8 @@ export function Sidebar({
       return !c
     })
   }
-  const liveTags = tags.filter((x) => x.count > 0)
+  // 自动标签（词表标签）只有一项的不列出来，避免侧栏被零散的自动标签挤满
+  const liveTags = tags.filter((x) => x.count > (x.labelId ? 1 : 0))
   // 当前打开的标签即使排在后面也列出来，不然侧栏上看不到高亮
   const tagsShown = showAllTags ? liveTags : liveTags.filter((x, i) => i < TAGS_SHOWN || (source.type === 'tag' && source.id === x.id))
   // 拖动期间宽度只记在本地，mouseup 才提交给 App——否则每帧都触发
@@ -198,7 +198,7 @@ export function Sidebar({
                 {tagsShown.map((tag) => (
                   <EditableRow
                     key={tag.id}
-                    icon="tag"
+                    icon={tag.labelId ? 'sparkles' : 'tag'}
                     name={tag.name}
                     count={tag.count}
                     data="tag"

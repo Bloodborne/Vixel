@@ -65,6 +65,13 @@ const STEPS: Step[] = [
   },
   { name: 'search-text', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[1]))(w) }, wait: 3000 },
   { name: 'search-nomatch', run: js(typeSearch(QUERIES[2])), wait: 3000 },
+  // 以图搜图：VIXEL_CAPTURE_IMAGE=<库外查询图路径>（事件入口见 App.tsx；要过一遍模型，多等一会）
+  ...(process.env.VIXEL_CAPTURE_IMAGE ? [{
+    name: 'image-search',
+    run: (w: BrowserWindow) => { js(typeSearch(''))(w); return js(`window.dispatchEvent(new CustomEvent('vixel:image-search', { detail: { path: ${JSON.stringify(process.env.VIXEL_CAPTURE_IMAGE)} } }))`)(w) },
+    wait: 8000,
+    after: js(`document.querySelector('[data-clear-image]')?.click()`),
+  } satisfies Step] : []),
   // 智能相册：先在演示库里建好（查询相册 + 纯筛选相册），这里依次打开；最后在相册里改查询，标题旁出现"更新相册"
   { name: 'albums', run: js(`document.querySelectorAll('[data-album-row] [role="button"]')[0]?.click()`), wait: 3000 },
   { name: 'album-filters', run: js(`document.querySelectorAll('[data-album-row] [role="button"]')[1]?.click()`), wait: 3000 },
@@ -84,6 +91,17 @@ const STEPS: Step[] = [
   },
   // 标签名也是搜索通道：结果卡片上有"标签"角标（查询可用 VIXEL_CAPTURE_QUERIES 第 4 项覆盖）
   { name: 'tag-search', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[3] ?? '花卉'))(w) }, wait: 3000 },
+  // 自动标签：侧栏里第一个 ✦ 标签，选中第一项，检查器里是虚线 ✦ 标签（✓ / ×）
+  {
+    name: 'autotags',
+    run: async (w) => {
+      await js(typeSearch(''))(w)
+      await js(`(() => { const rows = [...document.querySelectorAll('[data-tag-row]')]; const auto = rows.find((r) => r.querySelector('svg path[d^="M9.813"]')); (auto ?? rows[0])?.querySelector('[role="button"]')?.click() })()`)(w)
+      await sleep(1500)
+      await js(`document.querySelector('.photo-card')?.click()`)(w)
+    },
+    wait: 2000,
+  },
   { name: 'people', run: (w) => { js(typeSearch(''))(w); command('source:people')(w) }, wait: 6000 },
   { name: 'map', run: command('source:map'), wait: 3500 },
   { name: 'cleanup', run: command('source:cleanup'), wait: 4000 },

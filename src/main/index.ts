@@ -20,15 +20,17 @@ import { serveMediaFile } from '../core/media/serve'
 import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
 import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
 import { installAppMenu, popupItemMenu, popupSmartAlbumMenu } from './menu'
+import { searchByImage } from './imageSearch'
 import { locale, resolveLocale, setLocale, t, type LocaleSetting } from '../shared/i18n'
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { registerCleanupIpc } from './cleanup'
 import { broadcastTagsChanged, registerTagIpc } from './tags'
 import { registerCollectIpc } from './collect'
+import { registerAutoTags } from './autotags'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
-import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace } from '../shared/types'
+import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace, type ImageQueryInput } from '../shared/types'
 
 const APP_NAME = 'Vixel'
 
@@ -407,6 +409,11 @@ function registerIpcHandlers(): void {
     return searchEngine.findSimilar(photo.fileHash, limit || 12)
   })
 
+  // 以图搜图：拖入 / 粘贴的查询图只在内存和临时文件里处理，不进资料库（见 imageSearch.ts）
+  handle(IPC_CHANNELS.SEARCH_BY_IMAGE, async (_event, input: ImageQueryInput, limit?: number, options?: SearchOptions) => {
+    return searchByImage(db, searchEngine, input, limit, options)
+  })
+
   handle(IPC_CHANNELS.SELECT_FOLDER, async () => {
     const result = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow() ?? mainWindow!, {
       properties: ['openDirectory'],
@@ -576,7 +583,7 @@ function registerIpcHandlers(): void {
     return win ? popupSmartAlbumMenu(win, String(name ?? '')) : null
   })
 
-  handle(IPC_CHANNELS.SHOW_ITEM_MENU, async (event, opts: { count: number; isMedia: boolean; favorite: boolean }) => {
+  handle(IPC_CHANNELS.SHOW_ITEM_MENU, async (event, opts: { count: number; isMedia: boolean; favorite: boolean; canImageSearch: boolean }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     return win ? popupItemMenu(win, opts) : null
   })
@@ -879,6 +886,10 @@ app.whenReady().then(async () => {
   registerCleanupIpc(db, broadcastLibraryChanged)
   registerTagIpc(db)
   registerCollectIpc({ db, watcher, broadcastLibraryChanged, broadcastTagsChanged, getMainWindow: () => mainWindow })
+  // 自动标签：新内容有了向量 / 视频片段做完就排一次判定
+  const autoTags = registerAutoTags(db, broadcastTagsChanged)
+  indexer.on('embedded', () => autoTags.kick())
+  indexer.on('video-indexed', (videoId: number) => autoTags.videoUpdated(videoId))
   installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
   createWindow()
 

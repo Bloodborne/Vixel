@@ -278,6 +278,24 @@ CREATE TABLE IF NOT EXISTS item_tags (
   PRIMARY KEY (file_hash, tag_id)
 );
 CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
+
+-- 自动标签（见 core/autotag）：词表里每个标签的文字向量缓存（词表版本变了就重算）
+CREATE TABLE IF NOT EXISTS autotag_labels (
+  label_id    TEXT PRIMARY KEY,
+  version     TEXT NOT NULL,
+  embedding   BLOB NOT NULL
+);
+-- 已经判定过的内容（按词表版本；重跑 = 清空）
+CREATE TABLE IF NOT EXISTS autotag_done (
+  file_hash   TEXT PRIMARY KEY,
+  version     TEXT NOT NULL
+);
+-- 用户删掉的自动标签：这张内容以后不再自动打这个标签
+CREATE TABLE IF NOT EXISTS autotag_rejections (
+  file_hash   TEXT NOT NULL,
+  label_id    TEXT NOT NULL,
+  PRIMARY KEY (file_hash, label_id)
+);
 `
 
 /** 后来加的表（只读打开旧库时用空 TEMP 表顶替，见 initDatabase） */
@@ -286,8 +304,11 @@ const LATE_TABLES: Record<string, string> = {
   hidden_items: 'file_hash TEXT PRIMARY KEY, reason TEXT, created_at DATETIME',
   dismissed_dup_groups: 'group_id TEXT PRIMARY KEY, created_at DATETIME',
   smart_albums: 'id INTEGER PRIMARY KEY, name TEXT, query TEXT, filters TEXT, sort_order INTEGER, created_at DATETIME, updated_at DATETIME',
-  tags: 'id INTEGER PRIMARY KEY, name TEXT, created_at DATETIME',
-  item_tags: 'file_hash TEXT, tag_id INTEGER',
+  tags: 'id INTEGER PRIMARY KEY, name TEXT, created_at DATETIME, label_id TEXT',
+  item_tags: 'file_hash TEXT, tag_id INTEGER, auto_score REAL',
+  autotag_labels: 'label_id TEXT PRIMARY KEY, version TEXT, embedding BLOB',
+  autotag_done: 'file_hash TEXT PRIMARY KEY, version TEXT',
+  autotag_rejections: 'file_hash TEXT, label_id TEXT',
   item_sources: 'file_hash TEXT PRIMARY KEY, url TEXT, page_url TEXT, page_title TEXT, collected_at DATETIME',
 }
 
@@ -385,6 +406,12 @@ export function migrateSchema(db: Database.Database): void {
   // 收集箱：就是一个普通监视文件夹，打个标记（只有 core/collectStore 读它）
   add('watched_folders', 'is_inbox', 'INTEGER DEFAULT 0')
   db.exec(`CREATE INDEX IF NOT EXISTS idx_faces_unassigned ON faces(cluster_state) WHERE person_id IS NULL`)
+
+  // 自动标签：标签可以对应词表里的一个标签（label_id，界面按语言显示名字）；
+  // 内容↔标签的链接带 auto_score 表示是自动打的（NULL = 用户打的 / 已确认）
+  add('tags', 'label_id', 'TEXT')
+  add('item_tags', 'auto_score', 'REAL')
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_label ON tags(label_id) WHERE label_id IS NOT NULL`)
 
   // 开发期曾有过的 Eagle 资源库镜像表（未发布即移除）
   db.exec(`DROP TABLE IF EXISTS eagle_items; DROP INDEX IF EXISTS idx_item_tags_origin`)
@@ -563,6 +590,8 @@ export interface DatabaseInstance {
     fileHash: string,
     limit: number
   ) => Array<{ fileHash: string; distance: number }>
+  /** 某内容 hash 已存的图片向量（以图搜图"以此图搜索"直接用，不再过模型）；没有则 null */
+  getImageVecByHash: (fileHash: string) => Float32Array | null
   getPhotosWithGPS: (limit?: number) => Photo[]
 
   // 人脸
@@ -1171,6 +1200,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     deleteFavoriteByHash: db.prepare(`DELETE FROM favorites WHERE file_hash = ?`),
     deleteItemTagsByHash: db.prepare(`DELETE FROM item_tags WHERE file_hash = ?`),
     deleteItemSourceByHash: db.prepare(`DELETE FROM item_sources WHERE file_hash = ?`),
+    deleteAutotagDoneByHash: db.prepare(`DELETE FROM autotag_done WHERE file_hash = ?`),
     // 等待 OCR 的照片：已有 embedding 但还没 OCR 结果
     clearAllOcr: db.prepare(`DELETE FROM image_ocr`),
     getPendingOcrPhotos: db.prepare(`
@@ -1481,6 +1511,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     stmts.deleteFavoriteByHash.run(hash)
     stmts.deleteItemTagsByHash.run(hash)
     stmts.deleteItemSourceByHash.run(hash)
+    stmts.deleteAutotagDoneByHash.run(hash)
   }
   /**
    * 软删某视频的全部帧 photo（beforeCommit 在同一事务里先执行），
@@ -2041,6 +2072,14 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
         console.error('Find similar error:', error)
         return []
       }
+    },
+
+    getImageVecByHash: (fileHash) => {
+      const mapRow = stmts.getVecMapRowid.get(fileHash) as { rowid: bigint | number } | undefined
+      if (!mapRow) return null
+      const vecRow = stmts.getVecByRowid.get(Number(mapRow.rowid)) as { embedding: Buffer } | undefined
+      if (!vecRow) return null
+      return new Float32Array(vecRow.embedding.buffer, vecRow.embedding.byteOffset, vecRow.embedding.byteLength / 4)
     },
 
     getPhotosWithGPS: (limit = 5000) => {

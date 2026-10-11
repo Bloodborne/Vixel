@@ -13,7 +13,7 @@ export type MenuCommand =
   | 'source:cleanup'
 
 /** 网格右键菜单（原生 Menu.popup）里用户选中的动作 */
-export type ItemMenuAction = 'open' | 'quick-look' | 'reveal' | 'copy-path' | 'find-similar' | 'open-external' | 'toggle-favorite'
+export type ItemMenuAction = 'open' | 'quick-look' | 'reveal' | 'copy-path' | 'search-by-image' | 'open-external' | 'toggle-favorite'
 
 /** 画面方向：全景 = 长宽比 ≥ 2:1（横竖都算），方形 = 长短边相差 10% 以内 */
 export type Orientation = 'landscape' | 'portrait' | 'square' | 'panorama'
@@ -138,6 +138,27 @@ export interface SearchResult {
   /** 没有任何结果明显相关时给出的"最接近"结果：界面据此提示"没有明确匹配" */
   lowConfidence?: boolean
   thumbnailPath?: string
+}
+
+/**
+ * 以图搜图的查询：三选一 —— 本地文件路径（Finder 拖入）、图片字节（粘贴 / 浏览器拖入）、
+ * 库内内容 hash（右键"以此图搜索"，直接用已存的向量，不再过模型）。text 一并给出时走多模态编码。
+ */
+export interface ImageQueryInput {
+  path?: string
+  bytes?: Uint8Array
+  fileHash?: string
+  text?: string
+}
+
+export interface ImageSearchResponse {
+  results: SearchResult[]
+  /** 查询图本身就在库里（同内容 hash），已从结果中排除 */
+  queryInLibrary: boolean
+  /** 查询图小缩略图（data URL），搜索框里的查询图芯片用；解码失败时没有 */
+  queryThumb?: string
+  /** 解码失败 / 模型未就绪：结果为空并说明原因 */
+  error?: 'decode-failed' | 'model-not-ready'
 }
 
 export interface CurrentTask {
@@ -296,6 +317,9 @@ export const IPC_CHANNELS = {
 
   // 相似照片
   FIND_SIMILAR: 'find-similar',
+
+  // 以图搜图（拖入 / 粘贴 / 右键"以此图搜索"）
+  SEARCH_BY_IMAGE: 'search-by-image',
 
   // 地图
   GET_PHOTOS_WITH_GPS: 'get-photos-with-gps',

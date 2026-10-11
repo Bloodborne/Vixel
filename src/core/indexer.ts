@@ -561,6 +561,7 @@ export class Indexer extends EventEmitter {
       if (task.taskType === 'extract_frames') {
         const note = await this.processExtractFrames(task.photoId)
         this.db.completeTask(task.id, note)
+        this.emit('video-indexed', task.photoId)
       } else {
         const photo = this.db.getPhoto(task.photoId)
         if (!photo) {
@@ -575,6 +576,7 @@ export class Indexer extends EventEmitter {
           await this.processThumbnail(photo.fileHash, photo.filePath, task.photoId, photo.width != null)
         } else if (task.taskType === 'embed') {
           await this.processEmbedding(photo.fileHash, photo.filePath, task.photoId)
+          this.emit('embedded', photo.fileHash)
           // 向量好了再排人脸 / OCR（优先级低于 embed，先让新内容可搜）
           if (photo.faceStatus !== 'done' && this.isFaceAutoEnabled() && !this.db.hasOpenTask(task.photoId, 'face')) {
             this.db.addToQueue(task.photoId, 'face', 8)

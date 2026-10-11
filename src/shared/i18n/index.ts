@@ -28,9 +28,11 @@ import organize from './organize'
 import albums from './albums'
 import cleanup from './cleanup'
 import tags from './tags'
+import autotags from './autotags'
+import imagesearch from './imagesearch'
 import collect from './collect'
 
-const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize, albums, cleanup, tags, collect }
+const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize, albums, cleanup, tags, autotags, imagesearch, collect }
 
 export type Locale = 'zh-CN' | 'en'
 export type LocaleSetting = 'system' | Locale
