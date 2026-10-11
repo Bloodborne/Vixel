@@ -148,8 +148,8 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, sa
             {t.common.items(resultCount ?? 0)}
           </span>
         )}
-        {/* 存为智能相册 */}
-        {query.trim() && onToggleSave && (
+        {/* 存为智能相册（以图搜图存不进相册，不显示） */}
+        {query.trim() && !image && onToggleSave && (
           <button
             type="button"
             onClick={onToggleSave}
