@@ -25,6 +25,7 @@ import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { registerCleanupIpc } from './cleanup'
 import { broadcastTagsChanged, registerTagIpc } from './tags'
+import { registerAutoTags } from './autotags'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
 import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace } from '../shared/types'
@@ -874,6 +875,10 @@ app.whenReady().then(async () => {
   registerIpcHandlers()
   registerCleanupIpc(db, broadcastLibraryChanged)
   registerTagIpc(db)
+  // 自动标签：新内容有了向量 / 视频片段做完就排一次判定
+  const autoTags = registerAutoTags(db, broadcastTagsChanged)
+  indexer.on('embedded', () => autoTags.kick())
+  indexer.on('video-indexed', (videoId: number) => autoTags.videoUpdated(videoId))
   installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
   createWindow()
 

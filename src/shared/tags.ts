@@ -8,6 +8,7 @@ export const TAG_CHANNELS = {
   RENAME: 'tags:rename',
   SHOW_MENU: 'tags:show-menu',
   CHANGED: 'tags:changed',
+  CONFIRM_AUTO: 'tags:confirm-auto',
 } as const
 
 export interface Tag {
@@ -15,6 +16,10 @@ export interface Tag {
   name: string
   /** 带这个标签的内容数（不含已删除 / 已隐藏） */
   count: number
+  /** 对应自动标签词表里的标签（名字按界面语言显示） */
+  labelId?: string | null
+  /** forHashes：选中项上这个标签全是自动打的、还没确认 */
+  auto?: boolean
 }
 
 /** 选中项的标签：all = 每一项都有；some = 只有部分有（多选时淡色显示） */

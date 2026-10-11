@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ThemeMode } from '../../../../shared/types'
 import { t, type LocaleSetting } from '../../../../shared/i18n'
+import { AutoTagSettings } from './AutoTagSettings'
 
 /** 外观选项的迷你窗口示意：侧栏 + 内容区两块，颜色写死（预览的就是另一种外观） */
 const SWATCH = {
@@ -97,6 +98,8 @@ export function GeneralSettings(): JSX.Element {
           <p className="text-caption text-ink-4">{t.settings.languageNote}</p>
         </div>
       </section>
+
+      <AutoTagSettings />
     </div>
   )
 }
