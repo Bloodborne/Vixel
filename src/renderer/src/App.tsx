@@ -13,6 +13,7 @@ import { StatusBar, THUMB_MIN, THUMB_MAX } from './components/shell/StatusBar'
 import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
+import { t } from '../../shared/i18n'
 import type {
   SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction,
   IndexProgress as IndexProgressType,
@@ -545,24 +546,24 @@ function App(): JSX.Element {
 
   const title = useMemo(() => {
     switch (source.type) {
-      case 'library': return LIBRARY_ITEMS.find((i) => i.kind === source.kind)?.label ?? '全部'
+      case 'library': return LIBRARY_ITEMS.find((i) => i.kind === source.kind)?.label ?? t.common.all
       case 'folder': {
         const f = folders.find((x) => x.id === source.id)
-        return f ? folderName(f.path) : '文件夹'
+        return f ? folderName(f.path) : t.shell.folder
       }
-      case 'map': return '地图'
-      case 'people': return '人物'
-      case 'similar': return `与“${source.name}”相似`
+      case 'map': return t.shell.map
+      case 'people': return t.shell.people
+      case 'similar': return t.shell.similarTo(source.name)
     }
   }, [source, folders])
 
   const breakdown = useMemo(() => countLine(searchResults.map((r) => r.photo)), [searchResults])
   const subtitle = isGrid
     ? source.type === 'similar'
-      ? `${searchResults.length.toLocaleString()} 项 · 按相似度排序`
+      ? t.common.items(searchResults.length) + t.shell.sortedBySimilarity
       : hasSearchQuery
-      ? `“${query.trim()}” · ${searchResults.length.toLocaleString()} 项`
-      : searchResults.length > 0 ? `${searchResults.length.toLocaleString()} 项${hasDateFilter ? ' · 已按时间过滤' : ''}` : undefined
+      ? `${t.shell.quoted(query.trim())}${t.common.sep}${t.common.items(searchResults.length)}`
+      : searchResults.length > 0 ? `${t.common.items(searchResults.length)}${hasDateFilter ? t.shell.dateFiltered : ''}` : undefined
     : undefined
 
   return (
@@ -605,7 +606,7 @@ function App(): JSX.Element {
         {/* 日期过滤栏 */}
         {showDateFilter && isGrid && (
           <div className="h-9 flex-shrink-0 px-4 bg-bar border-b border-line flex items-center gap-3 animate-fade-in">
-            <span className="text-caption text-ink-3">时间</span>
+            <span className="text-caption text-ink-3">{t.shell.date}</span>
             <input
               type="date"
               value={dateFrom}
@@ -624,7 +625,7 @@ function App(): JSX.Element {
                 onClick={() => { handleDateFilterChange('', ''); setShowDateFilter(false) }}
                 className="text-caption text-ink-3 hover:text-ink px-1.5 py-0.5 rounded hover:bg-fill"
               >
-                清除
+                {t.shell.clear}
               </button>
             )}
           </div>
@@ -646,7 +647,7 @@ function App(): JSX.Element {
                 <svg className="w-4 h-4 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
                   <circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M20 20l-3.5-3.5" />
                 </svg>
-                <span>“{query.trim()}”没有特别突出的匹配，下面按相似度列出最接近的结果。可以换个更具体的说法，或搜图中的文字。</span>
+                <span>{t.shell.lowConfidence(query.trim())}</span>
               </div>
             )}
             <div className="flex-1 min-h-0">
@@ -670,17 +671,17 @@ function App(): JSX.Element {
           ) : libraryEmpty ? (
             <EmptyState
               icon="image"
-              title="资料库还是空的"
-              hint="添加一个文件夹，Vixel 会在本机为其中的图片、视频和音频建立索引"
-              action={{ label: '添加文件夹…', onClick: handleAddFolder }}
+              title={t.shell.emptyLibraryTitle}
+              hint={t.shell.emptyLibraryHint}
+              action={{ label: t.shell.addFolderEllipsis, onClick: handleAddFolder }}
             />
           ) : counts === null || isSearching ? null : (
             <EmptyState
               icon="search"
-              title={hasSearchQuery ? '没有找到匹配的内容' : '这里没有内容'}
+              title={hasSearchQuery ? t.shell.noMatchTitle : t.shell.nothingHereTitle}
               hint={hasSearchQuery
-                ? '试试其他关键词、图内的文字片段，或换种说法'
-                : hasDateFilter ? '试试放宽时间过滤' : '换个类别或文件夹看看'}
+                ? t.shell.noMatchHint
+                : hasDateFilter ? t.shell.widenDateHint : t.shell.otherCategoryHint}
             />
           )}
         </main>

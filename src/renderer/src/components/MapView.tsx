@@ -3,6 +3,7 @@ import type { Photo } from '../../../shared/types'
 import { useColorScheme } from '../lib/theme'
 import { thumbUrl } from '../lib/mediaUrl'
 import { addOfflineBasemap, type OfflineBasemap } from '../lib/basemap'
+import { t, intlLocale } from '../../../shared/i18n'
 
 
 // 模块级别缓存 Leaflet，确保 markercluster 扩展不丢失
@@ -134,12 +135,12 @@ export function MapView({ onSelect }: MapViewProps): JSX.Element {
           if (photo.takenAt) {
             const date = document.createElement('div')
             date.style.cssText = 'font-size:10px;color:var(--ink-3);margin-top:2px;'
-            date.textContent = new Date(photo.takenAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+            date.textContent = new Date(photo.takenAt).toLocaleDateString(intlLocale(), { year: 'numeric', month: 'long', day: 'numeric' })
             root.appendChild(date)
           }
           const hint = document.createElement('div')
           hint.style.cssText = 'font-size:10px;color:rgb(var(--accent));margin-top:4px;'
-          hint.textContent = '点击查看详情 →'
+          hint.textContent = t.map.clickForDetails
           root.appendChild(hint)
           root.onclick = (e) => {
             e.stopPropagation()
@@ -195,7 +196,7 @@ export function MapView({ onSelect }: MapViewProps): JSX.Element {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center bg-canvas">
-        <p className="text-ink-3 text-callout">加载中...</p>
+        <p className="text-ink-3 text-callout">{t.map.loading}</p>
       </div>
     )
   }
@@ -204,7 +205,7 @@ export function MapView({ onSelect }: MapViewProps): JSX.Element {
     return (
       <div className="h-full flex items-center justify-center bg-canvas">
         <div className="text-center">
-          <p className="text-bad/60 text-body">地图加载失败</p>
+          <p className="text-bad/60 text-body">{t.map.loadFailed}</p>
           <p className="text-ink-3 text-callout mt-1">{error}</p>
         </div>
       </div>
@@ -219,8 +220,8 @@ export function MapView({ onSelect }: MapViewProps): JSX.Element {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <p className="text-ink-3 text-body">暂无带位置信息的内容</p>
-          <p className="text-ink-3 text-callout mt-1">手机拍摄的图片和视频通常包含 GPS 数据</p>
+          <p className="text-ink-3 text-body">{t.map.emptyTitle}</p>
+          <p className="text-ink-3 text-callout mt-1">{t.map.emptyHint}</p>
         </div>
       </div>
     )
@@ -230,7 +231,7 @@ export function MapView({ onSelect }: MapViewProps): JSX.Element {
     <div className="h-full relative">
       <div ref={mapContainerRef} className="h-full w-full" style={{ background: 'var(--surface-1)' }} />
       <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-raised border border-line text-micro text-ink-2 pointer-events-none">
-        {gpsPhotos.length} 项有位置信息
+        {t.map.withLocation(gpsPhotos.length)}
       </div>
     </div>
   )

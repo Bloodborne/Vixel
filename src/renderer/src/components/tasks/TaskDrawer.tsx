@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { IndexProgress, MediaKind, TaskOverview, TaskRow, TaskType } from '../../../../shared/types'
 import { formatSpan } from '../../lib/format'
+import { t } from '../../../../shared/i18n'
 
 interface TaskDrawerProps {
   open: boolean
@@ -9,15 +10,15 @@ interface TaskDrawerProps {
 }
 
 const TASK_LABELS: Record<TaskType, string> = {
-  thumbnail: '缩略图',
-  embed: '图片向量',
-  extract_frames: '音视频片段',
-  ocr: '图内文字',
-  face: '人脸',
+  thumbnail: t.tasks.taskThumbnail,
+  embed: t.tasks.taskEmbed,
+  extract_frames: t.tasks.taskExtractFrames,
+  ocr: t.tasks.taskOcr,
+  face: t.tasks.taskFace,
 }
 const TASK_ORDER: TaskType[] = ['thumbnail', 'embed', 'extract_frames', 'ocr', 'face']
 
-const KIND_LABELS: Record<MediaKind, string> = { image: '图片', video: '视频', audio: '音频' }
+const KIND_LABELS: Record<MediaKind, string> = { image: t.common.image, video: t.common.video, audio: t.common.audio }
 
 // ETA 用最近 N 个片段耗时的均值；单个片段受内容影响波动大（静态画面 vs 4K 运动）
 const ETA_WINDOW = 8
@@ -105,7 +106,7 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
     })
     .filter((q) => q.active > 0 || q.error > 0)
   const errors = overview?.errors ?? []
-  const upcoming = (overview?.pending ?? []).filter((t) => t.status === 'pending')
+  const upcoming = (overview?.pending ?? []).filter((task) => task.status === 'pending')
 
   return (
     <>
@@ -114,29 +115,29 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
         className="fixed inset-x-0 bottom-0 z-40 h-[55vh] bg-raised border-t border-line-strong rounded-t-xl shadow-2xl flex flex-col animate-slide-up"
         role="dialog"
         aria-modal="true"
-        aria-label="活动"
+        aria-label={t.tasks.title}
       >
         {/* 头部 */}
         <div className="flex items-center gap-3 px-5 h-11 border-b border-line flex-shrink-0">
-          <h2 className="text-body font-medium text-ink">活动</h2>
+          <h2 className="text-body font-medium text-ink">{t.tasks.title}</h2>
           {paused ? (
-            <span className="text-caption text-warn/70">已暂停</span>
+            <span className="text-caption text-warn/70">{t.tasks.paused}</span>
           ) : progress?.stage !== 'idle' && progress?.stage ? (
-            <span className="text-caption text-accent/70">运行中</span>
+            <span className="text-caption text-accent/70">{t.tasks.running}</span>
           ) : (
-            <span className="text-caption text-ink-4">空闲</span>
+            <span className="text-caption text-ink-4">{t.tasks.idle}</span>
           )}
           <div className="ml-auto flex items-center gap-1">
             <button
               onClick={togglePause}
               className="px-2.5 py-1 rounded-md text-caption text-ink-2 hover:text-ink hover:bg-fill-hover transition-colors"
             >
-              {paused ? '继续索引' : '暂停索引'}
+              {paused ? t.tasks.resumeIndexing : t.tasks.pauseIndexing}
             </button>
             <button
               onClick={onClose}
               className="p-1.5 rounded-md text-ink-3 hover:text-ink hover:bg-fill-hover transition-colors"
-              title="关闭 (Esc)"
+              title={t.tasks.closeEsc}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -149,20 +150,20 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
           {/* 整体进度 */}
           <section className="grid grid-cols-2 gap-4">
             <ProgressStat
-              label="图片"
+              label={t.common.images}
               done={photos?.indexed ?? 0}
               total={photos?.total ?? 0}
-              detail={photos && photos.thumbnailed < photos.total ? `缩略图 ${photos.thumbnailed}/${photos.total}` : undefined}
+              detail={photos && photos.thumbnailed < photos.total ? t.tasks.thumbnails(photos.thumbnailed, photos.total) : undefined}
             />
             <ProgressStat
-              label="音视频片段"
+              label={t.tasks.mediaSegments}
               done={media?.segmentsDone ?? 0}
               total={media?.segmentsExpected ?? 0}
               detail={media
                 ? [
-                    media.video.total > 0 ? `视频 ${media.video.done}/${media.video.total}` : '',
-                    media.audio.total > 0 ? `音频 ${media.audio.done}/${media.audio.total}` : '',
-                    segRemaining > 0 && etaMs > 0 && !paused ? `剩余约 ${formatSpan(etaMs)}` : '',
+                    media.video.total > 0 ? t.tasks.videoProgress(media.video.done, media.video.total) : '',
+                    media.audio.total > 0 ? t.tasks.audioProgress(media.audio.done, media.audio.total) : '',
+                    segRemaining > 0 && etaMs > 0 && !paused ? t.tasks.remaining(formatSpan(etaMs)) : '',
                   ].filter(Boolean).join(' · ')
                 : undefined}
             />
@@ -170,7 +171,7 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
 
           {/* 当前任务 */}
           <section>
-            <SectionTitle>正在处理</SectionTitle>
+            <SectionTitle>{t.tasks.nowProcessing}</SectionTitle>
             {current ? (
               <div className="bg-fill rounded-lg px-3 py-2.5">
                 <div className="flex items-center gap-2 text-callout">
@@ -182,35 +183,35 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
                   <div className="mt-2 flex items-center gap-3">
                     <Bar ratio={current.segDone / current.segTotal} />
                     <span className="text-caption text-ink-3 tabular-nums flex-shrink-0">
-                      片段 {current.segDone}/{current.segTotal}
+                      {t.tasks.segmentProgress(current.segDone, current.segTotal)}
                     </span>
                   </div>
                 )}
                 <div className="mt-1.5 text-micro text-ink-4 tabular-nums">
-                  已用 {formatSpan(Date.now() - current.startedAt)}
-                  {current.lastSegMs ? ` · 上一片段 ${(current.lastSegMs / 1000).toFixed(1)}s` : ''}
+                  {t.tasks.elapsed(formatSpan(Date.now() - current.startedAt))}
+                  {current.lastSegMs ? t.tasks.lastSegment((current.lastSegMs / 1000).toFixed(1)) : ''}
                 </div>
               </div>
             ) : (
-              <p className="text-callout text-ink-4">{paused ? '已暂停，点「继续索引」恢复' : '没有正在运行的任务'}</p>
+              <p className="text-callout text-ink-4">{paused ? t.tasks.pausedHint : t.tasks.nothingRunning}</p>
             )}
           </section>
 
           {/* 队列 */}
           {queueByType.length > 0 && (
             <section>
-              <SectionTitle>队列</SectionTitle>
+              <SectionTitle>{t.tasks.queue}</SectionTitle>
               <div className="flex flex-wrap gap-2 mb-2">
                 {queueByType.map((q) => (
                   <span key={q.type} className="px-2 py-1 rounded-md bg-fill text-caption text-ink-2">
                     {TASK_LABELS[q.type]} <span className="text-ink tabular-nums">{q.active}</span>
-                    {q.error > 0 && <span className="text-bad/70"> · {q.error} 失败</span>}
+                    {q.error > 0 && <span className="text-bad/70">{t.tasks.queueFailed(q.error)}</span>}
                   </span>
                 ))}
               </div>
               {upcoming.length > 0 && (
                 <ul className="space-y-0.5">
-                  {upcoming.map((t) => <TaskLine key={t.id} task={t} />)}
+                  {upcoming.map((task) => <TaskLine key={task.id} task={task} />)}
                 </ul>
               )}
             </section>
@@ -220,43 +221,43 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
           {errors.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-2">
-                <SectionTitle className="mb-0">失败 {errors.length}</SectionTitle>
+                <SectionTitle className="mb-0">{t.tasks.failedTitle(errors.length)}</SectionTitle>
                 <div className="ml-auto flex gap-1">
                   <button
                     disabled={busy}
                     onClick={() => runAction(() => window.api.retryFailedTasks())}
                     className="px-2 py-0.5 rounded text-caption text-accent/80 hover:bg-accent/10 disabled:opacity-40"
                   >
-                    全部重试
+                    {t.tasks.retryAll}
                   </button>
                   <button
                     disabled={busy}
                     onClick={() => runAction(() => window.api.clearFailedTasks())}
                     className="px-2 py-0.5 rounded text-caption text-ink-3 hover:text-ink hover:bg-fill disabled:opacity-40"
                   >
-                    清除
+                    {t.tasks.clear}
                   </button>
                 </div>
               </div>
               <ul className="space-y-1">
-                {errors.map((t) => (
-                  <li key={t.id} className="group bg-fill rounded-md px-3 py-2">
+                {errors.map((task) => (
+                  <li key={task.id} className="group bg-fill rounded-md px-3 py-2">
                     <div className="flex items-center gap-2 text-callout">
-                      <KindBadge kind={t.kind} />
-                      <span className="text-ink truncate flex-1">{t.name ?? '(已删除)'}</span>
+                      <KindBadge kind={task.kind} />
+                      <span className="text-ink truncate flex-1">{task.name ?? t.tasks.deleted}</span>
                       <span className="text-micro text-ink-4 flex-shrink-0">
-                        {TASK_LABELS[t.taskType]}{t.retryCount > 0 ? ` · 重试 ${t.retryCount} 次` : ''}
+                        {TASK_LABELS[task.taskType]}{task.retryCount > 0 ? t.tasks.retried(task.retryCount) : ''}
                       </span>
                       <button
                         disabled={busy}
-                        onClick={() => runAction(() => window.api.retryFailedTasks([t.id]))}
+                        onClick={() => runAction(() => window.api.retryFailedTasks([task.id]))}
                         className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded text-micro text-accent/80 hover:bg-accent/10 transition-opacity disabled:opacity-40"
                       >
-                        重试
+                        {t.common.retry}
                       </button>
                     </div>
-                    {t.errorMsg && (
-                      <p className="mt-1 text-micro text-bad/60 break-all line-clamp-2">{t.errorMsg}</p>
+                    {task.errorMsg && (
+                      <p className="mt-1 text-micro text-bad/60 break-all line-clamp-2">{task.errorMsg}</p>
                     )}
                   </li>
                 ))}
@@ -265,7 +266,7 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
           )}
 
           {overview && !current && queueByType.length === 0 && errors.length === 0 && (
-            <p className="text-callout text-ink-4 text-center pt-4">全部完成 ✓</p>
+            <p className="text-callout text-ink-4 text-center pt-4">{t.tasks.allDone}</p>
           )}
         </div>
       </div>
@@ -315,7 +316,7 @@ function TaskLine({ task }: { task: TaskRow }): JSX.Element {
   return (
     <li className="flex items-center gap-2 text-caption px-1 py-0.5">
       <KindBadge kind={task.kind} />
-      <span className="text-ink-2 truncate flex-1">{task.name ?? '(已删除)'}</span>
+      <span className="text-ink-2 truncate flex-1">{task.name ?? t.tasks.deleted}</span>
       <span className="text-ink-4 flex-shrink-0">{TASK_LABELS[task.taskType]}</span>
     </li>
   )

@@ -75,6 +75,7 @@ SCRFD 人脸检测 + MobileFaceNet 512 维特征 + sqlite-vec 近邻索引。
 - **HEIC / RAW** —— macOS 上通过系统 `sips` 解码 CR2 / CR3 / NEF / ARW / DNG / RAF / ORF / RW2，保留 EXIF。
 - **快速查看** —— 空格预览，⌘1–5 切换 全部 / 图片 / 视频 / 音频 / 地图。
 - **命令行** —— `vixel search "海边" --json`，方便脚本和 Agent 调用（见下文）；结果里的 `matchedBy` 说明是画面、图中文字还是文件名命中。
+- **中英文界面** —— 跟随系统语言，也可在 设置 → 通用 里切换。
 - **诊断** —— `vixel doctor` / `vixel bench` 体检和测速，`VIXEL_PROFILE=1` 打印慢操作，见 [docs/debugging.md](docs/debugging.md)。
 
 ## 隐私

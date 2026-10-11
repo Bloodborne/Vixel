@@ -20,7 +20,7 @@ const command = (cmd: MenuCommand) => (win: BrowserWindow) => win.webContents.se
 const js = (code: string) => (win: BrowserWindow) => win.webContents.executeJavaScript(`try { ${code} } catch (e) {}`).then(() => {})
 
 const typeSearch = (q: string): string => `
-  const el = document.querySelector('input[type="search"], input[placeholder^="搜索"]');
+  const el = document.querySelector('input[data-search-input]');
   const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
   set.call(el, ${JSON.stringify(q)}); el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));`
@@ -41,7 +41,7 @@ const STEPS: Step[] = [
   { name: 'tasks', run: (w) => { command('source:all')(w); command('activity')(w) }, wait: 2000 },
 ]
 
-export async function runCaptureTour(win: BrowserWindow, outDir: string): Promise<void> {
+export async function runCaptureTour(win: BrowserWindow, outDir: string, openSettings: () => BrowserWindow): Promise<void> {
   await mkdir(outDir, { recursive: true })
   win.setSize(1440, 900)
   win.center()
@@ -56,6 +56,12 @@ export async function runCaptureTour(win: BrowserWindow, outDir: string): Promis
       await writeFile(join(outDir, `${theme}-${step.name}.png`), img.toPNG())
       console.log(`[capture] ${theme}-${step.name}.png`)
     }
+    // 设置窗口（通用页：外观、语言）
+    const settings = openSettings()
+    await sleep(2000)
+    await writeFile(join(outDir, `${theme}-settings.png`), (await settings.webContents.capturePage()).toPNG())
+    console.log(`[capture] ${theme}-settings.png`)
+    settings.close()
     // 收起抽屉 / 清空搜索，下一轮从干净状态开始
     await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)(win)
     await js(typeSearch(''))(win)
@@ -77,7 +83,7 @@ const typeSlowly = async (win: BrowserWindow, text: string): Promise<void> => {
   await js(typeSearch(''))(win)
   for (let i = 1; i <= text.length; i++) {
     await win.webContents.executeJavaScript(`try {
-      const el = document.querySelector('input[type="search"], input[placeholder^="搜索"]');
+      const el = document.querySelector('input[data-search-input]');
       el.focus();
       const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
       set.call(el, ${JSON.stringify(text.slice(0, i))}); el.dispatchEvent(new Event('input', { bubbles: true }));

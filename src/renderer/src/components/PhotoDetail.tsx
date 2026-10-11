@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { t } from '../../../shared/i18n'
 import type { MediaDetail, SearchResult } from '../../../shared/types'
 import { MediaPlayer } from './media/MediaPlayer'
 import { Inspector } from './inspector/Inspector'
@@ -111,7 +112,7 @@ export function PhotoDetail({ result, siblings, onSelect, onClose }: PhotoDetail
           <button
             onClick={(e) => { e.stopPropagation(); onSelect(siblings[currentIndex - 1]) }}
             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm flex items-center justify-center transition-colors"
-            title="上一个 (←)"
+            title={t.detail.previous}
           >
             <svg className="w-5 h-5 text-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -122,7 +123,7 @@ export function PhotoDetail({ result, siblings, onSelect, onClose }: PhotoDetail
           <button
             onClick={(e) => { e.stopPropagation(); onSelect(siblings[currentIndex + 1]) }}
             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm flex items-center justify-center transition-colors"
-            title="下一个 (→)"
+            title={t.detail.next}
           >
             <svg className="w-5 h-5 text-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

@@ -1,6 +1,7 @@
 import { SearchBar } from '../SearchBar'
 import { kbd } from '../../lib/platform'
 import { Icon } from './icons'
+import { t } from '../../../../shared/i18n'
 
 interface ToolbarProps {
   title: string
@@ -28,7 +29,7 @@ export function Toolbar({
   return (
     <header className={`titlebar h-[52px] flex-shrink-0 flex items-center gap-3 pr-3 bg-bar border-b border-line ${sidebarHidden ? 'pl-[84px]' : 'pl-4'}`}>
       {sidebarHidden && (
-        <ToolButton icon="sidebar" title={`显示侧边栏 (${kbd('⌥⌘S')})`} onClick={onToggleSidebar} />
+        <ToolButton icon="sidebar" title={t.shell.showSidebar(kbd('⌥⌘S'))} onClick={onToggleSidebar} />
       )}
 
       <div className="min-w-0 flex flex-col justify-center">
@@ -53,9 +54,9 @@ export function Toolbar({
 
       <div className="flex items-center gap-0.5">
         {showSearch && (
-          <ToolButton icon="calendar" title="时间过滤" active={dateActive} onClick={onToggleDate} />
+          <ToolButton icon="calendar" title={t.shell.dateFilter} active={dateActive} onClick={onToggleDate} />
         )}
-        <ToolButton icon="gear" title={`设置 (${kbd('⌘,')})`} onClick={onOpenSettings} />
+        <ToolButton icon="gear" title={t.shell.settingsTitle(kbd('⌘,'))} onClick={onOpenSettings} />
       </div>
     </header>
   )

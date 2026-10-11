@@ -1,4 +1,5 @@
 import type { MediaKind } from '../../../shared/types'
+import { t } from '../../../shared/i18n'
 
 /** 媒体时长：m:ss，超过一小时 h:mm:ss */
 export function formatDuration(ms: number | null | undefined): string {
@@ -12,9 +13,9 @@ export function formatDuration(ms: number | null | undefined): string {
 
 /** 剩余 / 已用时间的口语化表示：约 3 分钟、约 1.5 小时 */
 export function formatSpan(ms: number): string {
-  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))} 秒`
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} 分钟`
-  return `${(ms / 3_600_000).toFixed(1)} 小时`
+  if (ms < 60_000) return t.common.seconds(Math.max(1, Math.round(ms / 1000)))
+  if (ms < 3_600_000) return t.common.minutes(Math.round(ms / 60_000))
+  return t.common.hours((ms / 3_600_000).toFixed(1))
 }
 
 /** 老数据 / 未 JOIN 的查询可能没有 mediaKind：有 videoId 视为视频 */
@@ -35,8 +36,8 @@ export function countLine(photos: { mediaKind?: MediaKind; videoId?: number | nu
   const n = { image: 0, video: 0, audio: 0 }
   for (const p of photos) n[mediaKindOf(p)]++
   const parts: string[] = []
-  if (n.image) parts.push(`${n.image} 张图片`)
-  if (n.video) parts.push(`${n.video} 个视频`)
-  if (n.audio) parts.push(`${n.audio} 个音频`)
-  return parts.join(' · ')
+  if (n.image) parts.push(t.common.imageCount(n.image))
+  if (n.video) parts.push(t.common.videoCount(n.video))
+  if (n.audio) parts.push(t.common.audioCount(n.audio))
+  return parts.join(t.common.sep)
 }

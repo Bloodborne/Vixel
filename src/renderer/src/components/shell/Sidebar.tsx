@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { LibraryCounts, WatchedFolder } from '../../../../shared/types'
 import { folderName, kbd } from '../../lib/platform'
 import { Icon, type IconName } from './icons'
+import { t } from '../../../../shared/i18n'
 
 export type KindFilter = 'all' | 'image' | 'video' | 'audio'
 
@@ -14,10 +15,10 @@ export type Source =
   | { type: 'similar'; photoId: number; name: string }
 
 export const LIBRARY_ITEMS: { kind: KindFilter; label: string; icon: IconName; shortcut: string }[] = [
-  { kind: 'all', label: '全部', icon: 'all', shortcut: kbd('⌘1') },
-  { kind: 'image', label: '图片', icon: 'image', shortcut: kbd('⌘2') },
-  { kind: 'video', label: '视频', icon: 'video', shortcut: kbd('⌘3') },
-  { kind: 'audio', label: '音频', icon: 'audio', shortcut: kbd('⌘4') },
+  { kind: 'all', label: t.common.all, icon: 'all', shortcut: kbd('⌘1') },
+  { kind: 'image', label: t.common.images, icon: 'image', shortcut: kbd('⌘2') },
+  { kind: 'video', label: t.common.videos, icon: 'video', shortcut: kbd('⌘3') },
+  { kind: 'audio', label: t.common.audio, icon: 'audio', shortcut: kbd('⌘4') },
 ]
 
 export const SIDEBAR_MIN = 200
@@ -84,7 +85,7 @@ export function Sidebar({
       <div className="titlebar h-[52px] flex-shrink-0" />
 
       <nav className="flex-1 overflow-y-auto px-2.5 pb-4 flex flex-col gap-4">
-        <Group title="资料库">
+        <Group title={t.shell.groupLibrary}>
           {LIBRARY_ITEMS.map(({ kind, label, icon, shortcut }) => (
             <Row
               key={kind}
@@ -98,13 +99,13 @@ export function Sidebar({
           ))}
         </Group>
 
-        <Group title="浏览">
-          <Row icon="map" label="地图" hint={kbd('⌘5')} active={source.type === 'map'} onClick={() => onSelect({ type: 'map' })} />
-          <Row icon="people" label="人物" hint={kbd('⌘6')} active={source.type === 'people'} onClick={() => onSelect({ type: 'people' })} />
+        <Group title={t.shell.groupBrowse}>
+          <Row icon="map" label={t.shell.map} hint={kbd('⌘5')} active={source.type === 'map'} onClick={() => onSelect({ type: 'map' })} />
+          <Row icon="people" label={t.shell.people} hint={kbd('⌘6')} active={source.type === 'people'} onClick={() => onSelect({ type: 'people' })} />
         </Group>
 
         {(savedSearches.length > 0 || recentShown.length > 0) && (
-          <Group title="搜索">
+          <Group title={t.shell.groupSearches}>
             {savedSearches.map((q) => (
               <Row
                 key={`s:${q}`}
@@ -113,7 +114,7 @@ export function Sidebar({
                 active={activeQuery === q}
                 onClick={() => onRunSearch(q)}
                 onRemove={() => onRemoveSearch(q, 'saved')}
-                removeTitle="取消保存"
+                removeTitle={t.shell.unsaveSearch}
               />
             ))}
             {recentShown.map((q) => (
@@ -125,18 +126,18 @@ export function Sidebar({
                 active={activeQuery === q}
                 onClick={() => onRunSearch(q)}
                 onRemove={() => onRemoveSearch(q, 'recent')}
-                removeTitle="从最近搜索中移除"
+                removeTitle={t.shell.removeRecent}
               />
             ))}
           </Group>
         )}
 
         <Group
-          title="文件夹"
+          title={t.shell.groupFolders}
           action={
             <button
               onClick={onAddFolder}
-              title={`添加文件夹 (${kbd('⌘O')})`}
+              title={t.shell.addFolderTitle(kbd('⌘O'))}
               className="w-5 h-5 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-fill-hover transition-colors duration-fast"
             >
               <Icon name="plus" className="w-3.5 h-3.5" />
@@ -144,7 +145,7 @@ export function Sidebar({
           }
         >
           {folders.length === 0 ? (
-            <p className="px-2 py-1 text-caption text-ink-3">还没有文件夹</p>
+            <p className="px-2 py-1 text-caption text-ink-3">{t.shell.noFolders}</p>
           ) : (
             folders.map((f) => (
               <Row

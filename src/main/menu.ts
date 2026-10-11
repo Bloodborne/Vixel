@@ -1,8 +1,10 @@
 import { app, Menu, shell, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 
-/** macOS 叫访达，Windows / Linux 是文件管理器 */
-const REVEAL_LABEL = process.platform === 'darwin' ? '在访达中显示' : '打开文件所在的位置'
 import { IPC_CHANNELS, type ItemMenuAction, type MenuCommand } from '../shared/types'
+import { t } from '../shared/i18n'
+
+/** macOS 叫访达，Windows / Linux 是文件管理器。调用时取，切换语言重建菜单后跟着变 */
+const revealLabel = (): string => (process.platform === 'darwin' ? t.common.revealMac : t.common.revealWinLong)
 
 /**
  * 原生应用菜单。设计 spec 要求：每个快捷键都能在菜单里找到，
@@ -31,79 +33,79 @@ export function installAppMenu(
     {
       label: app.name,
       submenu: [
-        { role: 'about', label: `关于 ${app.name}` },
+        { role: 'about', label: t.menu.about(app.name) },
         { type: 'separator' },
-        { label: '设置…', accelerator: 'CmdOrCtrl+,', click: openSettings },
+        { label: t.menu.settings, accelerator: 'CmdOrCtrl+,', click: openSettings },
         { type: 'separator' },
-        { role: 'services', label: '服务' },
+        { role: 'services', label: t.menu.services },
         { type: 'separator' },
-        { role: 'hide', label: `隐藏 ${app.name}` },
-        { role: 'hideOthers', label: '隐藏其他' },
-        { role: 'unhide', label: '全部显示' },
+        { role: 'hide', label: t.menu.hide(app.name) },
+        { role: 'hideOthers', label: t.menu.hideOthers },
+        { role: 'unhide', label: t.menu.unhide },
         { type: 'separator' },
-        { role: 'quit', label: `退出 ${app.name}` },
+        { role: 'quit', label: t.menu.quit(app.name) },
       ],
     },
     {
-      label: '文件',
+      label: t.menu.file,
       submenu: [
-        item('添加文件夹…', 'CmdOrCtrl+O', 'add-folder'),
+        item(t.menu.addFolder, 'CmdOrCtrl+O', 'add-folder'),
         { type: 'separator' },
-        hint('打开', 'Enter', 'open-item'),
-        hint('快速查看', 'Space', 'quick-look'),
-        item(REVEAL_LABEL, 'CmdOrCtrl+Shift+R', 'reveal'),
+        hint(t.menu.open, 'Enter', 'open-item'),
+        hint(t.menu.quickLook, 'Space', 'quick-look'),
+        item(revealLabel(), 'CmdOrCtrl+Shift+R', 'reveal'),
         { type: 'separator' },
-        { role: 'close', label: '关闭窗口' },
+        { role: 'close', label: t.menu.closeWindow },
       ],
     },
     {
       // 输入框的复制粘贴依赖这些 role，不能省
-      label: '编辑',
+      label: t.menu.edit,
       submenu: [
-        { role: 'undo', label: '撤销' },
-        { role: 'redo', label: '重做' },
+        { role: 'undo', label: t.menu.undo },
+        { role: 'redo', label: t.menu.redo },
         { type: 'separator' },
-        { role: 'cut', label: '剪切' },
-        { role: 'copy', label: '拷贝' },
-        { role: 'paste', label: '粘贴' },
+        { role: 'cut', label: t.menu.cut },
+        { role: 'copy', label: t.menu.copy },
+        { role: 'paste', label: t.menu.paste },
         // 不用 selectAll role：焦点在网格时要全选项目而不是页面文字，交给渲染进程判断
-        item('全选', 'CmdOrCtrl+A', 'select-all'),
+        item(t.menu.selectAll, 'CmdOrCtrl+A', 'select-all'),
         { type: 'separator' },
-        item('搜索', 'CmdOrCtrl+F', 'find'),
+        item(t.menu.find, 'CmdOrCtrl+F', 'find'),
       ],
     },
     {
-      label: '显示',
+      label: t.menu.view,
       submenu: [
-        item('全部', 'CmdOrCtrl+1', 'source:all'),
-        item('图片', 'CmdOrCtrl+2', 'source:image'),
-        item('视频', 'CmdOrCtrl+3', 'source:video'),
-        item('音频', 'CmdOrCtrl+4', 'source:audio'),
+        item(t.common.all, 'CmdOrCtrl+1', 'source:all'),
+        item(t.common.images, 'CmdOrCtrl+2', 'source:image'),
+        item(t.common.videos, 'CmdOrCtrl+3', 'source:video'),
+        item(t.common.audio, 'CmdOrCtrl+4', 'source:audio'),
         { type: 'separator' },
-        item('地图', 'CmdOrCtrl+5', 'source:map'),
-        item('人物', 'CmdOrCtrl+6', 'source:people'),
+        item(t.menu.map, 'CmdOrCtrl+5', 'source:map'),
+        item(t.menu.people, 'CmdOrCtrl+6', 'source:people'),
         { type: 'separator' },
-        item('放大缩略图', 'CmdOrCtrl+Plus', 'zoom-in'),
-        item('缩小缩略图', 'CmdOrCtrl+-', 'zoom-out'),
-        hint('切换信息密度', 'G', 'toggle-density'),
+        item(t.menu.zoomIn, 'CmdOrCtrl+Plus', 'zoom-in'),
+        item(t.menu.zoomOut, 'CmdOrCtrl+-', 'zoom-out'),
+        hint(t.menu.toggleDensity, 'G', 'toggle-density'),
         { type: 'separator' },
-        item('显示/隐藏侧边栏', 'CmdOrCtrl+Alt+S', 'toggle-sidebar'),
-        item('显示/隐藏检查器', 'CmdOrCtrl+I', 'toggle-inspector'),
-        item('活动', 'CmdOrCtrl+Alt+A', 'activity'),
+        item(t.menu.toggleSidebar, 'CmdOrCtrl+Alt+S', 'toggle-sidebar'),
+        item(t.menu.toggleInspector, 'CmdOrCtrl+I', 'toggle-inspector'),
+        item(t.menu.activity, 'CmdOrCtrl+Alt+A', 'activity'),
         { type: 'separator' },
-        { role: 'togglefullscreen', label: '进入全屏' },
+        { role: 'togglefullscreen', label: t.menu.fullscreen },
         ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' } as MenuItemConstructorOptions]),
       ],
     },
     {
-      label: '窗口',
+      label: t.menu.window,
       role: 'windowMenu',
     },
     {
-      label: '帮助',
+      label: t.menu.help,
       role: 'help',
       submenu: [
-        { label: 'Vixel 主页', click: () => { shell.openExternal('https://github.com/vixel-app/vixel#readme') } },
+        { label: t.menu.homepage, click: () => { shell.openExternal('https://github.com/RGB-loop/Vixel#readme') } },
       ],
     },
   ]
@@ -120,16 +122,16 @@ export function popupItemMenu(
     const multi = count > 1
     const template: MenuItemConstructorOptions[] = [
       ...(multi ? [] : [
-        { label: '打开', click: pick('open') },
-        { label: '快速查看', click: pick('quick-look') },
+        { label: t.menu.open, click: pick('open') },
+        { label: t.menu.quickLook, click: pick('quick-look') },
         { type: 'separator' },
       ] as MenuItemConstructorOptions[]),
-      { label: multi ? `${REVEAL_LABEL} ${count} 项` : REVEAL_LABEL, accelerator: 'CmdOrCtrl+Shift+R', click: pick('reveal') },
-      { label: multi ? `拷贝 ${count} 个路径` : '拷贝路径', click: pick('copy-path') },
+      { label: multi ? t.menu.revealMany(revealLabel(), count) : revealLabel(), accelerator: 'CmdOrCtrl+Shift+R', click: pick('reveal') },
+      { label: multi ? t.menu.copyPaths(count) : t.common.copyPath, click: pick('copy-path') },
       ...(multi ? [] : [
         { type: 'separator' },
-        { label: '查找相似内容', click: pick('find-similar') },
-        ...(isMedia ? [{ label: '在系统播放器中打开', click: pick('open-external') }] : []),
+        { label: t.menu.findSimilar, click: pick('find-similar') },
+        ...(isMedia ? [{ label: t.menu.openInPlayer, click: pick('open-external') }] : []),
       ] as MenuItemConstructorOptions[]),
     ]
     // macOS 上 click 可能晚于关闭回调到达：关闭后稍等再按"未选择"收尾，Promise 只认第一次 resolve

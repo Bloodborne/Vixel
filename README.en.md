@@ -13,7 +13,7 @@ Local AI search for photos, videos and audio. Fully offline, no account, nothing
 
 <p align="center"><img src="docs/media/hero.gif" width="860" alt="Vixel semantic search demo" /></p>
 
-> **Note:** the interface is currently in Chinese only (English UI is planned). Search itself works in English, Chinese and 100+ other languages.
+> The interface is available in English and Simplified Chinese (follows your system language; change it in *Settings → General*). Search works in English, Chinese and 100+ other languages.
 
 ## What it does
 

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import type { Person, PersonFace, PersonSuggestion, Photo, SearchResult } from '../../../shared/types'
 import { IS_MAC } from '../lib/platform'
 import { faceUrl, thumbUrl } from '../lib/mediaUrl'
+import { t } from '../../../shared/i18n'
 
 interface PeopleViewProps {
   onSelectPhoto: (photo: Photo) => void
@@ -55,13 +56,13 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
   useEffect(() => {
     loadPeople()
     // 后台聚类改动了人物：稍微合并一下刷新；人物开始出现即收起扫描横幅
-    let t: ReturnType<typeof setTimeout> | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
     const off = window.api.onPeopleChanged(() => {
       setScanning(false)
-      if (t) clearTimeout(t)
-      t = setTimeout(loadPeople, 500)
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(loadPeople, 500)
     })
-    return () => { off(); if (t) clearTimeout(t) }
+    return () => { off(); if (timer) clearTimeout(timer) }
   }, [loadPeople])
 
   // 扫描横幅事件驱动：索引队列回到空闲说明人脸任务都跑完了
@@ -82,17 +83,17 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
 
   const handleStartScan = async (): Promise<void> => {
     setScanning(true)
-    setScanProgress('正在初始化模型...')
+    setScanProgress(t.people.initModel)
     try {
       const result = await window.api.startFaceScan()
       if (result.error) {
-        setScanProgress(`扫描失败: ${result.error}`)
+        setScanProgress(t.people.scanFailed(String(result.error)))
         setScanning(false)
         return
       }
-      setScanProgress(`已入队 ${result.queued} 项，识别出的人物会陆续出现`)
+      setScanProgress(t.people.scanQueued(result.queued ?? 0))
     } catch (e) {
-      setScanProgress(`扫描失败: ${e}`)
+      setScanProgress(t.people.scanFailed(String(e)))
       setScanning(false)
     }
   }
@@ -103,7 +104,7 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
     const sources = group.filter((p) => p.id !== target.id).map((p) => p.id)
     await window.api.mergePeople(target.id, sources)
     setSelectedIds(new Set())
-    flash(`已合并 ${group.length} 个人物${target.name ? `到「${target.name}」` : ''}`)
+    flash(t.people.merged(group.length, target.name || null))
     loadPeople()
   }
 
@@ -115,7 +116,7 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
   const handleHide = async (ids: number[], hidden: boolean): Promise<void> => {
     await Promise.all(ids.map((id) => window.api.setPersonHidden(id, hidden)))
     setSelectedIds(new Set())
-    flash(hidden ? `已隐藏 ${ids.length} 个人物` : '已取消隐藏')
+    flash(hidden ? t.people.hiddenCount(ids.length) : t.people.unhidden)
     loadPeople()
   }
 
@@ -149,7 +150,7 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center bg-canvas">
-        <p className="text-ink-3 text-callout">加载中...</p>
+        <p className="text-ink-3 text-callout">{t.people.loading}</p>
       </div>
     )
   }
@@ -167,12 +168,12 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
           <svg className="w-12 h-12 mx-auto mb-3 text-ink-ghost" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <p className="text-ink-3 text-body mb-3">尚未扫描人脸</p>
+          <p className="text-ink-3 text-body mb-3">{t.people.notScanned}</p>
           <button
             onClick={handleStartScan}
             className="px-4 py-2 bg-accent/20 hover:bg-accent/30 text-accent text-callout rounded-md transition-colors"
           >
-            开始扫描人脸
+            {t.people.startScan}
           </button>
         </div>
       </div>
@@ -202,18 +203,18 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
         )}
 
         <div className="flex items-baseline gap-3 mb-3">
-          <h2 className="text-headline text-ink">{showHidden ? '已隐藏的人物' : '人物'}</h2>
+          <h2 className="text-headline text-ink">{showHidden ? t.people.hiddenTitle : t.people.title}</h2>
           <span className="text-callout text-ink-3">{shown.length}</span>
           <span className="flex-1" />
           {!showHidden && (
-            <span className="text-micro text-ink-3">双击名字命名 · {IS_MAC ? '⌘' : 'Ctrl'} 点击多选 · 拖到另一人上合并</span>
+            <span className="text-micro text-ink-3 truncate min-w-0" title={t.people.hint(IS_MAC ? '⌘' : 'Ctrl')}>{t.people.hint(IS_MAC ? '⌘' : 'Ctrl')}</span>
           )}
           {(hidden.length > 0 || showHidden) && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowHidden((v) => !v); setSelectedIds(new Set()) }}
               className="text-callout text-ink-3 hover:text-ink"
             >
-              {showHidden ? '← 返回人物' : `已隐藏 (${hidden.length})`}
+              {showHidden ? t.people.backToPeople : t.people.hiddenButton(hidden.length)}
             </button>
           )}
         </div>
@@ -240,7 +241,7 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
         {!scanning && !showHidden && (
           <div className="text-center mt-6">
             <button onClick={handleStartScan} className="text-micro text-ink-3 hover:text-ink-2">
-              扫描新照片中的人脸
+              {t.people.scanNew}
             </button>
           </div>
         )}
@@ -254,23 +255,23 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
 
       {selected.length > 0 && (
         <div className="px-4 py-2.5 border-t border-line bg-bar flex items-center gap-2 animate-fade-in">
-          <span className="text-callout text-ink-2">已选 {selected.length} 个人物</span>
+          <span className="text-callout text-ink-2">{t.people.selectedPeople(selected.length)}</span>
           <span className="flex-1" />
           <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1.5 text-callout text-ink-3 hover:text-ink">
-            取消
+            {t.common.cancel}
           </button>
           <button
             onClick={() => handleHide(selected.map((p) => p.id), !showHidden)}
             className="px-3 py-1.5 rounded-md bg-fill hover:bg-fill-hover text-callout text-ink-2"
           >
-            {showHidden ? '取消隐藏' : '隐藏'}
+            {showHidden ? t.people.unhide : t.people.hide}
           </button>
           {selected.length >= 2 && (
             <button
               onClick={() => mergeGroup(selected)}
               className="px-3 py-1.5 rounded-md bg-accent/20 hover:bg-accent/30 text-accent text-callout"
             >
-              合并为同一人
+              {t.people.mergeIntoOne}
             </button>
           )}
         </div>
@@ -327,7 +328,7 @@ function EditableName({ name, onSave, className = '' }: { name: string | null; o
       <input
         autoFocus
         value={value}
-        placeholder="输入名字"
+        placeholder={t.people.namePlaceholder}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit(true)
@@ -340,12 +341,12 @@ function EditableName({ name, onSave, className = '' }: { name: string | null; o
     )
   }
   return name ? (
-    <p className={`text-center text-ink-2 truncate cursor-text ${className}`} onDoubleClick={start} title="双击修改名字">
+    <p className={`text-center text-ink-2 truncate cursor-text ${className}`} onDoubleClick={start} title={t.people.renameHint}>
       {name}
     </p>
   ) : (
     <p className={`text-center text-ink-4 hover:text-accent truncate cursor-pointer ${className}`} onClick={start}>
-      添加名字
+      {t.people.addName}
     </p>
   )
 }
@@ -412,7 +413,7 @@ function PersonCard({ person, selected, onOpen, onToggleSelect, onRename, onDrop
         }`}
       />
       <EditableName name={person.name} onSave={onRename} className="text-callout" />
-      <p className="text-center text-micro text-ink-3 mt-0.5">{person.photoCount} 项</p>
+      <p className="text-center text-micro text-ink-3 mt-0.5">{t.common.items(person.photoCount ?? 0)}</p>
     </div>
   )
 }
@@ -431,7 +432,7 @@ function SuggestionCard({ suggestion: s, remaining, onSame, onDifferent }: Sugge
     setBusy(true)
     try { await fn(s) } finally { setBusy(false) }
   }
-  const label = (p: Person): string => p.name || `${p.photoCount ?? p.faceCount} 项`
+  const label = (p: Person): string => p.name || t.common.items(p.photoCount ?? p.faceCount ?? 0)
   return (
     <div
       className="mb-5 p-3 rounded-lg border border-line bg-surface-1 flex items-center gap-4"
@@ -443,10 +444,10 @@ function SuggestionCard({ suggestion: s, remaining, onSame, onDifferent }: Sugge
         <FaceCircle faceId={s.b.coverFaceId} className="w-14 h-14 ring-2 ring-surface-1" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-body text-ink">是同一个人吗？</p>
+        <p className="text-body text-ink">{t.people.sameQuestion}</p>
         <p className="text-callout text-ink-3 truncate">
-          {s.a.name ? `这位是「${s.a.name}」吗？` : `${label(s.a)} · ${label(s.b)}`}
-          {remaining > 1 && <span className="text-ink-4"> · 还有 {remaining - 1} 组</span>}
+          {s.a.name ? t.people.isThis(s.a.name) : `${label(s.a)} · ${label(s.b)}`}
+          {remaining > 1 && <span className="text-ink-4">{t.people.moreGroups(remaining - 1)}</span>}
         </p>
       </div>
       <button
@@ -454,14 +455,14 @@ function SuggestionCard({ suggestion: s, remaining, onSame, onDifferent }: Sugge
         onClick={act(onDifferent)}
         className="px-3 py-1.5 rounded-md bg-fill hover:bg-fill-hover text-callout text-ink-2 disabled:opacity-50"
       >
-        不是
+        {t.people.no}
       </button>
       <button
         disabled={busy}
         onClick={act(onSame)}
         className="px-3 py-1.5 rounded-md bg-accent/20 hover:bg-accent/30 text-accent text-callout disabled:opacity-50"
       >
-        是同一人
+        {t.people.yesSame}
       </button>
     </div>
   )
@@ -512,7 +513,7 @@ function PersonDetail({ person, others, onBack, onSelectPhoto, onRename, onHide,
   return (
     <div className="h-full flex flex-col bg-canvas">
       <div className="px-4 py-3 flex items-center gap-3 border-b border-line">
-        <button onClick={onBack} className="p-1 rounded hover:bg-fill-hover text-ink-2" title="返回">
+        <button onClick={onBack} className="p-1 rounded hover:bg-fill-hover text-ink-2" title={t.people.back}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -521,16 +522,16 @@ function PersonDetail({ person, others, onBack, onSelectPhoto, onRename, onHide,
         <div className="min-w-[8rem] max-w-[16rem]">
           <EditableName name={person.name} onSave={onRename} className="text-body font-medium !text-left" />
         </div>
-        <span className="text-callout text-ink-3">{person.photoCount} 项</span>
+        <span className="text-callout text-ink-3">{t.common.items(person.photoCount ?? 0)}</span>
         <span className="flex-1" />
         <div className="flex rounded-md bg-fill p-0.5 text-callout">
-          {(['photos', 'faces'] as const).map((t) => (
+          {(['photos', 'faces'] as const).map((id) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-2.5 py-1 rounded ${tab === t ? 'bg-fill-active text-ink' : 'text-ink-3 hover:text-ink-2'}`}
+              key={id}
+              onClick={() => setTab(id)}
+              className={`px-2.5 py-1 rounded ${tab === id ? 'bg-fill-active text-ink' : 'text-ink-3 hover:text-ink-2'}`}
             >
-              {t === 'photos' ? '照片' : `人脸 ${faces.length}`}
+              {id === 'photos' ? t.people.tabPhotos : t.people.tabFaces(faces.length)}
             </button>
           ))}
         </div>
@@ -538,7 +539,7 @@ function PersonDetail({ person, others, onBack, onSelectPhoto, onRename, onHide,
           onClick={() => onHide(!person.hidden)}
           className="px-2.5 py-1 rounded-md text-callout text-ink-3 hover:text-ink hover:bg-fill-hover"
         >
-          {person.hidden ? '取消隐藏' : '隐藏此人'}
+          {person.hidden ? t.people.unhide : t.people.hidePerson}
         </button>
       </div>
 
@@ -553,7 +554,7 @@ function PersonDetail({ person, others, onBack, onSelectPhoto, onRename, onHide,
         </div>
       ) : (
         <div className="flex-1 overflow-auto p-4">
-          <p className="text-callout text-ink-3 mb-3">认错的脸点「不是此人」，以后也不会再自动归到这里；也可以直接移给另一个人。</p>
+          <p className="text-callout text-ink-3 mb-3">{t.people.facesHint}</p>
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3">
             {faces.slice(0, facesInc.count).map((f) => (
               <div key={f.id} className="group relative" data-face-id={f.id}>
@@ -561,16 +562,16 @@ function PersonDetail({ person, others, onBack, onSelectPhoto, onRename, onHide,
                 <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => reject(f.id)}
-                    className="w-full py-0.5 rounded bg-black/70 text-micro text-white hover:bg-bad/90"
+                    className="w-full py-0.5 rounded bg-black/70 text-micro leading-tight text-white hover:bg-bad/90"
                   >
-                    不是此人
+                    {t.people.notThisPerson}
                   </button>
                   {others.length > 0 && (
                     <button
                       onClick={() => setMoving(moving === f.id ? null : f.id)}
-                      className="w-full py-0.5 rounded bg-black/70 text-micro text-white hover:bg-black/85"
+                      className="w-full py-0.5 rounded bg-black/70 text-micro leading-tight text-white hover:bg-black/85"
                     >
-                      移给…
+                      {t.people.moveTo}
                     </button>
                   )}
                 </div>
@@ -583,7 +584,7 @@ function PersonDetail({ person, others, onBack, onSelectPhoto, onRename, onHide,
                         className="w-full flex items-center gap-2 px-2 py-1 text-left text-callout text-ink-2 hover:bg-fill-hover"
                       >
                         <FaceCircle faceId={p.coverFaceId} className="w-5 h-5 shrink-0" />
-                        <span className="truncate">{p.name || `未命名 · ${p.photoCount} 张`}</span>
+                        <span className="truncate">{p.name || t.people.unnamed(p.photoCount ?? 0)}</span>
                       </button>
                     ))}
                   </div>

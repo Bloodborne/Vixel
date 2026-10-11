@@ -4,8 +4,9 @@ import { formatDuration, formatFileSize, mediaKindOf } from '../../lib/format'
 import { thumbUrl } from '../../lib/mediaUrl'
 import { revealLabel } from '../../lib/platform'
 import { Icon } from '../shell/icons'
+import { intlLocale, t } from '../../../../shared/i18n'
 
-const KIND_LABEL = { image: '图片', video: '视频', audio: '音频' } as const
+const KIND_LABEL = { image: t.common.image, video: t.common.video, audio: t.common.audio } as const
 
 interface InspectorProps {
   result: SearchResult
@@ -71,10 +72,10 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
   const dup = photo.duplicateCount && photo.duplicateCount > 1 ? photo.duplicateCount : 0
   // 音频代表图没有图片向量，embed_status 永远 pending，不能算"索引中"
   const indexState = kind === 'audio' || photo.embedStatus === 'done'
-    ? { label: '已索引', cls: 'text-ink-2' }
+    ? { label: t.inspector.indexed, cls: 'text-ink-2' }
     : photo.embedStatus === 'error'
-      ? { label: '失败', cls: 'text-bad' }
-      : { label: '索引中', cls: 'text-warn' }
+      ? { label: t.inspector.failed, cls: 'text-bad' }
+      : { label: t.inspector.indexing, cls: 'text-warn' }
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -94,13 +95,13 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
       <div className="flex-1 overflow-auto px-4 pt-3 pb-4 flex flex-col gap-4">
         {/* 描述 */}
         <Section
-          title="描述"
+          title={t.inspector.description}
           action={!isEditingCaption && (
             <button
               onClick={() => { setEditCaption(detail?.caption || ''); setIsEditingCaption(true) }}
               className="text-caption text-ink-3 hover:text-ink px-1 rounded hover:bg-fill-hover transition-colors duration-fast"
             >
-              {detail?.caption ? '编辑' : '添加'}
+              {detail?.caption ? t.inspector.edit : t.inspector.add}
             </button>
           )}
         >
@@ -129,69 +130,69 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
                   }}
                   className="h-6 px-2 text-caption bg-accent text-black/85 font-medium rounded-md hover:brightness-110"
                 >
-                  保存
+                  {t.common.save}
                 </button>
                 <button
                   onClick={() => setIsEditingCaption(false)}
                   className="h-6 px-2 text-caption bg-fill text-ink-2 rounded-md hover:bg-fill-hover"
                 >
-                  取消
+                  {t.common.cancel}
                 </button>
               </div>
             </div>
           ) : detail?.caption ? (
             <p className="text-ink text-callout">{detail.caption}</p>
           ) : (
-            <p className="text-ink-4 text-callout">暂无描述</p>
+            <p className="text-ink-4 text-callout">{t.inspector.noDescription}</p>
           )}
         </Section>
 
         {detail?.ocrText && detail.ocrText.trim().length > 0 && (
-          <Section title="图内文字">
+          <Section title={t.inspector.textInImage}>
             <p className="text-ink text-callout whitespace-pre-line break-words">{detail.ocrText}</p>
           </Section>
         )}
 
         {isMedia && (
-          <Section title="媒体">
+          <Section title={t.inspector.media}>
             <dl className="flex flex-col gap-1.5 text-callout">
-              <Row label="类型">{KIND_LABEL[kind]}</Row>
-              <Row label="时长">{media?.durationMs ? formatDuration(media.durationMs) : '–'}</Row>
-              {kind === 'video' && <Row label="分辨率">{resolution ? `${resolution.w} × ${resolution.h}` : '–'}</Row>}
-              <Row label="已索引片段">
+              <Row label={t.inspector.type}>{KIND_LABEL[kind]}</Row>
+              <Row label={t.inspector.duration}>{media?.durationMs ? formatDuration(media.durationMs) : '–'}</Row>
+              {kind === 'video' && <Row label={t.inspector.resolution}>{resolution ? `${resolution.w} × ${resolution.h}` : '–'}</Row>}
+              <Row label={t.inspector.indexedSegments}>
                 {media ? `${media.segments.length}${media.durationMs ? ` / ${Math.max(1, Math.ceil(media.durationMs / 32000))}` : ''}` : '–'}
               </Row>
               {segment && (
-                <Row label="命中"><span className="text-accent">{formatDuration(segment.startMs)} – {formatDuration(segment.endMs)}</span></Row>
+                <Row label={t.inspector.hit}><span className="text-accent">{formatDuration(segment.startMs)} – {formatDuration(segment.endMs)}</span></Row>
               )}
             </dl>
           </Section>
         )}
 
-        <Section title="文件">
+        <Section title={t.inspector.file}>
           <dl className="flex flex-col gap-1.5 text-callout">
-            {!isMedia && <Row label="尺寸">{detail?.width && detail?.height ? `${detail.width} × ${detail.height}` : '–'}</Row>}
-            <Row label="大小">{isMedia ? (media ? formatFileSize(media.fileSize) : '–') : formatFileSize(photo.fileSize)}</Row>
-            {detail?.takenAt && <Row label="拍摄">{formatDate(detail.takenAt)}</Row>}
-            <Row label="索引"><span className={indexState.cls}>{indexState.label}</span></Row>
-            {dup > 0 && <Row label="副本">{dup} 份</Row>}
+            {!isMedia && <Row label={t.inspector.dimensions}>{detail?.width && detail?.height ? `${detail.width} × ${detail.height}` : '–'}</Row>}
+            <Row label={t.inspector.size}>{isMedia ? (media ? formatFileSize(media.fileSize) : '–') : formatFileSize(photo.fileSize)}</Row>
+            {detail?.takenAt && <Row label={t.inspector.taken}>{formatDate(detail.takenAt)}</Row>}
+            <Row label={t.inspector.index}><span className={indexState.cls}>{indexState.label}</span></Row>
+            {dup > 0 && <Row label={t.inspector.copies}>{t.inspector.copyCount(dup)}</Row>}
           </dl>
         </Section>
 
         {!isMedia && detail?.exif && (detail.exif.make || detail.exif.model) && (
-          <Section title="相机">
+          <Section title={t.inspector.camera}>
             <dl className="flex flex-col gap-1.5 text-callout">
-              {detail.exif.make && <Row label="品牌">{detail.exif.make}</Row>}
-              {detail.exif.model && <Row label="型号">{detail.exif.model}</Row>}
-              {detail.exif.focalLength && <Row label="焦距">{detail.exif.focalLength} mm</Row>}
-              {detail.exif.fNumber && <Row label="光圈">f/{detail.exif.fNumber}</Row>}
-              {detail.exif.exposureTime && <Row label="快门">{detail.exif.exposureTime} s</Row>}
+              {detail.exif.make && <Row label={t.inspector.make}>{detail.exif.make}</Row>}
+              {detail.exif.model && <Row label={t.inspector.model}>{detail.exif.model}</Row>}
+              {detail.exif.focalLength && <Row label={t.inspector.focalLength}>{detail.exif.focalLength} mm</Row>}
+              {detail.exif.fNumber && <Row label={t.inspector.aperture}>f/{detail.exif.fNumber}</Row>}
+              {detail.exif.exposureTime && <Row label={t.inspector.shutter}>{detail.exif.exposureTime} s</Row>}
               {detail.exif.iso && <Row label="ISO">{detail.exif.iso}</Row>}
             </dl>
           </Section>
         )}
 
-        <Section title={`位置${locations.length > 1 ? ` · ${locations.length}` : ''}`}>
+        <Section title={`${t.inspector.location}${locations.length > 1 ? ` · ${locations.length}` : ''}`}>
           <div className="flex flex-col gap-1">
             {isMedia || locations.length === 0 ? (
               <p className="text-ink-3 text-caption break-all bg-fill px-2 py-1.5 rounded-md select-text">{sourcePath ?? '–'}</p>
@@ -202,18 +203,18 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
               </div>
             ))}
           </div>
-          <div className="flex gap-1.5 mt-2">
+          <div className="flex flex-wrap gap-1.5 mt-2">
             <ActionButton icon="folder" onClick={() => sourcePath && window.api.showInFinder(sourcePath)}>{revealLabel}</ActionButton>
             {isMedia && (
               <ActionButton icon="video" onClick={() => photo.videoId != null && window.api.openSourceVideo(photo.videoId)}>
-                系统播放器
+                {t.inspector.systemPlayer}
               </ActionButton>
             )}
           </div>
         </Section>
 
         {similar.length > 0 && (
-          <Section title="相似内容">
+          <Section title={t.inspector.similar}>
             <div className="grid grid-cols-3 gap-1">
               {similar.map((r) => (
                 <button
@@ -253,14 +254,14 @@ export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, on
       </div>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <h2 className="text-headline text-ink">已选择 {results.length} 项</h2>
+          <h2 className="text-headline text-ink">{t.inspector.selectedCount(results.length)}</h2>
           <p className="text-callout text-ink-3 mt-0.5">{breakdown}</p>
         </div>
         {onClose && <CloseButton onClick={onClose} />}
       </div>
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         <ActionButton icon="folder" onClick={onReveal}>{revealLabel}</ActionButton>
-        <ActionButton icon="all" onClick={onCopyPaths}>拷贝路径</ActionButton>
+        <ActionButton icon="all" onClick={onCopyPaths}>{t.common.copyPath}</ActionButton>
       </div>
     </div>
   )
@@ -271,7 +272,7 @@ function CloseButton({ onClick }: { onClick: () => void }): JSX.Element {
     <button
       onClick={(e) => { e.stopPropagation(); onClick() }}
       className="w-6 h-6 rounded-md text-ink-3 hover:text-ink hover:bg-fill-hover transition-colors duration-fast flex-shrink-0 flex items-center justify-center"
-      title="关闭 (Esc)"
+      title={t.inspector.closeEsc}
     >
       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -307,7 +308,7 @@ function ActionButton({ icon, onClick, children }: { icon: Parameters<typeof Ico
   return (
     <button
       onClick={onClick}
-      className="flex-1 h-7 px-2 rounded-md bg-fill-hover hover:bg-fill-active text-ink text-callout flex items-center justify-center gap-1.5 transition-colors duration-fast"
+      className="flex-1 basis-auto whitespace-nowrap h-7 px-2 rounded-md bg-fill-hover hover:bg-fill-active text-ink text-callout flex items-center justify-center gap-1.5 transition-colors duration-fast"
     >
       <Icon name={icon} className="w-3.5 h-3.5 text-ink-2" />
       {children}
@@ -316,7 +317,7 @@ function ActionButton({ icon, onClick, children }: { icon: Parameters<typeof Ico
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleString('zh-CN', {
+  return new Date(dateString).toLocaleString(intlLocale(), {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
 }

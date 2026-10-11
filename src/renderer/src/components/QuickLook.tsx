@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../../../shared/i18n'
 import type { MediaDetail, SearchResult } from '../../../shared/types'
 import { MediaPlayer } from './media/MediaPlayer'
 import { mediaKindOf } from '../lib/format'
@@ -51,7 +52,7 @@ export function QuickLook({ result, onClose, onNavigate, onOpen }: QuickLookProp
       className="theme-dark fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center p-16 animate-fade-in"
       role="dialog"
       aria-modal="true"
-      aria-label={`快速查看 ${photo.fileName}`}
+      aria-label={t.grid.quickLookLabel(photo.fileName)}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       data-quicklook
     >
@@ -73,7 +74,7 @@ export function QuickLook({ result, onClose, onNavigate, onOpen }: QuickLookProp
         </div>
         <div className="text-center flex-shrink-0">
           <p className="text-body text-ink truncate">{photo.fileName}</p>
-          <p className="text-caption text-ink-3 mt-0.5">Space 关闭 · ↩ 打开 · 方向键切换</p>
+          <p className="text-caption text-ink-3 mt-0.5">{t.grid.quickLookHint}</p>
         </div>
       </div>
     </div>

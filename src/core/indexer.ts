@@ -16,6 +16,7 @@ import { generateSprite, SPRITE_MIN_DURATION_MS } from './video/sprite'
 import { extractAudioTrack, extractCoverOrWaveform } from './audio/extract'
 import { SEGMENT_MS } from './db'
 import { FaceClusterer } from './face/clusterer'
+import { t } from '../shared/i18n'
 
 // xxHash 懒加载（与 watcher 共用语义；模块级单例避免重复 init）
 let _hasher: ((input: Uint8Array) => string) | null = null
@@ -255,7 +256,7 @@ export class Indexer extends EventEmitter {
       if (durationMs <= 0) {
         // 读不到时长 → 文件损坏 / 无效。frame_count=0 标记"扫过了"，并报错让任务面板可见
         this.db.updateVideoMeta(videoId, { frameCount: 0 })
-        throw new Error('无法读取时长（文件损坏或格式不支持）')
+        throw new Error(t.core.durationUnreadable)
       }
       this.db.updateVideoMeta(videoId, { durationMs, width: probe.width ?? undefined, height: probe.height ?? undefined })
     }
@@ -381,12 +382,12 @@ export class Indexer extends EventEmitter {
       throw new Error(`${MODEL_NOT_READY_PREFIX}: ${embeddingService.getInitError() ?? 'unknown'}`)
     }
     if (failed === numSegments) {
-      throw new Error(`全部 ${numSegments} 个片段失败：${lastError.slice(0, 300)}`)
+      throw new Error(t.core.allSegmentsFailed(numSegments, lastError.slice(0, 300)))
     }
 
     // 更新元数据：frameCount 现在表示片段数而非帧数
     this.db.updateVideoMeta(videoId, { frameCount: numSegments })
-    return failed > 0 ? `${failed}/${numSegments} 个片段失败：${lastError.slice(0, 200)}` : undefined
+    return failed > 0 ? t.core.someSegmentsFailed(failed, numSegments, lastError.slice(0, 200)) : undefined
   }
 
   /** 视频片段：帧序列 + 音轨 → 单向量；无音轨时退化为纯视觉 */

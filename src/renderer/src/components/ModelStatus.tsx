@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ModelStatus as ModelStatusType, EmbeddingConfig, BackupStatus } from '../../../shared/types'
+import { t, intlLocale } from '../../../shared/i18n'
 
 type Backend = EmbeddingConfig['backend']
 const BACKENDS: Array<{ value: Backend; label: string }> = [
-  { value: 'auto', label: '自动' },
+  { value: 'auto', label: t.model.backendAuto },
   { value: 'gpu', label: 'GPU' },
   { value: 'cpu', label: 'CPU' },
 ]
@@ -57,14 +58,14 @@ export function ModelStatus(): JSX.Element {
       const r = await window.api.triggerBackup()
       if (r.success) {
         const mb = r.sizeBytes ? (r.sizeBytes / 1024 / 1024).toFixed(1) : '?'
-        setBackupMessage(`已生成备份（${mb} MB）`)
+        setBackupMessage(t.model.backupDone(mb))
       } else {
-        setBackupMessage(`失败: ${r.error}`)
+        setBackupMessage(t.model.failed(String(r.error)))
       }
       const bs = await window.api.getBackupStatus()
       setBackupStatus(bs)
     } catch (e) {
-      setBackupMessage(`失败: ${String(e)}`)
+      setBackupMessage(t.model.failed(String(e)))
     } finally {
       setBackupBusy(false)
     }
@@ -75,7 +76,7 @@ export function ModelStatus(): JSX.Element {
     setSaveResult(null)
     try {
       const r = await window.api.setEmbeddingConfig({ backend })
-      setSaveResult(r.success ? '已切换推理后端' + (r.ready ? '（就绪）' : '') : `失败: ${r.error}`)
+      setSaveResult(r.success ? t.model.backendSwitched(!!r.ready) : t.model.failed(String(r.error)))
       await loadStatus()
     } finally {
       setSaving(false)
@@ -87,17 +88,17 @@ export function ModelStatus(): JSX.Element {
     try {
       const r = await window.api.startOcrScan()
       if (r.error) {
-        setOcrScanState({ scanning: false, message: `失败: ${r.error}` })
+        setOcrScanState({ scanning: false, message: t.model.failed(String(r.error)) })
       } else {
         setOcrScanState({
           scanning: false,
           message: r.queued && r.queued > 0
-            ? `已加入 ${r.queued} 项到 OCR 队列`
-            : '没有需要 OCR 的图片',
+            ? t.model.ocrQueued(r.queued)
+            : t.model.ocrNothing,
         })
       }
     } catch (e) {
-      setOcrScanState({ scanning: false, message: `失败: ${String(e)}` })
+      setOcrScanState({ scanning: false, message: t.model.failed(String(e)) })
     }
   }
 
@@ -108,14 +109,14 @@ export function ModelStatus(): JSX.Element {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
-        <p className="mt-2 text-callout text-ink-3">检查模型状态...</p>
+        <p className="mt-2 text-callout text-ink-3">{t.model.checking}</p>
       </div>
     )
   }
 
   if (!status) {
     return (
-      <div className="p-5 text-center text-bad text-callout">无法检查模型状态</div>
+      <div className="p-5 text-center text-bad text-callout">{t.model.checkFailed}</div>
     )
   }
 
@@ -125,8 +126,8 @@ export function ModelStatus(): JSX.Element {
   return (
     <div className="p-5 space-y-5">
       <div>
-        <h3 className="text-callout font-semibold text-ink mb-0.5">语义搜索模型</h3>
-        <p className="text-caption text-ink-3">本地 EmbeddingGemma 2（LiteRT）— 文本/图像/音频/视频统一检索、零网络</p>
+        <h3 className="text-callout font-semibold text-ink mb-0.5">{t.model.semanticTitle}</h3>
+        <p className="text-caption text-ink-3">{t.model.semanticDesc}</p>
       </div>
 
       {/* 主状态 */}
@@ -136,14 +137,14 @@ export function ModelStatus(): JSX.Element {
           <div className="flex-1">
             {localReady && (
               <p className="text-caption text-ok/80">
-                EmbeddingGemma 2 已就绪{status.activeBackend ? ` · ${status.activeBackend === 'gpu' ? 'GPU 加速' : 'CPU'}` : ''}
+                {t.model.ready}{status.activeBackend ? ` · ${status.activeBackend === 'gpu' ? t.model.gpu : t.model.cpu}` : ''}
               </p>
             )}
             {localMissing && (
               <>
-                <p className="text-caption text-warn/80">模型文件缺失</p>
+                <p className="text-caption text-warn/80">{t.model.missing}</p>
                 <p className="text-micro text-ink-3 mt-0.5">
-                  开发环境：执行 <code className="bg-fill px-1 rounded">npm run models:download</code>
+                  {t.model.devHint} <code className="bg-fill px-1 rounded">npm run models:download</code>
                 </p>
               </>
             )}
@@ -155,7 +156,7 @@ export function ModelStatus(): JSX.Element {
       </div>
 
       <div className="text-micro text-ink-3">
-        <p>模型存储位置</p>
+        <p>{t.model.modelsDir}</p>
         <code className="text-micro bg-fill px-2 py-1 rounded block break-all text-ink-3 mt-1">
           {status.modelsDir}
         </code>
@@ -163,19 +164,19 @@ export function ModelStatus(): JSX.Element {
 
       {/* OCR */}
       <div className="pt-4 border-t border-line">
-        <h3 className="text-callout font-semibold text-ink mb-0.5">图内文字搜索 (OCR)</h3>
+        <h3 className="text-callout font-semibold text-ink mb-0.5">{t.model.ocrTitle}</h3>
         <p className="text-caption text-ink-3 mb-2">
-          扫描相册里的图片文字（截图、票据、海报等），扫完后可直接搜文字。
+          {t.model.ocrDesc}
         </p>
         <button
           onClick={startOcrScan}
           disabled={ocrScanState.scanning}
           className="w-full py-1.5 px-3 bg-fill hover:bg-fill-hover disabled:opacity-30 text-ink-2 text-callout rounded-md"
         >
-          {ocrScanState.scanning ? '排队中...' : '开始扫描图内文字'}
+          {ocrScanState.scanning ? t.model.ocrQueuing : t.model.ocrStart}
         </button>
         {ocrScanState.message && (
-          <p className={`text-caption mt-1.5 ${ocrScanState.message.startsWith('失败') ? 'text-bad' : 'text-ok'}`}>
+          <p className={`text-caption mt-1.5 ${ocrScanState.message.startsWith(t.model.failed('')) ? 'text-bad' : 'text-ok'}`}>
             {ocrScanState.message}
           </p>
         )}
@@ -183,19 +184,19 @@ export function ModelStatus(): JSX.Element {
 
       {/* 数据库备份 */}
       <div className="pt-4 border-t border-line">
-        <h3 className="text-callout font-semibold text-ink mb-0.5">数据库备份</h3>
+        <h3 className="text-callout font-semibold text-ink mb-0.5">{t.model.backupTitle}</h3>
         <p className="text-caption text-ink-3 mb-2">
-          每 24 小时自动备份一次 library.db（保留最近 3 份），可在此手动触发。
+          {t.model.backupDesc}
         </p>
         {backupStatus && (
           <div className="text-micro text-ink-3 mb-2 space-y-0.5">
             <div>
-              上次备份：{backupStatus.lastBackupAt
-                ? new Date(backupStatus.lastBackupAt).toLocaleString('zh-CN')
-                : '从未'}
+              {t.model.lastBackup}{backupStatus.lastBackupAt
+                ? new Date(backupStatus.lastBackupAt).toLocaleString(intlLocale())
+                : t.model.never}
             </div>
             <div>
-              当前已保留：{backupStatus.currentCount} / {backupStatus.keepCount}
+              {t.model.kept}{backupStatus.currentCount} / {backupStatus.keepCount}
             </div>
           </div>
         )}
@@ -204,10 +205,10 @@ export function ModelStatus(): JSX.Element {
           disabled={backupBusy || backupStatus?.inProgress}
           className="w-full py-1.5 px-3 bg-fill hover:bg-fill-hover disabled:opacity-30 text-ink-2 text-callout rounded-md"
         >
-          {backupBusy ? '备份中...' : '立即备份'}
+          {backupBusy ? t.model.backingUp : t.model.backupNow}
         </button>
         {backupMessage && (
-          <p className={`text-caption mt-1.5 ${backupMessage.startsWith('失败') ? 'text-bad' : 'text-ok'}`}>
+          <p className={`text-caption mt-1.5 ${backupMessage.startsWith(t.model.failed('')) ? 'text-bad' : 'text-ok'}`}>
             {backupMessage}
           </p>
         )}
@@ -219,13 +220,13 @@ export function ModelStatus(): JSX.Element {
           onClick={() => setShowAdvanced((v) => !v)}
           className="text-caption text-ink-3 hover:text-ink-2 transition-colors"
         >
-          {showAdvanced ? '▾' : '▸'} 高级：推理后端
+          {showAdvanced ? '▾' : '▸'} {t.model.advancedBackend}
         </button>
 
         {showAdvanced && (
           <div className="mt-3 space-y-2.5">
             <p className="text-micro text-ink-3">
-              自动：优先用 GPU，不可用时退回 CPU。两者结果一致，切换不需要重建索引。
+              {t.model.backendNote}
             </p>
             <div className="flex gap-1">
               {BACKENDS.map(({ value, label }) => (
@@ -244,7 +245,7 @@ export function ModelStatus(): JSX.Element {
               ))}
             </div>
             {saveResult && (
-              <p className={`text-caption ${saveResult.startsWith('失败') ? 'text-bad' : 'text-ok'}`}>
+              <p className={`text-caption ${saveResult.startsWith(t.model.failed('')) ? 'text-bad' : 'text-ok'}`}>
                 {saveResult}
               </p>
             )}

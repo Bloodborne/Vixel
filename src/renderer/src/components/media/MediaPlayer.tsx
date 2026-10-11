@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { t } from '../../../../shared/i18n'
 import type { MediaDetail } from '../../../../shared/types'
 import { SegmentTimeline } from './SegmentTimeline'
 import { thumbUrl } from '../../lib/mediaUrl'
@@ -89,12 +90,12 @@ export function MediaPlayer({ media, posterPhotoId, posterHash, hit, onResolutio
           <div className="relative max-w-full max-h-full">
             <img src={poster} alt={media.fileName} className="max-w-full max-h-[70vh] object-contain opacity-40 rounded" />
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-              <p className="text-body text-ink">此格式无法在应用内播放</p>
+              <p className="text-body text-ink">{t.grid.cannotPlay}</p>
               <button
                 onClick={() => window.api.openSourceVideo(media.id)}
                 className="px-3 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent text-callout rounded-md transition-colors"
               >
-                在系统播放器中打开
+                {t.grid.openInSystemPlayer}
               </button>
             </div>
           </div>
@@ -116,7 +117,7 @@ export function MediaPlayer({ media, posterPhotoId, posterHash, hit, onResolutio
             currentMs={currentMs}
             onSeek={seek}
           />
-          <p className="mt-1.5 text-micro text-ink-3 text-center">Space 播放/暂停 · J / L 后退/前进 10 秒 · M 静音</p>
+          <p className="mt-1.5 text-micro text-ink-3 text-center">{t.grid.playerHint}</p>
         </div>
       )}
     </div>

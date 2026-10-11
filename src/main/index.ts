@@ -20,7 +20,7 @@ import { serveMediaFile } from '../core/media/serve'
 import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
 import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
 import { installAppMenu, popupItemMenu } from './menu'
-import { locale, resolveLocale, setLocale, type LocaleSetting } from '../shared/i18n'
+import { locale, resolveLocale, setLocale, t, type LocaleSetting } from '../shared/i18n'
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
@@ -133,7 +133,7 @@ function createWindow(): void {
   win.on('ready-to-show', () => {
     win.show()
     // VIXEL_CAPTURE=<目录>：自动巡检各视图并截图（见 capture.ts）
-    if (process.env.VIXEL_CAPTURE) void runCaptureTour(win, process.env.VIXEL_CAPTURE)
+    if (process.env.VIXEL_CAPTURE) void runCaptureTour(win, process.env.VIXEL_CAPTURE, openSettingsWindow)
     if (process.env.VIXEL_RECORD) void runRecording(win, process.env.VIXEL_RECORD)
   })
   win.on('closed', () => { if (mainWindow === win) mainWindow = null })
@@ -141,11 +141,11 @@ function createWindow(): void {
 }
 
 /** 设置窗口（⌘,）：独立窗口、单例，再次打开只是拉到前面 */
-function openSettingsWindow(): void {
+function openSettingsWindow(): BrowserWindow {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.show()
     settingsWindow.focus()
-    return
+    return settingsWindow
   }
   const win = new BrowserWindow({
     backgroundColor: windowBackground(),
@@ -154,7 +154,7 @@ function openSettingsWindow(): void {
     minWidth: 560,
     minHeight: 440,
     show: false,
-    title: '设置',
+    title: t.main.settingsTitle,
     fullscreenable: false,
     minimizable: false,
     titleBarStyle: 'hiddenInset',
@@ -165,6 +165,7 @@ function openSettingsWindow(): void {
   win.on('ready-to-show', () => win.show())
   win.on('closed', () => { if (settingsWindow === win) settingsWindow = null })
   loadRenderer(win, 'settings')
+  return win
 }
 
 /** 文件夹增删后通知所有窗口：主窗口刷新侧边栏 / 网格，设置窗口刷新列表 */
@@ -437,7 +438,7 @@ function registerIpcHandlers(): void {
     return true
   })
 
-  handle(IPC_CHANNELS.OPEN_SETTINGS, async () => openSettingsWindow())
+  handle(IPC_CHANNELS.OPEN_SETTINGS, async () => { openSettingsWindow() })
 
   handle(IPC_CHANNELS.GET_THEME, async () => loadTheme())
 
@@ -614,7 +615,7 @@ function registerIpcHandlers(): void {
     try {
       const video = db.getVideoById(videoId)
       if (!video || !existsSync(video.filePath)) {
-        return { success: false, error: '视频文件已不存在' }
+        return { success: false, error: t.main.videoMissing }
       }
       const errMsg = await shell.openPath(video.filePath)
       if (errMsg) return { success: false, error: errMsg }
@@ -812,7 +813,9 @@ app.whenReady().then(async () => {
   } catch (err) {
     // 启动失败（数据库 / 原生模块加载不了）要让用户看到，而不是留一个没有窗口的进程
     console.error('Vixel failed to start:', err)
-    dialog.showErrorBox('Vixel 无法启动', `${err instanceof Error ? err.message : String(err)}\n\n数据目录：${app.getPath('userData')}`)
+    // 数据库没起来，读不到语言设置：按系统语言
+    setLocale(resolveLocale(null, app.getPreferredSystemLanguages()))
+    dialog.showErrorBox(t.main.startupFailedTitle, t.main.startupFailedDetail(err instanceof Error ? err.message : String(err), app.getPath('userData')))
     app.exit(1)
     return
   }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { folderName } from '../../lib/platform'
 import type { WatchedFolder } from '../../../../shared/types'
+import { t } from '../../../../shared/i18n'
 
 /** 设置 › 文件夹：监视的文件夹列表，添加 / 移除（移除前确认） */
 export function FolderSettings(): JSX.Element {
@@ -61,8 +62,8 @@ export function FolderSettings(): JSX.Element {
           </div>
         ) : folders.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-ink-3 text-body mb-1">还没有添加文件夹</p>
-            <p className="text-ink-4 text-callout">添加文件夹后自动扫描并索引，原文件不会被移动或修改</p>
+            <p className="text-ink-3 text-body mb-1">{t.settings.noFolders}</p>
+            <p className="text-ink-4 text-callout">{t.settings.noFoldersHint}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -83,7 +84,7 @@ export function FolderSettings(): JSX.Element {
                     {folder.photoCount !== undefined && folder.photoCount > 0 && (
                       <>
                         <span>·</span>
-                        <span className="flex-shrink-0">{folder.photoCount} 项</span>
+                        <span className="flex-shrink-0">{t.common.items(folder.photoCount)}</span>
                       </>
                     )}
                   </div>
@@ -91,7 +92,7 @@ export function FolderSettings(): JSX.Element {
                 <button
                   onClick={() => handleRequestRemove(folder)}
                   className="p-1 rounded hover:bg-fill-hover transition-colors text-ink-4 hover:text-bad"
-                  title="移除"
+                  title={t.common.remove}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -111,7 +112,7 @@ export function FolderSettings(): JSX.Element {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
-          添加文件夹
+          {t.settings.addFolder}
         </button>
       </div>
 
@@ -133,25 +134,25 @@ export function FolderSettings(): JSX.Element {
               </svg>
             </div>
             <h3 className="text-body font-semibold text-ink">
-              确认移除文件夹
+              {t.settings.removeFolderTitle}
             </h3>
           </div>
 
           <div className="mb-5 space-y-2.5">
             <p className="text-callout text-ink-2">
-              确定要移除 <span className="font-medium text-ink">"{getFolderName(deleteConfirm.folder.path)}"</span> 吗？
+              {t.settings.removeFolderAskBefore}<span className="font-medium text-ink">"{getFolderName(deleteConfirm.folder.path)}"</span>{t.settings.removeFolderAskAfter}
             </p>
 
             {deleteConfirm.folder.photoCount !== undefined && deleteConfirm.folder.photoCount > 0 && (
               <div className="p-2.5 bg-warn/10 rounded-lg">
                 <p className="text-callout text-warn/80">
-                  该文件夹包含 <span className="font-semibold">{deleteConfirm.folder.photoCount}</span> 项已索引的内容，将从搜索库中移除。
+                  {t.settings.removeFolderCountBefore}<span className="font-semibold">{deleteConfirm.folder.photoCount.toLocaleString()}</span>{t.settings.removeFolderCountAfter}
                 </p>
               </div>
             )}
 
             <p className="text-micro text-ink-4">
-              此操作只会从 Vixel 中移除索引，不会删除原始文件。
+              {t.settings.removeFolderNote}
             </p>
           </div>
 
@@ -161,7 +162,7 @@ export function FolderSettings(): JSX.Element {
               disabled={isDeleting}
               className="flex-1 py-2 px-3 bg-fill-hover hover:bg-fill-active text-ink-2 text-callout rounded-md transition-colors disabled:opacity-50"
             >
-              取消
+              {t.common.cancel}
             </button>
             <button
               onClick={handleConfirmRemove}
@@ -174,10 +175,10 @@ export function FolderSettings(): JSX.Element {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  移除中...
+                  {t.settings.removing}
                 </>
               ) : (
-                '确认移除'
+                t.settings.confirmRemove
               )}
             </button>
           </div>

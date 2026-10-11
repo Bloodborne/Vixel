@@ -2,11 +2,12 @@
  * 平台相关的界面文案。快捷键在源码里统一按 macOS 符号写（⌘ ⌥ ⇧），Windows / Linux 上换成 Ctrl / Alt / Shift；
  * 菜单本身由主进程用 CmdOrCtrl 注册，这里只管显示。
  */
+import { t } from '../../../shared/i18n'
 
 export const IS_MAC = /Mac/i.test(navigator.userAgent)
 
 /** "在访达中显示" / Windows 的 "打开所在位置"（按钮窄，用短说法） */
-export const revealLabel = IS_MAC ? '在访达中显示' : '打开所在位置'
+export const revealLabel = IS_MAC ? t.common.revealMac : t.common.revealWin
 
 /** '⌥⌘S' → macOS 原样；其他平台 'Ctrl+Alt+S' */
 export function kbd(mac: string): string {

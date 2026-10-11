@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { t } from '../../../shared/i18n'
 
 interface SearchBarProps {
   /** 当前生效的查询；外部（侧边栏最近 / 已保存）改它时输入框跟着变 */
@@ -95,12 +96,13 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, on
         ref={inputRef}
         id="search-input"
         type="text"
+        data-search-input
         value={query}
         onChange={handleChange}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onKeyDown={handleKeyDown}
-        placeholder="搜索：物体、场景、图内文字、文件名…"
+        placeholder={t.shell.searchPlaceholder}
         className="w-full h-7 pl-8 pr-24 text-body rounded-md bg-fill border border-line text-ink placeholder-ink-4 focus:outline-none focus:border-accent/50 focus:bg-raised transition-colors duration-fast"
       />
 
@@ -108,7 +110,7 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, on
         {/* 结果计数 */}
         {showResultHint && (
           <span className="text-micro text-ink-4 tabular-nums">
-            {resultCount} 项
+            {t.common.items(resultCount ?? 0)}
           </span>
         )}
         {/* 保存搜索 */}
@@ -116,7 +118,7 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, on
           <button
             type="button"
             onClick={onToggleSave}
-            title={saved ? '取消保存此搜索' : '保存此搜索'}
+            title={saved ? t.shell.unsaveThisSearch : t.shell.saveThisSearch}
             aria-pressed={!!saved}
             data-save-search
             className="p-1 rounded hover:bg-fill-hover transition-colors"

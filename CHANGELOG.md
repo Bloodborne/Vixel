@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- English interface. Follows the system language; switch between System / 简体中文 / English in
+  Settings → General. All UI strings live in typed dictionaries under `src/shared/i18n/`.
+
 ## [0.2.0] - 2026-10-11
 
 First public release: macOS (Apple Silicon) and Windows (x64) installers, models included.

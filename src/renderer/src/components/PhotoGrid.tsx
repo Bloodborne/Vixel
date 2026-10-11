@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useRef, useMemo, type ComponentProps } from 'react'
+import { t } from '../../../shared/i18n'
 import { FixedSizeGrid, areEqual, type GridChildComponentProps } from 'react-window'
 import type { SearchResult } from '../../../shared/types'
 import { MediaCard, type GridDensity } from './media/MediaCard'
@@ -157,7 +158,7 @@ export function PhotoGrid({
       ref={containerRef}
       role="listbox"
       aria-multiselectable="true"
-      aria-label="内容网格"
+      aria-label={t.grid.gridLabel}
       className="h-full overflow-hidden"
       style={{ padding: gap / 2 }}
       onClick={(e) => { if (!(e.target as HTMLElement).closest('.photo-card')) onBackgroundClick() }}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../../../../shared/i18n'
 import { formatDuration } from '../../lib/format'
 
 interface Segment {
@@ -31,8 +32,8 @@ export function SegmentTimeline({ durationMs, segments, hit, currentMs, onSeek }
     <div className="w-full select-none">
       <div className="flex items-center justify-between text-micro text-ink-3 mb-1 h-4 tabular-nums">
         <span>
-          片段 {segments.length}
-          {hit && <span className="text-accent/80"> · 命中 {formatDuration(hit.startMs)}–{formatDuration(hit.endMs)}</span>}
+          {t.grid.segments(segments.length)}
+          {hit && <span className="text-accent/80">{t.grid.hit(`${formatDuration(hit.startMs)}–${formatDuration(hit.endMs)}`)}</span>}
         </span>
         {hover && <span className="text-ink-2">{formatDuration(hover.startMs)} – {formatDuration(hover.endMs)}</span>}
       </div>

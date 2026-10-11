@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { MatchChannel, SearchResult } from '../../../../shared/types'
 import { formatDuration, mediaKindOf } from '../../lib/format'
+import { t } from '../../../../shared/i18n'
 
 /** 与 core/db.ts 的 SEGMENT_MS 一致：音视频按 32s 切片 */
 const SEGMENT_MS = 32_000
@@ -9,7 +10,7 @@ const SEGMENT_MS = 32_000
 const THUMB_MAX_RETRIES = 20
 
 /** 命中原因角标：只列确定性通道 */
-const MATCH_LABELS: Array<[MatchChannel, string]> = [['text', '图中文字'], ['filename', '文件名']]
+const MATCH_LABELS: Array<[MatchChannel, string]> = [['text', t.grid.matchText], ['filename', t.grid.matchFilename]]
 import { spriteUrl, thumbUrl } from '../../lib/mediaUrl'
 
 export type GridDensity = 'immersive' | 'info'
@@ -221,7 +222,7 @@ export const MediaCard = memo(function MediaCard({
       <button
         onClick={(e) => { e.stopPropagation(); onContextMenu(index, e) }}
         onDoubleClick={(e) => e.stopPropagation()}
-        title="更多操作"
+        title={t.grid.moreActions}
         className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-black/55 backdrop-blur-sm text-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/75 transition-opacity duration-fast"
       >
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
