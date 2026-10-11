@@ -92,7 +92,6 @@ export const VOCABULARY: Label[] = [
   L('subject', 'tree', '树', 'Trees', 'a photo of a tree', '树木'),
   L('subject', 'plant', '植物', 'Plants', 'a photo of green plants and leaves', '绿植植物叶子'),
   L('subject', 'cactus', '仙人掌', 'Cactus', 'a photo of a cactus', '仙人掌'),
-  L('subject', 'autumn_leaves', '红叶', 'Autumn Leaves', 'a photo of red and yellow autumn leaves', '秋天的红叶黄叶'),
   L('subject', 'food', '美食', 'Food', 'a photo of food on a plate', '美食菜肴'),
   L('subject', 'dessert', '甜点', 'Dessert', 'a photo of a dessert such as cake or ice cream', '蛋糕甜点'),
   L('subject', 'fruit', '水果', 'Fruit', 'a photo of fresh fruit', '水果'),
