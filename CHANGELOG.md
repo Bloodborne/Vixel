@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-11
+
+First public release: macOS (Apple Silicon) and Windows (x64) installers, models included.
+
+### Highlights
+- **New inference engine:** EmbeddingGemma 2 now runs on LiteRT-LM with GPU acceleration (Metal on
+  macOS, Direct3D 12 via WebGPU on Windows, CPU fallback). Retrieval quality on the labelled demo set
+  improved from mAP 0.844 to 0.974 (see `docs/review/06-litert-vs-onnx.md`). Libraries indexed by
+  0.1.x must be re-indexed.
+- **Honest search:** an adaptive relevance gate shows only real matches and says so when nothing matches.
+- **Fully offline, no exceptions:** bundled offline basemap; renderer network requests are blocked.
+- **Windows support:** folder names, Explorer wording, Ctrl/Alt shortcuts; RAW via validated embedded previews.
+- OCR (PaddleOCR v5) and face recognition on full-resolution video frames.
+
 ### Performance
 - Startup no longer re-reads and re-hashes the whole library: unchanged images
   and videos (same size / mtime, thumbnail present) are skipped before any IO or

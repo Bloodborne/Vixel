@@ -9,6 +9,8 @@
 
 *AI-powered local search for photos, videos and audio. Private. Offline. No cloud.*
 
+中文 · [English](README.en.md)
+
 </div>
 
 <div align="center">
@@ -84,14 +86,18 @@ SCRFD 人脸检测 + MobileFaceNet 512 维特征 + sqlite-vec 近邻索引。
 
 ## 下载
 
-[**下载最新版（macOS · Apple Silicon）**](https://github.com/RGB-loop/Vixel/releases/latest) —— 模型已内置。
+[**下载最新版**](https://github.com/RGB-loop/Vixel/releases/latest)：macOS（Apple Silicon）`.dmg` · Windows（x64）`.exe`，模型已内置（约 600 MB），装好即可离线使用。
 
-这个版本没有经过 Apple 公证。第一次打开被拦截时，到 **系统设置 → 隐私与安全性** 点「仍要打开」；
-或在终端执行 `xattr -dr com.apple.quarantine /Applications/Vixel.app`。
+安装包暂未经过 Apple / 微软签名：
+
+- **macOS**：第一次打开被拦截时，到 **系统设置 → 隐私与安全性** 点「仍要打开」；或在终端执行 `xattr -dr com.apple.quarantine /Applications/Vixel.app`。
+- **Windows**：SmartScreen 提示“已保护你的电脑”时，点「更多信息 → 仍要运行」。
+
+语义模型默认用 GPU（macOS 上是 Metal，Windows 上是 Direct3D 12），没有可用 GPU 时自动退回 CPU。
 
 ## 从源码运行
 
-需要 Node.js 20+。目前主要在 macOS（Apple Silicon）上开发和测试。
+需要 Node.js 20+。主要在 macOS（Apple Silicon）上开发，Windows x64 已验证可用。
 
 ```bash
 npm install
@@ -208,4 +214,4 @@ npx tsc --noEmit -p tsconfig.node.json
 
 ## 许可
 
-[MIT](LICENSE)。宣传片配乐为原创合成，随仓库以同一许可发布。
+[MIT](LICENSE)。
