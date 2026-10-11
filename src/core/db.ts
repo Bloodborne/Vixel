@@ -254,6 +254,44 @@ CREATE TABLE IF NOT EXISTS dismissed_dup_groups (
   group_id    TEXT PRIMARY KEY,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 标签（名字不分大小写唯一）。source：'user' 在 Vixel 里打的 / 'eagle' 从 Eagle 资源库同步来的
+CREATE TABLE IF NOT EXISTS tags (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  source      TEXT NOT NULL DEFAULT 'user',
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 内容 ↔ 标签（按内容 hash，同一张照片的多份副本共享）。
+-- origin：NULL = 用户打的；否则是同步来源 Eagle 资源库的 watched_folders.id，移除资源库时据此整批撤掉
+CREATE TABLE IF NOT EXISTS item_tags (
+  file_hash   TEXT NOT NULL,
+  tag_id      INTEGER NOT NULL REFERENCES tags(id),
+  origin      INTEGER,
+  PRIMARY KEY (file_hash, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_item_tags_origin ON item_tags(origin);
+
+-- Eagle 资源库里的条目（只读镜像：Eagle 的 images/<id>.info/metadata.json）。
+-- file_hash 在该文件被索引后才回填（视频要等抽完首帧）；tag_names 已含 Eagle 文件夹路径
+CREATE TABLE IF NOT EXISTS eagle_items (
+  folder_id   INTEGER NOT NULL,
+  eagle_id    TEXT NOT NULL,
+  source_path TEXT NOT NULL,
+  file_hash   TEXT,
+  name        TEXT NOT NULL DEFAULT '',
+  annotation  TEXT NOT NULL DEFAULT '',
+  url         TEXT NOT NULL DEFAULT '',
+  star        INTEGER NOT NULL DEFAULT 0,
+  tag_names   TEXT NOT NULL DEFAULT '[]',
+  folder_paths TEXT NOT NULL DEFAULT '[]',
+  deleted     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (folder_id, eagle_id)
+);
+CREATE INDEX IF NOT EXISTS idx_eagle_items_hash ON eagle_items(file_hash);
+CREATE INDEX IF NOT EXISTS idx_eagle_items_path ON eagle_items(source_path);
 `
 
 /** 后来加的表（只读打开旧库时用空 TEMP 表顶替，见 initDatabase） */
@@ -262,6 +300,9 @@ const LATE_TABLES: Record<string, string> = {
   hidden_items: 'file_hash TEXT PRIMARY KEY, reason TEXT, created_at DATETIME',
   dismissed_dup_groups: 'group_id TEXT PRIMARY KEY, created_at DATETIME',
   smart_albums: 'id INTEGER PRIMARY KEY, name TEXT, query TEXT, filters TEXT, sort_order INTEGER, created_at DATETIME, updated_at DATETIME',
+  tags: 'id INTEGER PRIMARY KEY, name TEXT, source TEXT, created_at DATETIME',
+  item_tags: 'file_hash TEXT, tag_id INTEGER, origin INTEGER',
+  eagle_items: 'folder_id INTEGER, eagle_id TEXT, source_path TEXT, file_hash TEXT, name TEXT, annotation TEXT, url TEXT, star INTEGER, tag_names TEXT, folder_paths TEXT, deleted INTEGER',
 }
 
 // 照片查询共用列（表别名 p）。LEFT JOIN videos v 补出媒体类型和时长：
@@ -310,6 +351,10 @@ export function filterWhere(f: MediaFilters): { where: string; params: unknown[]
   if (f.durationMax != null) { parts.push('v.duration_ms < ?'); params.push(f.durationMax) }
   if (f.personId != null) { parts.push('p.file_hash IN (SELECT file_hash FROM faces WHERE person_id = ?)'); params.push(f.personId) }
   if (f.favorite) parts.push('EXISTS (SELECT 1 FROM favorites fav WHERE fav.file_hash = p.file_hash)')
+  for (const tagId of f.tagIds ?? []) {
+    parts.push('p.file_hash IN (SELECT file_hash FROM item_tags WHERE tag_id = ?)')
+    params.push(tagId)
+  }
   return { where: parts.map((x) => `AND (${x})`).join(' '), params }
 }
 
@@ -647,6 +692,10 @@ export function sanitizeFilters(raw: unknown): MediaFilters {
   if (f.kind === 'image' || f.kind === 'video' || f.kind === 'audio') out.kind = f.kind
   if (f.orientation === 'landscape' || f.orientation === 'portrait' || f.orientation === 'square' || f.orientation === 'panorama') out.orientation = f.orientation
   if (f.favorite === true) out.favorite = true
+  if (Array.isArray(f.tagIds)) {
+    const ids = f.tagIds.filter((x): x is number => typeof x === 'number' && Number.isInteger(x))
+    if (ids.length > 0) out.tagIds = [...new Set(ids)]
+  }
   return out
 }
 
@@ -1113,6 +1162,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     getOcrText: db.prepare(`SELECT text FROM image_ocr WHERE file_hash = ?`),
     deleteOcrByHash: db.prepare(`DELETE FROM image_ocr WHERE file_hash = ?`),
     deleteFavoriteByHash: db.prepare(`DELETE FROM favorites WHERE file_hash = ?`),
+    deleteItemTagsByHash: db.prepare(`DELETE FROM item_tags WHERE file_hash = ?`),
     // 等待 OCR 的照片：已有 embedding 但还没 OCR 结果
     clearAllOcr: db.prepare(`DELETE FROM image_ocr`),
     getPendingOcrPhotos: db.prepare(`
@@ -1421,6 +1471,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     stmts.deleteCaptionByHash.run(hash)
     stmts.deleteOcrByHash.run(hash)
     stmts.deleteFavoriteByHash.run(hash)
+    stmts.deleteItemTagsByHash.run(hash)
   }
   /**
    * 软删某视频的全部帧 photo（beforeCommit 在同一事务里先执行），

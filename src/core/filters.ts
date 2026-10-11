@@ -23,7 +23,7 @@ export function classifyOrientation(width?: number | null, height?: number | nul
 export function hasActiveFilters(f: MediaFilters | undefined): boolean {
   if (!f) return false
   return !!(f.dateFrom || f.dateTo || f.orientation || f.minPixels || f.maxPixels ||
-    f.durationMin != null || f.durationMax != null || f.personId != null || f.favorite)
+    f.durationMin != null || f.durationMax != null || f.personId != null || f.favorite || (f.tagIds?.length ?? 0) > 0)
 }
 
 /** 需要查库才能判断的条件，调用方预先取成 hash 集合 */
@@ -31,6 +31,8 @@ export interface FilterSets {
   folderHashes?: Set<string> | null
   personHashes?: Set<string> | null
   favoriteHashes?: Set<string> | null
+  /** 同时带有所有所选标签的内容 */
+  tagHashes?: Set<string> | null
 }
 
 export function matchesFilters(photo: Photo, f: MediaFilters, sets: FilterSets = {}): boolean {
@@ -51,5 +53,13 @@ export function matchesFilters(photo: Photo, f: MediaFilters, sets: FilterSets =
   }
   if (sets.personHashes && !sets.personHashes.has(photo.fileHash)) return false
   if (sets.favoriteHashes && !sets.favoriteHashes.has(photo.fileHash)) return false
+  if (sets.tagHashes && !sets.tagHashes.has(photo.fileHash)) return false
   return true
+}
+
+/** 每个标签各自的 hash 集合 → 同时带有全部标签的 hash（AND）；没选标签返回 null */
+export function intersectTagHashes(perTag: Array<Set<string>>): Set<string> | null {
+  if (perTag.length === 0) return null
+  const [first, ...rest] = [...perTag].sort((a, b) => a.size - b.size)
+  return new Set([...first].filter((h) => rest.every((s) => s.has(h))))
 }
