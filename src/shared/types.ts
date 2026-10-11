@@ -225,6 +225,9 @@ export const IPC_CHANNELS = {
   // 外观
   GET_THEME: 'get-theme',
   SET_THEME: 'set-theme',
+  GET_LOCALE_SYNC: 'get-locale-sync',
+  GET_LOCALE_SETTING: 'get-locale-setting',
+  SET_LOCALE_SETTING: 'set-locale-setting',
 
   // 系统
   GET_APP_PATH: 'get-app-path',

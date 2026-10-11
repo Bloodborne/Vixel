@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ThemeMode } from '../../../../shared/types'
+import { t, type LocaleSetting } from '../../../../shared/i18n'
 
 /** 外观选项的迷你窗口示意：侧栏 + 内容区两块，颜色写死（预览的就是另一种外观） */
 const SWATCH = {
@@ -8,18 +9,34 @@ const SWATCH = {
 } as const
 
 const OPTIONS: Array<{ mode: ThemeMode; label: string }> = [
-  { mode: 'system', label: '跟随系统' },
-  { mode: 'light', label: '浅色' },
-  { mode: 'dark', label: '深色' },
+  { mode: 'system', label: t.settings.themeSystem },
+  { mode: 'light', label: t.settings.themeLight },
+  { mode: 'dark', label: t.settings.themeDark },
 ]
 
-/** 设置 › 通用：外观 */
+/** 语言名称用各自的语言写，不随界面语言翻译 */
+const LANGUAGES: Array<{ value: LocaleSetting; label: string }> = [
+  { value: 'system', label: t.settings.languageSystem },
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'en', label: 'English' },
+]
+
+/** 设置 › 通用：外观、语言 */
 export function GeneralSettings(): JSX.Element {
   const [theme, setTheme] = useState<ThemeMode | null>(null)
 
+  const [language, setLanguage] = useState<LocaleSetting | null>(null)
+
   useEffect(() => {
     window.api.getTheme().then(setTheme)
+    window.api.getLocaleSetting().then(setLanguage)
   }, [])
+
+  // 主进程保存后会 reload 所有窗口
+  const chooseLanguage = (value: LocaleSetting): void => {
+    setLanguage(value)
+    void window.api.setLocaleSetting(value)
+  }
 
   const choose = (mode: ThemeMode): void => {
     setTheme(mode)
@@ -29,7 +46,7 @@ export function GeneralSettings(): JSX.Element {
   return (
     <div className="p-6 flex flex-col gap-6">
       <section className="flex gap-6">
-        <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">外观</h3>
+        <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.appearance}</h3>
         <div className="flex flex-col gap-2">
           <div className="flex gap-4">
             {OPTIONS.map(({ mode, label }) => {
@@ -57,7 +74,27 @@ export function GeneralSettings(): JSX.Element {
               )
             })}
           </div>
-          <p className="text-caption text-ink-4">大图详情和快速查看始终使用深色背景，便于看片。</p>
+          <p className="text-caption text-ink-4">{t.settings.appearanceNote}</p>
+        </div>
+      </section>
+
+      <section className="flex gap-6">
+        <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.language}</h3>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-1 p-0.5 rounded-md bg-fill w-fit">
+            {LANGUAGES.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => chooseLanguage(value)}
+                className={`px-3 h-7 rounded-[5px] text-callout transition-colors duration-fast ${
+                  language === value ? 'bg-raised text-ink shadow-sm' : 'text-ink-2 hover:text-ink'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-caption text-ink-4">{t.settings.languageNote}</p>
         </div>
       </section>
     </div>

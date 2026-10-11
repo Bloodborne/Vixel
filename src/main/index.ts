@@ -20,6 +20,7 @@ import { serveMediaFile } from '../core/media/serve'
 import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
 import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
 import { installAppMenu, popupItemMenu } from './menu'
+import { locale, resolveLocale, setLocale, type LocaleSetting } from '../shared/i18n'
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
@@ -45,6 +46,7 @@ const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000
 const BACKUP_KEEP_COUNT = 3
 const META_KEY_LAST_BACKUP = 'last_backup_at'
 const META_KEY_THEME = 'ui.theme'
+const META_KEY_LOCALE = 'ui.locale'
 let backupTimer: NodeJS.Timeout | null = null
 let backupInFlight = false
 
@@ -74,6 +76,16 @@ function applyTheme(mode: ThemeMode): void {
 function loadTheme(): ThemeMode {
   const v = db.getMetaState(META_KEY_THEME)
   return v === 'light' || v === 'dark' ? v : 'system'
+}
+
+function loadLocaleSetting(): LocaleSetting {
+  const v = db.getMetaState(META_KEY_LOCALE)
+  return v === 'zh-CN' || v === 'en' ? v : 'system'
+}
+
+/** 界面语言：主进程文案（菜单、对话框、任务错误）立即切换；渲染进程由调用方 reload */
+function applyLocale(setting: LocaleSetting): void {
+  setLocale(resolveLocale(setting, app.getPreferredSystemLanguages()))
 }
 
 const WEB_PREFERENCES: Electron.WebPreferences = {
@@ -436,6 +448,20 @@ function registerIpcHandlers(): void {
     return next
   })
 
+  // preload 在渲染前同步取语言，首帧就是对的文案
+  ipcMain.on(IPC_CHANNELS.GET_LOCALE_SYNC, (event) => { event.returnValue = locale })
+
+  handle(IPC_CHANNELS.GET_LOCALE_SETTING, async () => loadLocaleSetting())
+
+  handle(IPC_CHANNELS.SET_LOCALE_SETTING, async (_event, setting: LocaleSetting) => {
+    const next: LocaleSetting = setting === 'zh-CN' || setting === 'en' ? setting : 'system'
+    db.setMetaState(META_KEY_LOCALE, next)
+    applyLocale(next)
+    installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.reload()
+    return next
+  })
+
   handle(IPC_CHANNELS.GET_INDEX_PAUSED, async () => {
     return indexer.isPaused()
   })
@@ -791,6 +817,7 @@ app.whenReady().then(async () => {
     return
   }
   applyTheme(loadTheme())
+  applyLocale(loadLocaleSetting())
   nativeTheme.on('updated', () => {
     for (const w of BrowserWindow.getAllWindows()) w.setBackgroundColor(windowBackground())
   })

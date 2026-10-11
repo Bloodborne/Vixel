@@ -3,13 +3,14 @@ import { Icon, type IconName } from '../shell/icons'
 import { ModelStatus } from '../ModelStatus'
 import { GeneralSettings } from './GeneralSettings'
 import { FolderSettings } from './FolderSettings'
+import { t } from '../../../../shared/i18n'
 
 type Tab = 'general' | 'folders' | 'model'
 
 const TABS: Array<{ id: Tab; label: string; icon: IconName }> = [
-  { id: 'general', label: '通用', icon: 'gear' },
-  { id: 'folders', label: '文件夹', icon: 'folder' },
-  { id: 'model', label: 'AI 模型', icon: 'sparkles' },
+  { id: 'general', label: t.settings.tabGeneral, icon: 'gear' },
+  { id: 'folders', label: t.settings.tabFolders, icon: 'folder' },
+  { id: 'model', label: t.settings.tabModel, icon: 'sparkles' },
 ]
 
 const TAB_KEY = 'settings.tab'
@@ -28,7 +29,7 @@ function loadTab(): Tab {
  */
 export function SettingsWindow(): JSX.Element {
   const [tab, setTab] = useState<Tab>(loadTab)
-  const current = TABS.find((t) => t.id === tab)!
+  const current = TABS.find((x) => x.id === tab)!
 
   useEffect(() => {
     document.title = current.label
@@ -40,18 +41,18 @@ export function SettingsWindow(): JSX.Element {
       <header className="titlebar flex-shrink-0 bg-bar border-b border-line flex flex-col items-center pt-1.5 pb-1.5">
         <h1 className="text-callout font-semibold text-ink-2 h-[22px] leading-[22px]">{current.label}</h1>
         <nav className="flex gap-1">
-          {TABS.map((t) => {
-            const active = t.id === tab
+          {TABS.map((x) => {
+            const active = x.id === tab
             return (
               <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
+                key={x.id}
+                onClick={() => setTab(x.id)}
                 className={`w-[68px] h-[46px] rounded-md flex flex-col items-center justify-center gap-0.5 transition-colors duration-fast ${
                   active ? 'bg-fill-active text-accent' : 'text-ink-3 hover:text-ink-2 hover:bg-fill'
                 }`}
               >
-                <Icon name={t.icon} className="w-5 h-5" />
-                <span className={`text-caption ${active ? 'text-ink' : ''}`}>{t.label}</span>
+                <Icon name={x.icon} className="w-5 h-5" />
+                <span className={`text-caption ${active ? 'text-ink' : ''}`}>{x.label}</span>
               </button>
             )
           })}

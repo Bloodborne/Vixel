@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { kbd } from '../../lib/platform'
+import { t } from '../../../../shared/i18n'
 import type { IndexProgress } from '../../../../shared/types'
 
 export const THUMB_MIN = 120
@@ -26,20 +27,20 @@ function describeActivity(p: IndexProgress | null): { text: string; detail?: str
   const { totalPhotos: total, thumbnailedPhotos: thumbs, indexedPhotos: indexed } = p
   const ocr = p.ocrPhotos || 0
   if (p.stage === 'indexing') {
-    if (thumbs < total) return { text: `生成缩略图 ${thumbs}/${total}`, detail: p.currentFile, ratio: total ? thumbs / total : null }
-    if (indexed < thumbs) return { text: `生成索引 ${indexed}/${thumbs}`, detail: p.currentFile, ratio: thumbs ? indexed / thumbs : null }
+    if (thumbs < total) return { text: t.shell.thumbnails(thumbs, total), detail: p.currentFile, ratio: total ? thumbs / total : null }
+    if (indexed < thumbs) return { text: t.shell.indexing(indexed, thumbs), detail: p.currentFile, ratio: thumbs ? indexed / thumbs : null }
     const cur = p.current
     if (cur && cur.taskType === 'extract_frames' && cur.segTotal > 0) {
       return {
-        text: `处理${cur.kind === 'audio' ? '音频' : '视频'}片段 ${cur.segDone}/${cur.segTotal}`,
+        text: t.shell.segments(cur.kind === 'audio' ? 'audio' : 'video', cur.segDone, cur.segTotal),
         detail: cur.name,
         ratio: cur.segDone / cur.segTotal,
       }
     }
-    return { text: '处理音视频…', ratio: null }
+    return { text: t.shell.processingMedia, ratio: null }
   }
-  if (p.stage === 'ocr') return { text: `识别图内文字 ${ocr}/${indexed}`, detail: p.currentFile, ratio: indexed ? ocr / indexed : null }
-  if (p.stage === 'detecting_faces') return { text: '检测人脸…', ratio: null }
+  if (p.stage === 'ocr') return { text: t.shell.ocrProgress(ocr, indexed), detail: p.currentFile, ratio: indexed ? ocr / indexed : null }
+  if (p.stage === 'detecting_faces') return { text: t.shell.detectingFaces, ratio: null }
   return null
 }
 
@@ -58,9 +59,9 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
   useEffect(() => {
     window.api.getModelStatus().then((s) => {
       setModelIssue(
-        s.initError ? '语义模型初始化失败'
-          : !s.localModelExists ? '语义模型缺失'
-          : !s.embeddingReady ? '语义模型未就绪'
+        s.initError ? t.shell.modelInitFailed
+          : !s.localModelExists ? t.shell.modelMissing
+          : !s.embeddingReady ? t.shell.modelNotReady
           : null
       )
     }).catch(() => {})
@@ -80,18 +81,18 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
   return (
     <footer className="h-[26px] flex-shrink-0 flex items-center gap-3 px-3 bg-bar border-t border-line text-caption text-ink-3 select-none">
       <span className="tabular-nums flex-shrink-0" title={breakdown || undefined}>
-        {itemCount.toLocaleString()} 项
-        {selectedCount > 0 && <span className="text-ink-2"> · 已选 {selectedCount.toLocaleString()}</span>}
+        {t.common.items(itemCount)}
+        {selectedCount > 0 && <span className="text-ink-2">{t.shell.selected(selectedCount)}</span>}
       </span>
 
       {/* 活动区：点开抽屉 */}
       <button
         onClick={onOpenActivity}
-        title={`查看活动 (${kbd('⌥⌘A')})`}
+        title={t.shell.viewActivity(kbd('⌥⌘A'))}
         className="min-w-0 flex-1 h-full flex items-center gap-2 px-2 -mx-2 hover:bg-fill transition-colors duration-fast"
       >
         {paused ? (
-          <span className="text-warn/80">索引已暂停</span>
+          <span className="text-warn/80">{t.shell.indexPaused}</span>
         ) : activity ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />
@@ -107,17 +108,17 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
             )}
           </>
         ) : (
-          <span className="text-ink-3">{(progress?.totalPhotos ?? itemCount) > 0 ? '索引已是最新' : '添加文件夹开始使用'}</span>
+          <span className="text-ink-3">{(progress?.totalPhotos ?? itemCount) > 0 ? t.shell.upToDate : t.shell.addFolderToStart}</span>
         )}
       </button>
 
       {modelIssue && (
         <button
           onClick={() => window.api.openSettings()}
-          title="语义搜索暂不可用，点击打开设置查看模型状态"
+          title={t.shell.modelIssueHint}
           className="flex-shrink-0 px-1.5 rounded bg-warn/10 text-warn/80 hover:bg-warn/20 transition-colors duration-fast"
         >
-          {modelIssue} · 设置
+          {modelIssue} · {t.common.settings}
         </button>
       )}
 
@@ -126,7 +127,7 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
           onClick={onOpenActivity}
           className="flex-shrink-0 px-1.5 rounded bg-bad/10 text-bad/80 hover:bg-bad/20 tabular-nums transition-colors duration-fast"
         >
-          {errorCount} 失败
+          {t.shell.failedCount(errorCount)}
         </button>
       )}
 
@@ -135,14 +136,14 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
           onClick={togglePause}
           className="flex-shrink-0 px-1.5 rounded text-ink-2 hover:text-ink hover:bg-fill-hover transition-colors duration-fast"
         >
-          {paused ? '继续' : '暂停'}
+          {paused ? t.shell.resume : t.shell.pause}
         </button>
       )}
 
       {density && onToggleDensity && (
         <button
           onClick={onToggleDensity}
-          title={`信息密度：${density === 'info' ? '信息式' : '沉浸式'} (G)`}
+          title={t.shell.densityTitle(density === 'info')}
           aria-pressed={density === 'info'}
           data-density={density}
           className={`flex-shrink-0 w-5 h-[18px] rounded flex items-center justify-center transition-colors duration-fast ${
@@ -168,7 +169,7 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
       )}
 
       {thumbSize !== undefined && onThumbSize && (
-        <label className="flex-shrink-0 flex items-center gap-1.5" title={`缩略图大小 (${kbd('⌘+')} / ${kbd('⌘−')})`}>
+        <label className="flex-shrink-0 flex items-center gap-1.5" title={t.shell.thumbSizeTitle(kbd('⌘+'), kbd('⌘−'))}>
           <span className="w-2 h-2 rounded-[2px] border border-ink-3" />
           <input
             type="range"

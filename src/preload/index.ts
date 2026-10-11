@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace } from '../shared/types'
+import type { Locale, LocaleSetting } from '../shared/i18n'
 
 const api = {
   // 搜索
@@ -79,6 +80,16 @@ const api = {
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.INDEX_PROGRESS, handler)
     }
+  },
+
+  /** 当前界面语言（已按设置 / 系统解析），渲染前同步取 */
+  locale: ipcRenderer.sendSync(IPC_CHANNELS.GET_LOCALE_SYNC) as Locale,
+  getLocaleSetting: (): Promise<LocaleSetting> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_LOCALE_SETTING)
+  },
+  /** 保存后主进程会 reload 所有窗口 */
+  setLocaleSetting: (setting: LocaleSetting): Promise<LocaleSetting> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SET_LOCALE_SETTING, setting)
   },
 
   getTheme: (): Promise<ThemeMode> => {
