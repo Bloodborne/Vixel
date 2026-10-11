@@ -50,7 +50,7 @@ VIXEL_CAPTURE=$D/shots VIXEL_CAPTURE_QUERIES="花,STARBUCKS,猫" npx electron . 
         或执行 `xattr -dr com.apple.quarantine /Applications/Vixel.app`。适合内测，不适合公开宣发。
 - [ ] **模型随包**：确认 `resources/models` 下有 `litert/embeddinggemma-2-740m.litertlm`、`paddleocr/ppocrv5_dict.txt`（v5 字典，不是 `ppocr_keys_v1.txt`）、人脸模型，`resources/litert/<平台>` 下有 LiteRT 运行库（`npm run models:download`；交叉准备用 `LITERT_PLATFORM=win32-x64`）。安装包约 600 MB，下载页注明。
 - [x] **全新目录冒烟**：打包后的 app 用空数据目录启动、用演示库跑完截图巡检（搜索 / 图中文字 / 视频 / 地图 / 人物）均正常。真机全新用户仍建议再试一次。
-- [ ] **版本号**：首个公开版本待定（2026-10-10 之前的 v0.2.0 试发布已撤下，因为它用的是旧 ONNX 推理）。
+- [x] **版本号**：首个公开版本 v0.2.0（2026-10-11 发布，macOS + Windows）。
 - [x] **宣传片 / README 配图**：已用演示库按真实界面重做（2026-10-10）。README 里内嵌播放的视频需要把新的 mp4 拖进 GitHub 网页编辑器生成附件链接。
 
 ### Windows 安装包
@@ -60,6 +60,57 @@ VIXEL_CAPTURE=$D/shots VIXEL_CAPTURE_QUERIES="花,STARBUCKS,猫" npx electron . 
 - electron-builder 解压 winCodeSign 时要建符号链接，普通用户没有权限会反复失败：开“开发者模式”，或先手动把 `winCodeSign-2.6.0.7z` 解压到 `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0`。
 - 国内网络：`ELECTRON_MIRROR` / `ELECTRON_BUILDER_BINARIES_MIRROR` 指向 npmmirror。
 - 通过 ssh 远程构建时，ssh 会话结束会杀掉子进程，长任务用 `schtasks` 跑。
+
+## 推广：怎么拿到 star
+
+### 定位（一句话说清和别人的区别）
+
+同类很多：Eagle（3 月已上线离线 AI 搜索，付费 ¥229）、Immich（要自建服务器）、Apple 照片（只限照片图库）、
+SCM / rclip / Queryable（只搜图片，英文为主）。Vixel 站得住的点：
+
+1. **免费开源 + 真离线**：装好就能用，首次也不下载模型，不需要账号 / 服务器 / API Key。
+2. **视频和声音也能搜**：按片段搜画面 + 声音，打开直接跳到那一刻；视频画面里的字也能搜。别家大多只搜图片。
+3. **中文最好用**：中文查询、中文 OCR（PaddleOCR v5）、中文界面。
+4. **直接用你现有的文件夹**：不导入、不复制、不改原文件（Eagle 要把文件导入它自己的库）。
+
+### 第一波：中文社区（界面是中文，先打这里）
+
+48 小时内集中发，star 增速决定能不能上 GitHub Trending：
+
+| 渠道 | 形式 | 要点 |
+|---|---|---|
+| V2EX「分享创造」 | 帖子 + GIF | 标题写痛点：“搜‘猫在沙发上’直接找到 3 年前那段视频”；作者在评论区及时回复 |
+| 即刻 / 小红书 | 30 秒竖屏录屏 | 小红书搜“照片整理”“Eagle 替代”的人多；用演示库，不要露个人照片 |
+| B 站 | 2–3 分钟演示 | 和 Eagle AI 搜索做同题对比（视频片段、图中文字）最有说服力 |
+| 少数派 | Matrix 投稿 | 偏使用体验：怎么找回旧照片 / 截图里的发票 |
+| 掘金 / 知乎 | 技术长文 | 《在 Electron 里用 LiteRT 跑 EmbeddingGemma 2》：koffi 调 C API、sqlite-vec、四路 RRF、相关性门槛，以及 mAP 0.844 → 0.974 的实测（docs/review/06）。技术文章带来的 star 最稳 |
+| HelloGitHub、阮一峰《科技爱好者周刊》 | 提交 issue 自荐 | 月刊 / 周刊，长尾流量 |
+
+### 第二波：英文社区（先做英文界面）
+
+界面只有中文时，英文社区的转化很差，**做英文界面是国际推广的前提**（i18n，工作量中等）。做完再发：
+
+- **Show HN**：标题直白（“Show HN: Vixel – offline semantic search for your photos and videos”）；美国时间工作日上午发。
+- Reddit：r/macapps、r/DataHoarder、r/photography、r/selfhosted（说明不需要服务器）。
+- **Google AI Edge / LiteRT-LM**：在 LiteRT-LM 仓库的 Discussions / showcase 里分享。这是少见的 C API + Electron 桌面应用案例，官方转发的可能性不小。
+- Hugging Face：在 EmbeddingGemma 2 模型页的社区区发应用案例。
+- Product Hunt：等英文界面和签名都就绪后再上。
+- awesome 列表：awesome-mac、awesome-electron、awesome-privacy、awesome-local-ai。
+
+### 仓库本身（转化率）
+
+- [x] README：顶部 GIF、一句话、下载链接；英文 README；仓库描述、topics、社交预览图（2026-10-11）。
+- [ ] README 加一张**对比表**（Vixel / Eagle / Immich / Apple 照片：离线、视频片段、图中文字、人物、价格、是否导入）。对比表是最容易被转发的部分。
+- [ ] README 里内嵌宣传片（把 mp4 拖进 GitHub 网页编辑器生成附件链接）。
+- [ ] **Homebrew cask**（自建 tap，`brew install --cask rgb-loop/tap/vixel`）：cask 安装时可以自动去掉 quarantine，绕开未公证的拦截。SCM 就是这么做的。
+- [ ] 开 Discussions；准备 5–10 个 `good first issue`（比如格式支持、快捷键、翻译）。
+- [ ] 每 2–3 周发一个小版本，每次发版就是一次再曝光。
+
+### 不要做
+
+- 不要刷 star、不要互刷群：GitHub 会清理，社区也会反感。
+- 不对外宣传速度数字。
+- 不要用个人照片做素材。
 
 ## 发布后一周盯什么
 
