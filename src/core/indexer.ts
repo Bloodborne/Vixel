@@ -11,6 +11,7 @@ import { getEmbeddingService } from './embedding'
 import { initFaceService, isFaceServiceReady, processPhotoFaces, assignFaceToPerson } from './face'
 import { initOcrService, isOcrReady, processPhotoOcr, OCR_PIPELINE_VERSION } from './ocr'
 import { decodeImage, type DecodedImage } from './image/decode'
+import { computeItemColors } from './color/palette'
 import { extractKeyframes, isFfmpegAvailable, probeMedia } from './video/extract'
 import { generateSprite, SPRITE_MIN_DURATION_MS } from './video/sprite'
 import { extractAudioTrack, extractCoverOrWaveform } from './audio/extract'
@@ -606,34 +607,75 @@ export class Indexer extends EventEmitter {
     try {
       const thumbnailPath = this.getThumbnailPath(fileHash)
       const hasThumb = existsSync(thumbnailPath)
-      // 缩略图和元数据都在 → 不必再解码原图
-      if (hasThumb && hasMeta) return
+      // 缩略图和元数据都在 → 不必再解码原图；色板缺失（老库）就从缩略图补
+      if (hasThumb && hasMeta) {
+        if (!this.db.hasColorsForHash(fileHash)) await this.saveColors(fileHash, thumbnailPath)
+        return
+      }
       const decoded = await this.decode(fileHash, filePath)
-      await this.parseAndUpdateMeta(photoId, decoded.buffer, decoded.originalBuffer)
+      await this.parseAndUpdateMeta(photoId, decoded)
       if (!hasThumb) await this.generateThumbnail(fileHash, decoded.buffer)
+      // 色板复用同一次解码（64×64 下采样 + Lab 聚类，threadpool 里跑，不占主线程）
+      await this.saveColors(fileHash, decoded.buffer)
     } catch (error) {
       console.error(`Error processing thumbnail for ${filePath}:`, error)
       throw error
     }
   }
 
+  /** 提取并保存色板；失败写空占位（坏文件不反复重试），不影响缩略图任务本身 */
+  private async saveColors(fileHash: string, source: Buffer | string): Promise<void> {
+    try {
+      const { palette, mask } = await computeItemColors(source)
+      this.db.saveItemColors(fileHash, JSON.stringify(palette), mask)
+    } catch (err) {
+      console.warn(`Palette extraction failed for ${fileHash}:`, err)
+      try { this.db.saveItemColors(fileHash, '[]', 0) } catch { /* ignore */ }
+    }
+  }
+
+  private colorBackfillRunning = false
+
+  /**
+   * 老库的色板回填：读缩略图（512px webp，不解原图），每批 16 条、批间让出事件循环，
+   * 不会把主进程占住超过几毫秒（sharp 在 threadpool 里解码）。没有缩略图的先写空占位，
+   * 等它的缩略图任务跑到时会覆盖成真实色板。返回处理条数。
+   */
+  async backfillColors(): Promise<number> {
+    if (this.colorBackfillRunning) return 0
+    this.colorBackfillRunning = true
+    let done = 0
+    try {
+      while (!this.stopped) {
+        const batch = this.db.getHashesMissingColors(16)
+        if (batch.length === 0) break
+        for (const { fileHash } of batch) {
+          const thumb = this.getThumbnailPath(fileHash)
+          if (existsSync(thumb)) await this.saveColors(fileHash, thumb)
+          else this.db.saveItemColors(fileHash, '[]', 0)
+          done++
+        }
+        await new Promise((r) => setTimeout(r, 25))
+      }
+    } finally {
+      this.colorBackfillRunning = false
+    }
+    return done
+  }
+
   /**
    * EXIF/GPS 解析始终走 originalBuffer —— exifr 原生认 HEIC/RAW 元数据，
    * 转码后的 JPEG 反而会丢失拍摄时间和 GPS。sharp metadata 则用解码后的
-   * 像素 buffer。
+   * 像素 buffer。设计格式（PDF/AI）带上解析出的页数。
    */
-  private async parseAndUpdateMeta(
-    photoId: number,
-    decodedBuffer: Buffer,
-    originalBuffer: Buffer
-  ): Promise<void> {
+  private async parseAndUpdateMeta(photoId: number, decoded: DecodedImage): Promise<void> {
     const [metadata, exifData, gpsData] = await Promise.all([
-      sharp(decodedBuffer).metadata(),
-      exifr.parse(originalBuffer, {
+      sharp(decoded.buffer).metadata(),
+      exifr.parse(decoded.originalBuffer, {
         pick: ['Make', 'Model', 'ExposureTime', 'FNumber', 'ISO',
           'FocalLength', 'DateTimeOriginal'],
       }).catch(() => null),
-      exifr.gps(originalBuffer).catch(() => null),
+      exifr.gps(decoded.originalBuffer).catch(() => null),
     ])
 
     this.db.updatePhotoMeta(photoId, {
@@ -642,6 +684,7 @@ export class Indexer extends EventEmitter {
       takenAt: exifData?.DateTimeOriginal?.toISOString(),
       lat: gpsData?.latitude,
       lng: gpsData?.longitude,
+      pages: decoded.pages,
     })
   }
 

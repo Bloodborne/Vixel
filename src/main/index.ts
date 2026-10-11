@@ -17,6 +17,7 @@ import { setOcrModelsDir } from '../core/ocr'
 import { preloadJieba } from '../core/text/tokenize'
 import { formatBackupName, selectExpired } from '../core/backup'
 import { serveMediaFile } from '../core/media/serve'
+import { parsePaletteJson } from '../core/color/palette'
 import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
 import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
 import { installAppMenu, popupItemMenu, popupSmartAlbumMenu } from './menu'
@@ -245,6 +246,10 @@ async function initServices(): Promise<void> {
     }).catch((e) => console.warn('[ocr] catch-up scan failed:', e))
     // 模型加载完推一次进度：库已全部索引时队列不动、不会有进度事件，状态栏的"模型未就绪"要靠这一下清掉
     indexer.preloadModels().catch(() => {}).finally(() => indexer.emitProgressPublic())
+    // 老库的色板回填（读缩略图，小批推进，不阻塞主进程）
+    void indexer.backfillColors().then((n) => {
+      if (n > 0) console.log(`[color] backfilled palettes for ${n} items`)
+    }).catch((e) => console.warn('[color] backfill failed:', e))
     // 用户扫过人脸才自动重扫；从没扫过的库保持手动触发
     // 上次退出前没来得及聚类的脸（或旧版本留下的未归属脸）
     if (db.countPendingClusterFaces() > 0) void indexer.faceClusterer.run()
@@ -534,7 +539,12 @@ function registerIpcHandlers(): void {
   })
 
   handle(IPC_CHANNELS.GET_PHOTO_DETAIL, async (_event, photoId: number) => {
-    return db.getPhotoDetail(photoId)
+    const detail = db.getPhotoDetail(photoId)
+    if (!detail?.fileHash) return detail
+    // 色板（按内容 hash）：缩略图时提取，老内容由后台回填；空数组不往外传
+    const colors = db.getItemColors(detail.fileHash)
+    const palette = parsePaletteJson(colors?.palette)
+    return palette.length > 0 ? { ...detail, palette } : detail
   })
 
   handle(IPC_CHANNELS.GET_THUMBNAIL, async (_event, photoId: number) => {

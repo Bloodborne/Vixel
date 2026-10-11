@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './icons'
 import { t } from '../../../../shared/i18n'
+import { COLOR_BUCKETS, BUCKET_SWATCHES } from '../../../../shared/colors'
 import type { MediaFilters, Person } from '../../../../shared/types'
 import type { Tag } from '../../../../shared/tags'
 
 /** 来源（类型 / 文件夹）和日期之外的筛选条件；没设的键不出现（计数、判空都靠它） */
-export type ExtraFilters = Pick<MediaFilters, 'orientation' | 'minPixels' | 'maxPixels' | 'durationMin' | 'durationMax' | 'personId' | 'favorite' | 'tagIds'>
+export type ExtraFilters = Pick<MediaFilters, 'orientation' | 'minPixels' | 'maxPixels' | 'durationMin' | 'durationMax' | 'personId' | 'favorite' | 'tagIds' | 'color'>
 
 interface Preset { key: string; label: string; value: ExtraFilters }
 
@@ -40,7 +41,7 @@ export function hasExtraFilters(f: ExtraFilters): boolean {
 /** 生效的条件组数（分辨率 / 时长的上下限算一组，每个标签算一个），给工具栏按钮的角标 */
 export function countExtraFilters(f: ExtraFilters): number {
   return GROUPS.filter((g) => g.keys.some((k) => f[k] != null)).length + (f.personId != null ? 1 : 0) + (f.favorite ? 1 : 0) +
-    (f.tagIds?.length ?? 0)
+    (f.tagIds?.length ?? 0) + (f.color ? 1 : 0)
 }
 
 /** 生效条件的文字标签（智能相册默认名用）；人物名、标签名由调用方查好传入 */
@@ -50,6 +51,7 @@ export function describeExtraFilters(f: ExtraFilters, personName?: string, tagNa
     const p = g.presets.find((x) => isPreset(f, g.keys, x))
     if (p) labels.push(p.label)
   }
+  if (f.color) labels.push(t.design.colorNames[f.color] ?? f.color)
   if (f.personId != null) labels.push(personName || t.organize.person)
   if (f.favorite) labels.push(t.organize.favorites)
   labels.push(...tagNames.map((n) => `#${n}`))
@@ -121,6 +123,9 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
   if (value.personId != null) {
     chips.push({ label: person ? personLabel(person) : t.organize.person, remove: () => onChange(without(value, ['personId'])) })
   }
+  if (value.color) {
+    chips.push({ label: t.design.colorNames[value.color] ?? value.color, remove: () => onChange(without(value, ['color'])) })
+  }
   if (value.favorite) chips.push({ label: t.organize.favoritesOnly, remove: () => onChange(without(value, ['favorite'])) })
   const setTagIds = (ids: number[]): void => onChange(ids.length ? { ...value, tagIds: ids } : without(value, ['tagIds']))
   for (const id of value.tagIds ?? []) {
@@ -173,6 +178,11 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
             }}
           />
         ))}
+
+        <ColorPicker
+          selected={value.color}
+          onChange={(c) => onChange(c == null ? without(value, ['color']) : { ...value, color: c })}
+        />
 
         <label className="flex items-center gap-2">
           <span className="text-caption text-ink-3">{t.organize.person}</span>
@@ -287,6 +297,43 @@ function TagPicker({ tags, selected, onChange }: {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** 色板里能画出来的颜色（mono 用黑白渐变）；与 shared/colors.ts 的桶一一对应 */
+export function colorSwatchStyle(bucket: string): React.CSSProperties {
+  if (bucket === 'mono') return { background: 'linear-gradient(135deg, #1a1a1a 0%, #fafafa 100%)' }
+  return { background: BUCKET_SWATCHES[bucket as keyof typeof BUCKET_SWATCHES] ?? '#888' }
+}
+
+/** 颜色筛选：12 个命名色块，单选（再点一次取消） */
+function ColorPicker({ selected, onChange }: {
+  selected?: string
+  onChange: (bucket: string | null) => void
+}): JSX.Element {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-caption text-ink-3">{t.design.color}</span>
+      <div className="flex items-center gap-1">
+        {COLOR_BUCKETS.map((b) => {
+          const on = selected === b
+          const name = t.design.colorNames[b] ?? b
+          return (
+            <button
+              key={b}
+              onClick={() => onChange(on ? null : b)}
+              aria-pressed={on}
+              title={t.design.colorFilterTitle(name)}
+              data-color-swatch={b}
+              className={`w-[18px] h-[18px] rounded-full border transition-shadow duration-fast ${
+                on ? 'ring-2 ring-accent ring-offset-1 ring-offset-bar border-transparent' : 'border-line-heavy hover:ring-1 hover:ring-ink-4'
+              }`}
+              style={colorSwatchStyle(b)}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }

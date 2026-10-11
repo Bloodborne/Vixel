@@ -15,6 +15,15 @@ const MATCH_LABELS: Array<[MatchChannel, string]> = [
 ]
 import { spriteUrl, thumbUrl } from '../../lib/mediaUrl'
 
+/** 设计格式角标：扩展名 → 徽标文字（与 core/image/design.ts 的 DESIGN_BADGES 一致） */
+const DESIGN_BADGE: Record<string, string> = {
+  svg: 'SVG', psd: 'PSD', psb: 'PSB', pdf: 'PDF', ai: 'AI',
+}
+export function designBadgeOf(fileName: string): string | null {
+  const m = /\.([a-z0-9]+)$/i.exec(fileName)
+  return m ? DESIGN_BADGE[m[1].toLowerCase()] ?? null : null
+}
+
 export type GridDensity = 'immersive' | 'info'
 
 interface MediaCardProps {
@@ -257,6 +266,13 @@ export const MediaCard = memo(function MediaCard({
         <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-white/90 text-micro font-medium tabular-nums pointer-events-none">
           <KindIcon kind={kind} />
           {duration > 0 && formatDuration(scrubbing ? scrub * duration : duration)}
+        </span>
+      )}
+
+      {/* 右下：设计格式角标（SVG / PSD / PDF / AI —— 图片卡片的右下角是空的，正好放格式） */}
+      {kind === 'image' && designBadgeOf(photo.fileName) && (
+        <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-white/90 text-micro font-semibold tracking-wide pointer-events-none">
+          {designBadgeOf(photo.fileName)}
         </span>
       )}
 

@@ -77,6 +77,38 @@ const STEPS: Step[] = [
   },
   { name: 'search-text', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[1]))(w) }, wait: 3000 },
   { name: 'search-nomatch', run: js(typeSearch(QUERIES[2])), wait: 3000 },
+  // 设计格式：打开 fixtures 文件夹（侧栏文件夹按钮的 title 是完整路径），选中 PSD → 网格角标 + 检查器"格式"
+  {
+    name: 'design',
+    run: async (w) => {
+      await js(typeSearch(''))(w)
+      await js(`[...document.querySelectorAll('nav [role="button"]')].find((b) => (b.title || '').includes('design-fixtures'))?.click()`)(w)
+      await sleep(2000)
+      await js(`[...document.querySelectorAll('.photo-card')].find((c) => /\\.psd$/i.test(c.getAttribute('aria-label') || ''))?.click()`)(w)
+    },
+    wait: 2500,
+    after: (w) => { js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)(w); return command('source:all')(w) },
+  },
+  // 颜色：筛选栏的颜色色块（蓝）+ 选中一张让检查器露出色板
+  {
+    name: 'color',
+    run: async (w) => {
+      command('source:all')(w)
+      await sleep(800)
+      await clickTitled(() => t.organize.filterTitle)(w)
+      await sleep(900)
+      await js(`document.querySelector('[data-color-swatch="blue"]')?.click()`)(w)
+      await sleep(1500)
+      await js(`document.querySelector('.photo-card')?.click()`)(w)
+    },
+    wait: 2500,
+    after: async (w) => {
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)(w)
+      await clickText(() => t.organize.clear)(w)
+      await sleep(400)
+      await clickTitled(() => t.organize.filterTitle)(w)
+    },
+  },
   // 以图搜图：VIXEL_CAPTURE_IMAGE=<库外查询图路径>（事件入口见 App.tsx；要过一遍模型，多等一会）
   ...(process.env.VIXEL_CAPTURE_IMAGE ? [{
     name: 'image-search',

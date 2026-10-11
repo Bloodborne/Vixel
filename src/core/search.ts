@@ -5,6 +5,7 @@
 import type { DatabaseInstance } from './db'
 import type { MatchChannel, MediaFilters, SearchResult } from '../shared/types'
 import { hasActiveFilters, intersectTagHashes, matchesFilters, type FilterSets } from './filters'
+import { maskForColor } from '../shared/colors'
 import { TagStore } from './tagStore'
 import { getEmbeddingService } from './embedding'
 import { rrfFuse } from './fusion'
@@ -357,6 +358,7 @@ export class SearchEngine {
       personHashes: filters.personId != null ? this.db.getHashesForPerson(filters.personId) : null,
       favoriteHashes: filters.favorite ? this.db.getFavoriteHashes() : null,
       tagHashes: intersectTagHashes((filters.tagIds ?? []).map((id) => this.tags.hashesForTag(id))),
+      colorHashes: filters.color ? this.db.getHashesForColorMask(maskForColor(filters.color)) : null,
     }
   }
 

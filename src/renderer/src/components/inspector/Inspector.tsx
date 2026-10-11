@@ -6,6 +6,7 @@ import { thumbUrl } from '../../lib/mediaUrl'
 import { revealLabel } from '../../lib/platform'
 import { Icon } from '../shell/icons'
 import { TagEditor } from './TagEditor'
+import { designBadgeOf } from '../media/MediaCard'
 import { intlLocale, t } from '../../../../shared/i18n'
 
 const KIND_LABEL = { image: t.common.image, video: t.common.video, audio: t.common.audio } as const
@@ -24,6 +25,8 @@ interface InspectorProps {
   onToggleFavorite?: () => void
   /** 变化时把焦点放进标签输入框（T） */
   tagFocusKey?: number
+  /** 点色板按该色桶筛选（详情页等没有筛选栏的宿主不传 → 色板只展示） */
+  onFilterColor?: (bucket: string) => void
 }
 
 /**
@@ -31,7 +34,7 @@ interface InspectorProps {
  * 主窗口右侧停靠面板和全屏详情页的侧栏共用这一个组件。
  * 媒体的 photo 行是代表图（首帧 / 封面 / 波形），文件大小、路径要用 MediaDetail 里源文件的。
  */
-export function Inspector({ result, onSelect, showPreview, onClose, resolution: resolutionOverride, onToggleFavorite, tagFocusKey }: InspectorProps): JSX.Element {
+export function Inspector({ result, onSelect, showPreview, onClose, resolution: resolutionOverride, onToggleFavorite, tagFocusKey, onFilterColor }: InspectorProps): JSX.Element {
   const { photo, segment } = result
   const kind = mediaKindOf(photo)
   const isMedia = kind !== 'image' && photo.videoId != null
@@ -186,13 +189,44 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
 
         <Section title={t.inspector.file}>
           <dl className="flex flex-col gap-1.5 text-callout">
+            {!isMedia && designBadgeOf(photo.fileName) && <Row label={t.design.format}>{designBadgeOf(photo.fileName)}</Row>}
             {!isMedia && <Row label={t.inspector.dimensions}>{detail?.width && detail?.height ? `${detail.width} × ${detail.height}` : '–'}</Row>}
+            {!isMedia && (detail?.pages ?? 0) > 0 && <Row label={t.design.pages}>{t.design.pageCount(detail!.pages!)}</Row>}
             <Row label={t.inspector.size}>{isMedia ? (media ? formatFileSize(media.fileSize) : '–') : formatFileSize(photo.fileSize)}</Row>
             {detail?.takenAt && <Row label={t.inspector.taken}>{formatDate(detail.takenAt)}</Row>}
             <Row label={t.inspector.index}><span className={indexState.cls}>{indexState.label}</span></Row>
             {dup > 0 && <Row label={t.inspector.copies}>{t.inspector.copyCount(dup)}</Row>}
           </dl>
         </Section>
+
+        {detail?.palette && detail.palette.length > 0 && (
+          <Section title={t.design.palette}>
+            <div className="flex items-center gap-1.5">
+              {detail.palette.map((c, i) => {
+                const name = t.design.colorNames[c.bucket] ?? c.bucket
+                const title = t.design.paletteSwatchTitle(name, Math.round(c.p * 100))
+                return onFilterColor ? (
+                  <button
+                    key={i}
+                    onClick={() => onFilterColor(c.bucket)}
+                    title={title}
+                    aria-label={title}
+                    data-palette-swatch={c.bucket}
+                    className="h-6 rounded-md border border-line hover:ring-2 hover:ring-accent/60 transition-shadow duration-fast"
+                    style={{ background: c.hex, flexGrow: Math.max(0.12, c.p), flexBasis: 0 }}
+                  />
+                ) : (
+                  <span
+                    key={i}
+                    title={`${name} · ${Math.round(c.p * 100)}%`}
+                    className="h-6 rounded-md border border-line"
+                    style={{ background: c.hex, flexGrow: Math.max(0.12, c.p), flexBasis: 0 }}
+                  />
+                )
+              })}
+            </div>
+          </Section>
+        )}
 
         {!isMedia && detail?.exif && (detail.exif.make || detail.exif.model) && (
           <Section title={t.inspector.camera}>

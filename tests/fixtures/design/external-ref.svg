@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">
+  <image href="http://127.0.0.1:1/never-fetched.png" width="200" height="100"/>
+  <image xlink:href="file:///etc/hostname" y="100" width="200" height="50"/>
+  <rect y="150" width="200" height="50" fill="#00a860"/>
+</svg>

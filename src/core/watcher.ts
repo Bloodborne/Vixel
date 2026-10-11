@@ -6,6 +6,7 @@ import xxhash from 'xxhash-wasm'
 import type { DatabaseInstance } from './db'
 import type { Indexer } from './indexer'
 import type { MediaKind } from '../shared/types'
+import { supportedDesignExts } from './image/design'
 
 // xxHash 实例（懒初始化）
 let hashFn: ((input: Uint8Array) => string) | null = null
@@ -31,6 +32,10 @@ const SUPPORTED_IMAGE_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp', '.gif', '.bmp', '.tiff', '.tif',
   '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.orf', '.rw2', '.avif',
 ])
+
+// 设计格式按栅格预览走图片管线；平台支持矩阵见 image/design.ts（PDF/AI 仅 macOS，
+// 不支持的平台上扩展名不进这份名单 —— 不入库、不在任务面板里失败）
+for (const ext of supportedDesignExts()) SUPPORTED_IMAGE_EXTENSIONS.add(ext)
 
 // 支持的视频格式（实际能不能解码取决于 ffmpeg-static；这些是最常见的）
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([

@@ -23,7 +23,8 @@ export function classifyOrientation(width?: number | null, height?: number | nul
 export function hasActiveFilters(f: MediaFilters | undefined): boolean {
   if (!f) return false
   return !!(f.dateFrom || f.dateTo || f.orientation || f.minPixels || f.maxPixels ||
-    f.durationMin != null || f.durationMax != null || f.personId != null || f.favorite || (f.tagIds?.length ?? 0) > 0)
+    f.durationMin != null || f.durationMax != null || f.personId != null || f.favorite ||
+    (f.tagIds?.length ?? 0) > 0 || f.color)
 }
 
 /** 需要查库才能判断的条件，调用方预先取成 hash 集合 */
@@ -33,6 +34,8 @@ export interface FilterSets {
   favoriteHashes?: Set<string> | null
   /** 同时带有所有所选标签的内容 */
   tagHashes?: Set<string> | null
+  /** 色板含所选色桶的内容 */
+  colorHashes?: Set<string> | null
 }
 
 export function matchesFilters(photo: Photo, f: MediaFilters, sets: FilterSets = {}): boolean {
@@ -54,6 +57,7 @@ export function matchesFilters(photo: Photo, f: MediaFilters, sets: FilterSets =
   if (sets.personHashes && !sets.personHashes.has(photo.fileHash)) return false
   if (sets.favoriteHashes && !sets.favoriteHashes.has(photo.fileHash)) return false
   if (sets.tagHashes && !sets.tagHashes.has(photo.fileHash)) return false
+  if (sets.colorHashes && !sets.colorHashes.has(photo.fileHash)) return false
   return true
 }
 
