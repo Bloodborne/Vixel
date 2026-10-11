@@ -4,6 +4,7 @@ import type { GridDensity } from './components/media/MediaCard'
 import { PhotoDetail } from './components/PhotoDetail'
 import { MapView } from './components/MapView'
 import { PeopleView } from './components/PeopleView'
+import { CleanupView } from './components/cleanup/CleanupView'
 import { TaskDrawer } from './components/tasks/TaskDrawer'
 import { QuickLook } from './components/QuickLook'
 import { Inspector, SelectionSummary } from './components/inspector/Inspector'
@@ -181,7 +182,7 @@ function App(): JSX.Element {
       }
       timer = null
       refreshLibrary()
-      if (!filters.current.query.trim() && filters.current.source.type !== 'map' && filters.current.source.type !== 'people') {
+      if (!filters.current.query.trim() && filters.current.source.type !== 'map' && filters.current.source.type !== 'people' && filters.current.source.type !== 'cleanup') {
         doSearch().then(setSearchResults).catch(() => {})
       }
     }
@@ -248,7 +249,7 @@ function App(): JSX.Element {
     setScrollResetKey((k) => k + 1)
     // 在地图 / 人物 / 相似里输入查询：回到当前资料库
     const t = filters.current.source.type
-    if (q.trim() && (t === 'map' || t === 'people' || t === 'similar')) {
+    if (q.trim() && (t === 'map' || t === 'people' || t === 'similar' || t === 'cleanup')) {
       const back: Source = { type: 'library', kind: 'all' }
       setSource(back)
       filters.current.source = back
@@ -615,6 +616,7 @@ function App(): JSX.Element {
         break
       case 'source:map': handleSelectSource({ type: 'map' }); break
       case 'source:people': handleSelectSource({ type: 'people' }); break
+      case 'source:cleanup': handleSelectSource({ type: 'cleanup' }); break
       case 'find':
         if (!isGrid) handleSelectSource({ type: 'library', kind: 'all' })
         setTimeout(() => document.getElementById('search-input')?.focus(), 0)
@@ -704,6 +706,7 @@ function App(): JSX.Element {
       }
       case 'map': return t.shell.map
       case 'people': return t.shell.people
+      case 'cleanup': return t.cleanup.title
       case 'similar': return t.shell.similarTo(source.name)
       case 'favorites': return t.organize.favorites
       case 'album': return currentAlbum?.name ?? t.albums.untitled
@@ -816,7 +819,9 @@ function App(): JSX.Element {
         {/* 主内容区 */}
         <div className="relative flex-1 min-h-0 flex">
         <main className="flex-1 min-w-0 overflow-hidden">
-          {source.type === 'people' ? (
+          {source.type === 'cleanup' ? (
+            <CleanupView onOpenPhoto={(id) => { window.api.getPhotoDetail(id).then(handleSelectPhoto).catch(() => {}) }} />
+          ) : source.type === 'people' ? (
             <PeopleView onSelectPhoto={handleSelectPhoto} />
           ) : source.type === 'map' ? (
             <MapView onSelect={handleSelectPhoto} />

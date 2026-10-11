@@ -85,6 +85,7 @@ export function installAppMenu(
         { type: 'separator' },
         item(t.menu.map, 'CmdOrCtrl+5', 'source:map'),
         item(t.menu.people, 'CmdOrCtrl+6', 'source:people'),
+        { label: t.cleanup.title, click: send('source:cleanup') },
         { type: 'separator' },
         item(t.menu.zoomIn, 'CmdOrCtrl+Plus', 'zoom-in'),
         item(t.menu.zoomOut, 'CmdOrCtrl+-', 'zoom-out'),

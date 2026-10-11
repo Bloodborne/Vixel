@@ -26,8 +26,9 @@ import tasks from './tasks'
 import model from './model'
 import organize from './organize'
 import albums from './albums'
+import cleanup from './cleanup'
 
-const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize, albums }
+const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize, albums, cleanup }
 
 export type Locale = 'zh-CN' | 'en'
 export type LocaleSetting = 'system' | Locale

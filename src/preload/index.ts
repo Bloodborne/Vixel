@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace } from '../shared/types'
 import type { Locale, LocaleSetting } from '../shared/i18n'
+import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type HiddenItem, type TrashResult } from '../shared/cleanup'
 
 const api = {
   // 搜索
@@ -230,6 +231,21 @@ const api = {
     const handler = (): void => callback()
     ipcRenderer.on(IPC_CHANNELS.PEOPLE_CHANGED, handler)
     return () => { ipcRenderer.removeListener(IPC_CHANNELS.PEOPLE_CHANGED, handler) }
+  },
+
+  // 清理相似照片（近重复）
+  cleanup: {
+    scan: (): Promise<DupScanResult> => ipcRenderer.invoke(CLEANUP_CHANNELS.SCAN),
+    onProgress: (callback: (p: DupScanProgress) => void): (() => void) => {
+      const handler = (_: unknown, p: DupScanProgress): void => callback(p)
+      ipcRenderer.on(CLEANUP_CHANNELS.PROGRESS, handler)
+      return () => { ipcRenderer.removeListener(CLEANUP_CHANNELS.PROGRESS, handler) }
+    },
+    hide: (hashes: string[]): Promise<void> => ipcRenderer.invoke(CLEANUP_CHANNELS.HIDE, hashes),
+    unhide: (hashes: string[]): Promise<void> => ipcRenderer.invoke(CLEANUP_CHANNELS.UNHIDE, hashes),
+    listHidden: (): Promise<HiddenItem[]> => ipcRenderer.invoke(CLEANUP_CHANNELS.LIST_HIDDEN),
+    /** 主进程会先弹原生确认框；用户取消时 cancelled = true */
+    trash: (hashes: string[]): Promise<TrashResult> => ipcRenderer.invoke(CLEANUP_CHANNELS.TRASH, hashes),
   },
 }
 
