@@ -3,6 +3,7 @@ import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAc
 import type { Locale, LocaleSetting } from '../shared/i18n'
 import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type HiddenItem, type TrashResult } from '../shared/cleanup'
 import { TAG_CHANNELS, type Tag, type TagMenuAction, type TagsForSelection } from '../shared/tags'
+import { AUTOTAG_CHANNELS, type AutoTagStatus } from '../shared/autotags'
 
 const api = {
   // 搜索
@@ -251,6 +252,19 @@ const api = {
     trash: (hashes: string[]): Promise<TrashResult> => ipcRenderer.invoke(CLEANUP_CHANNELS.TRASH, hashes),
   },
 
+  // 自动标签（离线，按词表）
+  autoTags: {
+    status: (): Promise<AutoTagStatus> => ipcRenderer.invoke(AUTOTAG_CHANNELS.STATUS),
+    setEnabled: (on: boolean): Promise<AutoTagStatus> => ipcRenderer.invoke(AUTOTAG_CHANNELS.SET_ENABLED, on),
+    /** 清掉未确认的自动标签，全部重新判定 */
+    rerun: (): Promise<AutoTagStatus> => ipcRenderer.invoke(AUTOTAG_CHANNELS.RERUN),
+    onChanged: (callback: (s: AutoTagStatus) => void): (() => void) => {
+      const handler = (_: unknown, s: AutoTagStatus): void => callback(s)
+      ipcRenderer.on(AUTOTAG_CHANNELS.CHANGED, handler)
+      return () => { ipcRenderer.removeListener(AUTOTAG_CHANNELS.CHANGED, handler) }
+    },
+  },
+
   // 标签（按内容 hash）
   tags: {
     list: (): Promise<Tag[]> => ipcRenderer.invoke(TAG_CHANNELS.LIST),
@@ -258,6 +272,8 @@ const api = {
     /** 名字不存在就新建；返回标签 id */
     add: (hashes: string[], name: string): Promise<number | null> => ipcRenderer.invoke(TAG_CHANNELS.ADD, hashes, name),
     remove: (hashes: string[], tagId: number): Promise<void> => ipcRenderer.invoke(TAG_CHANNELS.REMOVE, hashes, tagId),
+    /** 自动标签的 ✓：变成用户标签 */
+    confirmAuto: (hashes: string[], tagId: number): Promise<void> => ipcRenderer.invoke(TAG_CHANNELS.CONFIRM_AUTO, hashes, tagId),
     /** 和已有标签重名就合并过去；返回最终的标签 id */
     rename: (tagId: number, name: string): Promise<number | null> => ipcRenderer.invoke(TAG_CHANNELS.RENAME, tagId, name),
     /** 侧栏右键菜单：合并 / 删除在主进程执行完才返回；'rename' 由调用方进入行内编辑 */

@@ -84,6 +84,17 @@ const STEPS: Step[] = [
   },
   // 标签名也是搜索通道：结果卡片上有"标签"角标（查询可用 VIXEL_CAPTURE_QUERIES 第 4 项覆盖）
   { name: 'tag-search', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[3] ?? '花卉'))(w) }, wait: 3000 },
+  // 自动标签：侧栏里第一个 ✦ 标签，选中第一项，检查器里是虚线 ✦ 标签（✓ / ×）
+  {
+    name: 'autotags',
+    run: async (w) => {
+      await js(typeSearch(''))(w)
+      await js(`(() => { const rows = [...document.querySelectorAll('[data-tag-row]')]; const auto = rows.find((r) => r.querySelector('svg path[d^="M9.813"]')); (auto ?? rows[0])?.querySelector('[role="button"]')?.click() })()`)(w)
+      await sleep(1500)
+      await js(`document.querySelector('.photo-card')?.click()`)(w)
+    },
+    wait: 2000,
+  },
   { name: 'people', run: (w) => { js(typeSearch(''))(w); command('source:people')(w) }, wait: 6000 },
   { name: 'map', run: command('source:map'), wait: 3500 },
   { name: 'cleanup', run: command('source:cleanup'), wait: 4000 },
