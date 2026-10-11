@@ -128,12 +128,13 @@ function hexOf(p: { R: number; G: number; B: number }): string {
 
 /** 任意 sharp 能读的图（解码后的原图 buffer 或缩略图文件路径）→ 色板。 */
 export async function computeItemColors(input: Buffer | string): Promise<ItemColors> {
-  const { data, info } = await sharp(input)
+  // ensureAlpha：透明背景（SVG / AI 的栅格预览）必须跳过而不是压成黑色
+  const { data } = await sharp(input)
     .resize(SAMPLE_SIDE, SAMPLE_SIDE, { fit: 'fill' })
-    .removeAlpha()
+    .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true })
-  return extractPaletteFromRaw(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), info.channels === 4 ? 4 : 3)
+  return extractPaletteFromRaw(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), 4)
 }
 
 /** palette JSON（item_colors.palette）→ 结构化；坏数据返回 [] */

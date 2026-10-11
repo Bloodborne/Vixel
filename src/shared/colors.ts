@@ -9,15 +9,17 @@
  *
  *   中性（无彩色）：C < 12。其中 L > 85 → white，其余 → black（黑 / 灰一个桶）。
  *   有彩色按 LCh 色相角（度）分：
- *     pink    h ∈ [320°, 55°) 且 L ≥ 62 —— 浅红 / 浅品红（粉）优先于 red / purple
+ *     pink    h ∈ [333°, 15°) 且 L ≥ 35 —— 品红侧（粉在 Lab 里是品红色相，不是浅红：
+ *             仙客来粉花 #a8507e h≈348 L≈46、热粉 h≈351；真正的红（消防车红 h≈36、
+ *             绯红 h≈27）都在 15° 以上，不会被收走）
  *     brown   h ∈ [45°, 90°) 且 L < 52 —— 深而偏黄的"橙"是棕
- *     red     h ∈ [340°, 45°)
+ *     red     h ∈ [333°, 45°)（pink 未收走的部分：真红与极暗的品红）
  *     orange  h ∈ [45°, 85°)
  *     yellow  h ∈ [85°, 115°)
  *     green   h ∈ [115°, 180°)
  *     cyan    h ∈ [180°, 240°)
  *     blue    h ∈ [240°, 312°)   （sRGB 纯蓝 h≈306，天空蓝 h≈250–290）
- *     purple  h ∈ [312°, 340°)
+ *     purple  h ∈ [312°, 333°)
  *   mono：整张图 ≥ 88% 的像素都是中性色（黑白 / 单色片）。
  *
  * 一个桶被打上旗标：该桶像素占比 ≥ MIN_BUCKET_SHARE（12%）。
@@ -95,15 +97,15 @@ export function bucketOfLab(lab: Lab): Exclude<ColorBucket, 'mono'> {
   const C = labChroma(lab)
   if (C < NEUTRAL_MAX_CHROMA) return lab.L > 85 ? 'white' : 'black'
   const h = labHue(lab)
-  if (inHue(h, 320, 55) && lab.L >= 62) return 'pink'
+  if (inHue(h, 333, 15) && lab.L >= 35) return 'pink'
   if (inHue(h, 45, 90) && lab.L < 52) return 'brown'
-  if (inHue(h, 340, 45)) return 'red'
+  if (inHue(h, 333, 45)) return 'red' // 真红 + 极暗的品红（酒红 / 浆果色）
   if (inHue(h, 45, 85)) return 'orange'
   if (inHue(h, 85, 115)) return 'yellow'
   if (inHue(h, 115, 180)) return 'green'
   if (inHue(h, 180, 240)) return 'cyan'
   if (inHue(h, 240, 312)) return 'blue'
-  return 'purple' // [312, 340) 以及未被 pink 收走的高亮品红
+  return 'purple' // [312, 333)
 }
 
 export function bucketOfRgb(r: number, g: number, b: number): Exclude<ColorBucket, 'mono'> {

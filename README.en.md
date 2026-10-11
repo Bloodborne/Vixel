@@ -29,6 +29,21 @@ Local AI search for photos, videos and audio. Fully offline, no account, nothing
 
 <img src="docs/media/video.jpg" width="860" alt="Video segment search" />
 
+## Supported formats
+
+| Type | Extensions |
+|---|---|
+| Images | jpg · jpeg · png · webp · gif · bmp · tiff · avif · heic · heif |
+| RAW | cr2 · cr3 · nef · arw · dng · raf · orf · rw2 |
+| Design | svg · psd · psb · pdf* · ai* (* macOS only; indexed via a raster preview, format badge in the grid) |
+| Video | mp4 · mov · m4v · webm · mkv · avi |
+| Audio | mp3 · m4a · aac · wav · flac · ogg · opus |
+
+PSD/PSB are read from the file's merged composite (Photoshop's "Maximize Compatibility", on by default);
+AI files must be saved with "Create PDF Compatible File". On Windows/Linux, PDF/AI are not indexed
+(no lightweight renderer without a native canvas); EPS is unsupported everywhere (macOS removed
+PostScript decoding).
+
 ## Compared with
 
 | | Vixel | Eagle | Immich | Apple Photos |

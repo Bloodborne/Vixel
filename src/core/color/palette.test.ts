@@ -17,8 +17,12 @@ describe('bucketOfRgb (LCh 规则)', () => {
     ['deep blue', [25, 60, 180], 'blue'],
     ['navy', [20, 30, 90], 'blue'],
     ['purple', [128, 50, 170], 'purple'],
-    ['pink (light red)', [250, 170, 190], 'pink'],
+    ['pink (light red-magenta)', [250, 170, 190], 'pink'],
     ['hot pink', [240, 100, 170], 'pink'],
+    ['cyclamen flower', [168, 80, 126], 'pink'],      // #a8507e，演示库粉色花的主色
+    ['medium violet red', [199, 21, 133], 'pink'],
+    ['crimson stays red', [220, 20, 60], 'red'],
+    ['indian red stays red', [205, 92, 92], 'red'],
     ['black', [12, 12, 12], 'black'],
     ['mid gray', [128, 128, 128], 'black'],
     ['white', [248, 248, 246], 'white'],

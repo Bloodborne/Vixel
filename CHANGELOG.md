@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Design formats: SVG, PSD/PSB, PDF, AI.** Indexed like images through a rasterized preview
+  (thumbnails, semantic search, OCR, faces); previews are generated in temp folders and the cache,
+  never next to your originals. Grid cards show a format badge ("SVG" / "PSD" / "PDF" / "AI"),
+  the inspector shows the original format and, for PDF/AI, the page count. SVG renders via the
+  bundled librsvg with a size cap — external `<image href="http://…">` and local-file references
+  are never resolved (verified by test), keeping the app fully offline. PSD/PSB are parsed by a
+  small pure-JS reader of the merged composite (raw + RLE, 8-bit RGB/gray/approximate CMYK; layer
+  data is never loaded), with a Quick Look fallback on macOS. PDF and PDF-compatible AI render
+  their first page via `sips` and are macOS-only; they are not listed on Windows/Linux (no
+  reliable lightweight renderer without a native canvas). EPS is unsupported (macOS removed
+  PostScript decoding).
+- **Color search.** Every image/video gets a ~5-color palette (extracted from a 64×64 downsample
+  in CIELAB during thumbnailing; existing libraries are backfilled in the background without
+  blocking the app). The filter bar gains a "Color" row with 12 named swatches (red, orange,
+  yellow, green, cyan, blue, purple, pink, brown, black/gray, white, monochrome); a color counts
+  as present when ≥ 12% of pixels fall in that hue bucket (LCh rules; monochrome = ≥ 88% neutral
+  pixels). The inspector shows the palette — click a swatch to filter by that color. The color
+  filter combines with search, search-by-image and smart albums.
+
+### Added
 - **Collect: Inbox, drag & drop, paste, browser extension.** New "Inbox" watched folder
   (default `~/Pictures/Vixel Inbox`, created on first collect, files laid out `YYYY/MM/<name>`;
   change its location in Settings → Folders). Drop files anywhere on the window to copy them in;
