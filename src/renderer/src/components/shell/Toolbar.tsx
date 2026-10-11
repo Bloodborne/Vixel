@@ -45,7 +45,8 @@ export function Toolbar({
         <div
           data-image-drop
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
-          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onImageDrop(Array.from(e.dataTransfer.files)) }}
+          // 不 stopPropagation：窗口级 drop 监听还要跑（重置拖拽计数、阻止 Chromium 导航）
+          onDrop={(e) => { e.preventDefault(); onImageDrop(Array.from(e.dataTransfer.files)) }}
           className="absolute inset-0 z-30 m-1.5 rounded-md border-2 border-dashed border-accent bg-raised/90 backdrop-blur-sm flex items-center justify-center gap-2 text-accent"
         >
           <svg className="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>

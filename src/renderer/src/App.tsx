@@ -338,16 +338,18 @@ function App(): JSX.Element {
   // （阻止 Chromium 直接导航到文件；网格区的落点保留给之后的"导入收件箱"，这里不处理）
   useEffect(() => {
     let depth = 0
-    const hasFile = (e: DragEvent): boolean => !!e.dataTransfer && Array.from(e.dataTransfer.items ?? []).some((i) => i.kind === 'file')
+    // 拖动中只能看到 mime，看不到文件名：image/* 或未知类型（RAW 常为空）才算；PDF / 文本拖动不出落点
+    const hasImage = (e: DragEvent): boolean =>
+      !!e.dataTransfer && Array.from(e.dataTransfer.items ?? []).some((i) => i.kind === 'file' && (i.type === '' || i.type.startsWith('image/')))
     const onEnter = (e: DragEvent): void => {
-      if (!hasFile(e)) return
+      if (!hasImage(e)) return
       depth++
       setImageDrag(true)
     }
     const onLeave = (): void => {
       if (depth > 0 && --depth === 0) setImageDrag(false)
     }
-    const onOver = (e: DragEvent): void => { if (hasFile(e)) e.preventDefault() }
+    const onOver = (e: DragEvent): void => { if (hasImage(e)) e.preventDefault() }
     const onDrop = (e: DragEvent): void => {
       depth = 0
       setImageDrag(false)
