@@ -1015,7 +1015,7 @@ function App(): JSX.Element {
       case 'library': return LIBRARY_ITEMS.find((i) => i.kind === source.kind)?.label ?? t.common.all
       case 'folder': {
         const f = folders.find((x) => x.id === source.id)
-        return f ? folderName(f.path) : t.shell.folder
+        return f ? (f.isInbox ? t.collect.inbox : folderName(f.path)) : t.shell.folder
       }
       case 'map': return t.shell.map
       case 'people': return t.shell.people
