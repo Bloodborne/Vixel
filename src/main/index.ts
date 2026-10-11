@@ -247,7 +247,7 @@ async function initServices(): Promise<void> {
   //   - jieba 首次切词约 150 ms，提前热掉避免第一次写入/搜索阻塞 SQLite 触发器
   //   - EmbeddingGemma 2 首次加载较慢，预拉模型权重到内存
   // 都是 fire-and-forget，失败不阻塞应用。
-  preloadJieba().catch(() => {})
+  setImmediate(preloadJieba)
   setTimeout(() => {
     // 上次退出时没跑完的任务：启动对账会跳过所有未变化的文件，不会再有 add 事件去触发队列
     indexer.processNext()

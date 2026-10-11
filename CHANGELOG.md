@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Chinese word segmentation never ran** (since the @node-rs/jieba 2.x upgrade the old `cut` export was
+  gone and tokenizing silently fell back to raw text), so text-in-image search could not find a Chinese
+  word in the middle of a sentence (e.g. "列车" in "等一列车不抢一扇门"). The OCR full-text index is
+  rebuilt automatically from the stored text on first launch (no re-OCR).
+
 ### Added
 - **Tags**: tag photos, videos and audio in the inspector (press T; works on multi-selection),
   browse by tag from the sidebar, rename / merge / delete from its context menu, filter by tags

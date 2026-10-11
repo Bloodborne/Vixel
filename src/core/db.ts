@@ -376,6 +376,12 @@ const TASK_ROW_SELECT = `
  * 增量 schema 迁移。SCHEMA 只有 CREATE IF NOT EXISTS，老库里已存在的表不会加新列，
  * 这里按 table_info 检查后补齐，可重复执行。
  */
+/**
+ * OCR 全文索引的分词版本。text/tokenize.ts 的切词结果一变就加一，旧库启动时自动重建索引。
+ * jieba-2：0.3.0 及以前 jieba 实际没生效（@node-rs/jieba 2.x 的 API 变了），中文整段入索引
+ */
+const FTS_TOKENIZER_VERSION = 'jieba-2'
+
 export function migrateSchema(db: Database.Database): void {
   const hasColumn = (table: string, column: string): boolean =>
     (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((c) => c.name === column)
@@ -391,6 +397,16 @@ export function migrateSchema(db: Database.Database): void {
   add('people', 'centroid', 'BLOB')
   add('people', 'hidden', 'INTEGER DEFAULT 0')
   db.exec(`CREATE INDEX IF NOT EXISTS idx_faces_unassigned ON faces(cluster_state) WHERE person_id IS NULL`)
+
+  // 分词方式变了：用已存的 OCR 原文重建全文索引（只重新切词，不重新识别）
+  const tokenizer = (db.prepare(`SELECT value FROM meta_state WHERE key = 'fts.tokenizer'`).get() as { value: string } | undefined)?.value
+  if (tokenizer !== FTS_TOKENIZER_VERSION) {
+    db.transaction(() => {
+      db.exec(`DELETE FROM image_ocr_fts`)
+      db.exec(`INSERT INTO image_ocr_fts(rowid, text) SELECT id, jiebatok(text) FROM image_ocr`)
+      db.prepare(`INSERT OR REPLACE INTO meta_state (key, value) VALUES ('fts.tokenizer', ?)`).run(FTS_TOKENIZER_VERSION)
+    })()
+  }
 
   // 老库的 face_vecs 按 128 维建的，而模型实际输出 512 维 → 写入全被跳过、KNN 全部报错。
   // vec0 不能改列维度，只能重建，再从 faces.embedding 回填。

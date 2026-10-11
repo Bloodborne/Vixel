@@ -12,19 +12,10 @@ describe('tokenizeForFtsSync', () => {
     expect(tokenizeForFtsSync('iPhone   15')).toBe('iPhone 15')
   })
 
-  it('cuts CJK text into multi-char tokens (or falls back to raw)', () => {
-    const out = tokenizeForFtsSync('海边日落')
-    // 若 jieba 加载成功：应包含 "海边" 或 "日落"；若失败：原文回退
-    const hasMeaningfulSplit =
-      out.includes('海边') || out.includes('日落') || out === '海边日落'
-    expect(hasMeaningfulSplit).toBe(true)
-    // 不应该被切成单字（即不该是 "海 边 日 落"）的同时还可用
-    if (out.includes(' ')) {
-      const tokens = out.split(' ')
-      // 至少一个 token 是多字符的（jieba 工作了）
-      const multiChar = tokens.some((t) => t.length >= 2 && /[一-鿿]/.test(t))
-      expect(multiChar).toBe(true)
-    }
+  it('cuts CJK text into words (jieba must actually run, not fall back to raw text)', () => {
+    expect(tokenizeForFtsSync('海边的日落').split(' ')).toEqual(expect.arrayContaining(['海边', '日落']))
+    // search 模式：长词再切出短词，搜"财务"也能命中"财务报表"
+    expect(tokenizeForFtsSync('2024年财务报表').split(' ')).toEqual(expect.arrayContaining(['财务', '报表', '财务报表']))
   })
 
   it('handles mixed CJK + ASCII without crashing', () => {
