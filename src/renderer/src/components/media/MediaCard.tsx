@@ -10,7 +10,9 @@ const SEGMENT_MS = 32_000
 const THUMB_MAX_RETRIES = 20
 
 /** 命中原因角标：只列确定性通道 */
-const MATCH_LABELS: Array<[MatchChannel, string]> = [['text', t.grid.matchText], ['filename', t.grid.matchFilename]]
+const MATCH_LABELS: Array<[MatchChannel, string]> = [
+  ['tag', t.tags.matchTag], ['note', t.tags.matchNote], ['text', t.grid.matchText], ['filename', t.grid.matchFilename],
+]
 import { spriteUrl, thumbUrl } from '../../lib/mediaUrl'
 
 export type GridDensity = 'immersive' | 'info'
@@ -56,7 +58,8 @@ export const MediaCard = memo(function MediaCard({
   result, index, selected, rank, density, onClick, onDoubleClick, onContextMenu,
 }: MediaCardProps): JSX.Element {
   const { photo, segment } = result
-  const matchLabels = MATCH_LABELS.filter(([ch]) => result.matchedBy?.includes(ch)).map(([, label]) => label)
+  // 角标最多两个（标签 / 注释优先）：小卡片上放不下更多
+  const matchLabels = MATCH_LABELS.filter(([ch]) => result.matchedBy?.includes(ch)).map(([, label]) => label).slice(0, 2)
   const info = density === 'info'
   const kind = mediaKindOf(photo)
   const [error, setError] = useState(false)

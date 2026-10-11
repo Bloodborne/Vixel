@@ -12,7 +12,7 @@ const revealLabel = (): string => (process.platform === 'darwin' ? t.common.reve
  */
 export function installAppMenu(
   getWindow: () => BrowserWindow | null,
-  { openSettings }: { openSettings: () => void }
+  { openSettings, addEagleLibrary }: { openSettings: () => void; addEagleLibrary: () => void }
 ): void {
   // 命令只发给主窗口；设置窗口在前台时（⌘A、⌘1 之类）不去动主窗口
   const send = (cmd: MenuCommand) => (): void => {
@@ -50,10 +50,12 @@ export function installAppMenu(
       label: t.menu.file,
       submenu: [
         item(t.menu.addFolder, 'CmdOrCtrl+O', 'add-folder'),
+        { label: t.tags.addEagleLibrary, click: addEagleLibrary },
         { type: 'separator' },
         hint(t.menu.open, 'Enter', 'open-item'),
         hint(t.menu.quickLook, 'Space', 'quick-look'),
         hint(t.organize.favoriteToggle, 'F', 'toggle-favorite'),
+        hint(t.tags.addPlaceholder, 'T', 'add-tag'),
         item(revealLabel(), 'CmdOrCtrl+Shift+R', 'reveal'),
         { type: 'separator' },
         { role: 'close', label: t.menu.closeWindow },

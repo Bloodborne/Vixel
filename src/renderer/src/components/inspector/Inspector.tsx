@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { MediaDetail, PhotoDetail, PhotoLocation, SearchResult } from '../../../../shared/types'
+import type { EagleItemInfo } from '../../../../shared/tags'
 import { formatDuration, formatFileSize, mediaKindOf } from '../../lib/format'
 import { thumbUrl } from '../../lib/mediaUrl'
 import { revealLabel } from '../../lib/platform'
 import { Icon } from '../shell/icons'
+import { TagEditor } from './TagEditor'
 import { intlLocale, t } from '../../../../shared/i18n'
 
 const KIND_LABEL = { image: t.common.image, video: t.common.video, audio: t.common.audio } as const
@@ -20,6 +22,8 @@ interface InspectorProps {
   resolution?: { w: number; h: number } | null
   /** 收藏 / 取消收藏（F） */
   onToggleFavorite?: () => void
+  /** 变化时把焦点放进标签输入框（T） */
+  tagFocusKey?: number
 }
 
 /**
@@ -27,7 +31,7 @@ interface InspectorProps {
  * 主窗口右侧停靠面板和全屏详情页的侧栏共用这一个组件。
  * 媒体的 photo 行是代表图（首帧 / 封面 / 波形），文件大小、路径要用 MediaDetail 里源文件的。
  */
-export function Inspector({ result, onSelect, showPreview, onClose, resolution: resolutionOverride, onToggleFavorite }: InspectorProps): JSX.Element {
+export function Inspector({ result, onSelect, showPreview, onClose, resolution: resolutionOverride, onToggleFavorite, tagFocusKey }: InspectorProps): JSX.Element {
   const { photo, segment } = result
   const kind = mediaKindOf(photo)
   const isMedia = kind !== 'image' && photo.videoId != null
@@ -35,6 +39,7 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
   const [media, setMedia] = useState<MediaDetail | null>(null)
   const [locations, setLocations] = useState<PhotoLocation[]>([])
   const [similar, setSimilar] = useState<SearchResult[]>([])
+  const [eagle, setEagle] = useState<EagleItemInfo | null>(null)
   const [isEditingCaption, setIsEditingCaption] = useState(false)
   const [editCaption, setEditCaption] = useState('')
 
@@ -45,21 +50,24 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
     setDetail(null)
     setLocations([])
     setSimilar([])
+    setEagle(null)
     // 方向键连按时防抖 250ms：停在哪张才为哪张发详情 / 位置 / 相似检索
     const timer = setTimeout(() => {
       Promise.all([
         window.api.getPhotoDetail(photo.id),
         window.api.getPhotoLocations(photo.id),
         window.api.findSimilar(photo.id, 6),
-      ]).then(([d, locs, sim]) => {
+        photo.fileHash ? window.api.eagle.info(photo.fileHash) : Promise.resolve(null),
+      ]).then(([d, locs, sim, e]) => {
         if (cancelled) return
         setDetail(d)
         setLocations(locs)
         setSimilar(sim)
+        setEagle(e)
       })
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [photo.id])
+  }, [photo.id, photo.fileHash])
 
   useEffect(() => {
     setMedia(null)
@@ -150,6 +158,32 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
           )}
         </Section>
 
+        <Section title={t.tags.tags}>
+          <TagEditor hashes={photo.fileHash ? [photo.fileHash] : []} focusKey={tagFocusKey} />
+        </Section>
+
+        {/* Eagle 资源库里的注释 / 来源 / 星级 / 文件夹（只读） */}
+        {eagle && (eagle.annotation || eagle.url || eagle.star > 0 || eagle.folders.length > 0) && (
+          <Section title={`${t.tags.eagle} · ${eagle.libraryName}`}>
+            <dl className="flex flex-col gap-1.5 text-callout">
+              {eagle.annotation && <p className="text-ink text-callout whitespace-pre-line break-words">{eagle.annotation}</p>}
+              {eagle.folders.length > 0 && <Row label={t.tags.eagleFolders}>{eagle.folders.join(t.common.sep)}</Row>}
+              {eagle.star > 0 && <Row label={t.tags.eagleStar}><span className="text-accent">{'★'.repeat(eagle.star)}</span></Row>}
+              {eagle.url && (
+                <Row label={t.tags.eagleUrl}>
+                  <button
+                    onClick={() => void window.api.eagle.openUrl(eagle.url)}
+                    title={eagle.url}
+                    className="text-accent hover:underline truncate max-w-[170px] inline-block align-bottom"
+                  >
+                    {eagle.url.replace(/^https?:\/\/(www\.)?/, '')}
+                  </button>
+                </Row>
+              )}
+            </dl>
+          </Section>
+        )}
+
         {detail?.ocrText && detail.ocrText.trim().length > 0 && (
           <Section title={t.inspector.textInImage}>
             <p className="text-ink text-callout whitespace-pre-line break-words">{detail.ocrText}</p>
@@ -238,17 +272,19 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
 }
 
 /** 多选时检查器显示的汇总 */
-export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, onClose, onToggleFavorite }: {
+export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, onClose, onToggleFavorite, tagFocusKey }: {
   results: SearchResult[]
   breakdown: string
   onReveal: () => void
   onCopyPaths: () => void
   onClose?: () => void
   onToggleFavorite?: () => void
+  tagFocusKey?: number
 }): JSX.Element {
   const preview = results.slice(0, 9)
+  const hashes = [...new Set(results.map((r) => r.photo.fileHash).filter(Boolean))]
   return (
-    <div className="h-full flex flex-col p-4 gap-4">
+    <div className="h-full flex flex-col p-4 gap-4 overflow-auto">
       <div className="grid grid-cols-3 gap-1">
         {preview.map((r) => (
           <div key={r.photo.id} className="aspect-square rounded overflow-hidden bg-surface-2">
@@ -264,6 +300,9 @@ export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, on
         {onToggleFavorite && <FavoriteButton on={results.every((r) => r.photo.favorite)} onClick={onToggleFavorite} />}
         {onClose && <CloseButton onClick={onClose} />}
       </div>
+      <Section title={t.tags.tags}>
+        <TagEditor hashes={hashes} focusKey={tagFocusKey} />
+      </Section>
       <div className="flex flex-wrap gap-1.5">
         <ActionButton icon="folder" onClick={onReveal}>{revealLabel}</ActionButton>
         <ActionButton icon="all" onClick={onCopyPaths}>{t.common.copyPath}</ActionButton>

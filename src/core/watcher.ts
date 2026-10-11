@@ -1,11 +1,12 @@
 import chokidar, { type FSWatcher } from 'chokidar'
-import { basename, extname } from 'path'
+import { basename, extname, join } from 'path'
 import { stat, readFile, access, rm, unlink, open } from 'fs/promises'
 import { existsSync } from 'fs'
 import xxhash from 'xxhash-wasm'
 import type { DatabaseInstance } from './db'
 import type { Indexer } from './indexer'
 import type { MediaKind } from '../shared/types'
+import { isEagleLibrary, isIndexableEagleFile } from './eagle'
 
 // xxHash 实例（懒初始化）
 let hashFn: ((input: Uint8Array) => string) | null = null
@@ -86,6 +87,10 @@ export class FileWatcher {
   private watchers: Map<number, FSWatcher> = new Map()
   private db: DatabaseInstance
   private indexer: Indexer
+  /** 作为 Eagle 资源库接入的监视文件夹：folderId → 库根目录 */
+  private eagleRoots: Map<number, string> = new Map()
+  /** Eagle 资源库的元数据（条目 / 文件夹树）变了：调用方去同步标签等（自己做防抖） */
+  onEagleChange: ((folderId: number, root: string) => void) | null = null
 
   constructor(db: DatabaseInstance, indexer: Indexer) {
     this.db = db
@@ -115,8 +120,15 @@ export class FileWatcher {
 
     console.log(`Starting to watch folder: ${folderPath}`)
 
-    const watcher = chokidar.watch(folderPath, {
-      ignored: [/(^|[\/\\])\./, /node_modules/, /\.git/],
+    // Eagle 资源库：只看 images/（原文件 + 各条目的 metadata.json）和顶层 metadata.json（文件夹树），
+    // 跳过 Eagle 自己的缩略图。原文件是否该索引（不在 Eagle 回收站里）在 handleAdd 里按条目元数据判断
+    const eagle = isEagleLibrary(folderPath)
+    if (eagle) this.eagleRoots.set(folderId, folderPath)
+    const isEagleMeta = (p: string): boolean => eagle && basename(p) === 'metadata.json'
+    const notifyEagle = (): void => { this.onEagleChange?.(folderId, folderPath) }
+
+    const watcher = chokidar.watch(eagle ? [join(folderPath, 'images'), join(folderPath, 'metadata.json')] : folderPath, {
+      ignored: [/(^|[\/\\])\./, /node_modules/, /\.git/, ...(eagle ? [/_thumbnail\.png$/] : [])],
       persistent: true,
       ignoreInitial: false,
       awaitWriteFinish: { stabilityThreshold: 2000, pollInterval: 100 },
@@ -124,13 +136,14 @@ export class FileWatcher {
     })
 
     watcher
-      .on('add', (filePath) => this.handleAdd(folderId, filePath))
-      .on('change', (filePath) => this.handleChange(filePath))
-      .on('unlink', (filePath) => this.handleRemove(filePath))
+      .on('add', (filePath) => { if (isEagleMeta(filePath)) notifyEagle(); else void this.handleAdd(folderId, filePath) })
+      .on('change', (filePath) => { if (isEagleMeta(filePath)) notifyEagle(); else void this.handleChange(filePath) })
+      .on('unlink', (filePath) => { if (isEagleMeta(filePath)) notifyEagle(); else void this.handleRemove(filePath) })
       .on('ready', () => {
         this.db.updateFolderScanTime(folderId)
         // 清理离线期间被删除的文件
         void this.cleanupStale(folderId)
+        if (eagle) notifyEagle()
       })
       .on('error', (error) => {
         console.error(`Watcher error for folder ${folderId}:`, error)
@@ -145,6 +158,16 @@ export class FileWatcher {
       watcher.close()
       this.watchers.delete(folderId)
     }
+    this.eagleRoots.delete(folderId)
+  }
+
+  /** Eagle 条目从回收站恢复 / 被移进回收站：按同步结果增删索引 */
+  async addPath(folderId: number, filePath: string): Promise<void> {
+    await this.handleAdd(folderId, filePath)
+  }
+
+  async removePath(filePath: string): Promise<void> {
+    await this.handleRemove(filePath)
   }
 
   stopAll(): void {
@@ -175,6 +198,8 @@ export class FileWatcher {
   private async handleAdd(folderId: number, filePath: string): Promise<void> {
     const kind = classifyMedia(filePath)
     if (kind === null) return
+    // Eagle 资源库里只索引条目的原文件，且不在 Eagle 回收站里
+    if (this.eagleRoots.has(folderId) && !(await isIndexableEagleFile(filePath))) return
 
     if (kind !== 'image') {
       await this.handleAddVideo(folderId, filePath, kind)

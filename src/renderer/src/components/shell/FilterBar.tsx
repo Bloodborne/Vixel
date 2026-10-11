@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from './icons'
 import { t } from '../../../../shared/i18n'
 import type { MediaFilters, Person } from '../../../../shared/types'
+import type { Tag } from '../../../../shared/tags'
 
 /** 来源（类型 / 文件夹）和日期之外的筛选条件；没设的键不出现（计数、判空都靠它） */
-export type ExtraFilters = Pick<MediaFilters, 'orientation' | 'minPixels' | 'maxPixels' | 'durationMin' | 'durationMax' | 'personId' | 'favorite'>
+export type ExtraFilters = Pick<MediaFilters, 'orientation' | 'minPixels' | 'maxPixels' | 'durationMin' | 'durationMax' | 'personId' | 'favorite' | 'tagIds'>
 
 interface Preset { key: string; label: string; value: ExtraFilters }
 
@@ -36,13 +37,14 @@ export function hasExtraFilters(f: ExtraFilters): boolean {
   return Object.keys(f).length > 0
 }
 
-/** 生效的条件组数（分辨率 / 时长的上下限算一组），给工具栏按钮的角标 */
+/** 生效的条件组数（分辨率 / 时长的上下限算一组，每个标签算一个），给工具栏按钮的角标 */
 export function countExtraFilters(f: ExtraFilters): number {
-  return GROUPS.filter((g) => g.keys.some((k) => f[k] != null)).length + (f.personId != null ? 1 : 0) + (f.favorite ? 1 : 0)
+  return GROUPS.filter((g) => g.keys.some((k) => f[k] != null)).length + (f.personId != null ? 1 : 0) + (f.favorite ? 1 : 0) +
+    (f.tagIds?.length ?? 0)
 }
 
-/** 生效条件的文字标签（智能相册默认名用）；人物名由调用方查好传入 */
-export function describeExtraFilters(f: ExtraFilters, personName?: string): string[] {
+/** 生效条件的文字标签（智能相册默认名用）；人物名、标签名由调用方查好传入 */
+export function describeExtraFilters(f: ExtraFilters, personName?: string, tagNames: string[] = []): string[] {
   const labels: string[] = []
   for (const g of GROUPS) {
     const p = g.presets.find((x) => isPreset(f, g.keys, x))
@@ -50,7 +52,21 @@ export function describeExtraFilters(f: ExtraFilters, personName?: string): stri
   }
   if (f.personId != null) labels.push(personName || t.organize.person)
   if (f.favorite) labels.push(t.organize.favorites)
+  labels.push(...tagNames.map((n) => `#${n}`))
   return labels
+}
+
+/** 筛选栏和侧栏共用的标签列表（任意窗口改了标签主进程会广播） */
+export function useTags(): Tag[] {
+  const [tags, setTags] = useState<Tag[]>([])
+  useEffect(() => {
+    let cancelled = false
+    const load = (): void => { window.api.tags.list().then((x) => { if (!cancelled) setTags(x) }).catch(() => {}) }
+    load()
+    const off = window.api.tags.onChanged(load)
+    return () => { cancelled = true; off() }
+  }, [])
+  return tags
 }
 
 function without(f: ExtraFilters, keys: Array<keyof ExtraFilters>): ExtraFilters {
@@ -79,6 +95,7 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
   onClose: () => void
 }): JSX.Element {
   const [people, setPeople] = useState<Person[]>([])
+  const tags = useTags()
   useEffect(() => {
     let cancelled = false
     window.api.getPeople().then((all) => {
@@ -105,6 +122,11 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
     chips.push({ label: person ? personLabel(person) : t.organize.person, remove: () => onChange(without(value, ['personId'])) })
   }
   if (value.favorite) chips.push({ label: t.organize.favoritesOnly, remove: () => onChange(without(value, ['favorite'])) })
+  const setTagIds = (ids: number[]): void => onChange(ids.length ? { ...value, tagIds: ids } : without(value, ['tagIds']))
+  for (const id of value.tagIds ?? []) {
+    const name = tags.find((x) => x.id === id)?.name
+    if (name) chips.push({ label: `#${name}`, remove: () => setTagIds((value.tagIds ?? []).filter((x) => x !== id)) })
+  }
 
   if (!expanded) {
     return (
@@ -179,6 +201,8 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
           <Icon name="heart" filled={!!value.favorite} className="w-3.5 h-3.5" />
           {t.organize.favoritesOnly}
         </button>
+
+        <TagPicker tags={tags} selected={value.tagIds ?? []} onChange={setTagIds} />
       </div>
 
       {active && (
@@ -193,6 +217,76 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
       >
         <Icon name="close" className="w-3.5 h-3.5" />
       </button>
+    </div>
+  )
+}
+
+/** 标签筛选：按钮 + 弹出列表（按使用次数排，可输入过滤），多选 = 同时带有这些标签 */
+function TagPicker({ tags, selected, onChange }: {
+  tags: Tag[]
+  selected: number[]
+  onChange: (ids: number[]) => void
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState('')
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent): void => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [open])
+  const live = tags.filter((x) => x.count > 0 || selected.includes(x.id))
+  const q = filter.trim().toLowerCase()
+  const shown = q ? live.filter((x) => x.name.toLowerCase().includes(q)) : live
+  const toggle = (id: number): void => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+
+  return (
+    <div ref={box} className="relative">
+      <button
+        onClick={() => { setOpen((o) => !o); setFilter('') }}
+        aria-expanded={open}
+        data-tag-filter
+        className={`h-6 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
+          selected.length ? 'bg-accent-fill text-accent' : 'text-ink-2 hover:text-ink hover:bg-fill-hover'
+        }`}
+      >
+        <Icon name="tag" className="w-3.5 h-3.5" />
+        {t.tags.filterLabel}{selected.length ? ` · ${selected.length}` : ''}
+      </button>
+      {open && (
+        <div className="absolute z-30 top-7 left-0 w-56 max-h-72 flex flex-col rounded-lg bg-raised border border-line-strong shadow-lg overflow-hidden animate-fade-in">
+          <input
+            autoFocus
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false) } }}
+            placeholder={t.tags.filterPlaceholder}
+            className="h-8 px-2.5 text-caption bg-transparent border-b border-line text-ink placeholder-ink-4 focus:outline-none"
+          />
+          <div className="flex-1 overflow-y-auto py-1">
+            {shown.length === 0 ? (
+              <p className="px-2.5 py-1.5 text-caption text-ink-4">{t.tags.filterNone}</p>
+            ) : shown.map((tag) => {
+              const on = selected.includes(tag.id)
+              return (
+                <button
+                  key={tag.id}
+                  onClick={() => toggle(tag.id)}
+                  aria-pressed={on}
+                  className="w-full h-7 px-2.5 flex items-center gap-2 text-caption text-left text-ink-2 hover:bg-fill hover:text-ink"
+                >
+                  <span className={`w-3.5 h-3.5 rounded-[3px] border flex items-center justify-center flex-shrink-0 ${on ? 'bg-accent border-accent text-white' : 'border-line-heavy'}`}>
+                    {on && <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2.5 6.5l2.5 2.5 4.5-5" /></svg>}
+                  </span>
+                  <span className="flex-1 truncate">{tag.name}</span>
+                  <span className="text-ink-4 tabular-nums">{tag.count}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

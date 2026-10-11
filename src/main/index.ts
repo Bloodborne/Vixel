@@ -24,9 +24,12 @@ import { locale, resolveLocale, setLocale, t, type LocaleSetting } from '../shar
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { registerCleanupIpc } from './cleanup'
+import { broadcastTagsChanged, chooseEagleLibrary, createEagleScheduler, registerTagIpc } from './tags'
+import { EagleSync } from '../core/eagle'
+import { TAG_CHANNELS } from '../shared/tags'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
-import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace } from '../shared/types'
+import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace, type WatchedFolder } from '../shared/types'
 
 const APP_NAME = 'Vixel'
 
@@ -56,6 +59,7 @@ let db: ReturnType<typeof initDatabase>
 let watcher: FileWatcher
 let indexer: Indexer
 let searchEngine: SearchEngine
+let eagleSync: EagleSync | null = null
 let inference: InferenceProcess | null = null
 let mainWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
@@ -179,6 +183,16 @@ function broadcastLibraryChanged(): void {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send(IPC_CHANNELS.LIBRARY_CHANGED)
 }
 
+/** 选一个 Eagle 资源库并加入监视（已加过就返回原来那条）；取消 / 不是资源库返回 null */
+async function addEagleLibrary(win: BrowserWindow | null): Promise<WatchedFolder | null> {
+  const dir = await chooseEagleLibrary(win)
+  if (!dir) return null
+  const folder = db.getFolders().find((f) => f.path === dir) ?? db.addFolder(dir)
+  watcher.watchFolder(folder.id, folder.path)
+  broadcastLibraryChanged()
+  return folder
+}
+
 async function initServices(): Promise<void> {
   const userDataPath = app.getPath('userData')
   const dbPath = join(userDataPath, 'library.db')
@@ -211,6 +225,8 @@ async function initServices(): Promise<void> {
   indexer = new Indexer(db, userDataPath)
   indexer.on('progress', (progress: IndexProgress) => {
     mainWindow?.webContents.send(IPC_CHANNELS.INDEX_PROGRESS, progress)
+    // 索引停下来时：Eagle 条目刚有了内容 hash（新文件 / 视频首帧）就把它们的标签挂上
+    if (progress.stage === 'idle' && eagleSync?.resolvePending()) broadcastTagsChanged()
   })
   indexer.on('people-changed', () => {
     mainWindow?.webContents.send(IPC_CHANNELS.PEOPLE_CHANGED)
@@ -218,6 +234,9 @@ async function initServices(): Promise<void> {
 
   watcher = new FileWatcher(db, indexer)
   searchEngine = new SearchEngine(db)
+  // Eagle 资源库（*.library）：元数据变了就同步标签 / 注释 / 回收站状态（只读）
+  eagleSync = new EagleSync(db.raw)
+  watcher.onEagleChange = createEagleScheduler(eagleSync, watcher)
 
   const folders = db.getFolders()
   for (const folder of folders) {
@@ -417,6 +436,9 @@ function registerIpcHandlers(): void {
     return folder
   })
 
+  // 设置 › 文件夹 / 文件菜单的"添加 Eagle 资源库…"：选目录 + 校验是资源库，再按普通文件夹加入（watcher 认得出来）
+  handle(TAG_CHANNELS.ADD_EAGLE_LIBRARY, async (event) => addEagleLibrary(BrowserWindow.fromWebContents(event.sender)))
+
   handle(IPC_CHANNELS.REMOVE_FOLDER, async (_event, folderId: number) => {
     const folder = db.getFolder(folderId)
     if (folder) {
@@ -439,7 +461,10 @@ function registerIpcHandlers(): void {
         await rm(indexer.getVideoFramesDir(hash), { recursive: true, force: true }).catch(() => {})
       }
       db.removeFolder(folderId)
+      // Eagle 资源库：撤掉它同步来的标签和条目信息
+      eagleSync?.removeLibrary(folderId)
       broadcastLibraryChanged()
+      broadcastTagsChanged()
     }
     return true
   })
@@ -464,7 +489,7 @@ function registerIpcHandlers(): void {
     const next: LocaleSetting = setting === 'zh-CN' || setting === 'en' ? setting : 'system'
     db.setMetaState(META_KEY_LOCALE, next)
     applyLocale(next)
-    installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
+    installAppMenu(() => mainWindow, { openSettings: openSettingsWindow, addEagleLibrary: () => { void addEagleLibrary(mainWindow) } })
     for (const w of BrowserWindow.getAllWindows()) w.webContents.reload()
     return next
   })
@@ -871,7 +896,8 @@ app.whenReady().then(async () => {
   registerVixelProtocol()
   registerIpcHandlers()
   registerCleanupIpc(db, broadcastLibraryChanged)
-  installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
+  if (eagleSync) registerTagIpc(db, eagleSync)
+  installAppMenu(() => mainWindow, { openSettings: openSettingsWindow, addEagleLibrary: () => { void addEagleLibrary(mainWindow) } })
   createWindow()
 
   // 只剩设置窗口时点 Dock 图标也要把主窗口找回来

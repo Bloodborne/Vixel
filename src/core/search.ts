@@ -1,10 +1,11 @@
 /**
- * 搜索引擎 — 4-way RRF（image vec + 音视频片段 vec + ocr BM25 + filename）
+ * 搜索引擎 — RRF 融合：image vec + 音视频片段 vec + ocr BM25 + filename + 标签 + Eagle 注释
  */
 
 import type { DatabaseInstance } from './db'
 import type { MatchChannel, MediaFilters, SearchResult } from '../shared/types'
-import { hasActiveFilters, matchesFilters, type FilterSets } from './filters'
+import { hasActiveFilters, intersectTagHashes, matchesFilters, type FilterSets } from './filters'
+import { TagStore } from './tagStore'
 import { getEmbeddingService } from './embedding'
 import { rrfFuse } from './fusion'
 
@@ -88,11 +89,13 @@ export type SearchOptions = MediaFilters
 
 export class SearchEngine {
   private db: DatabaseInstance
+  private tags: TagStore
   // 基线样本缓存：库的向量条数变化超过 10% 才重新抽样
   private baseline: Record<VecKind, { sample: Float32Array[]; count: number }> | null = null
 
   constructor(db: DatabaseInstance) {
     this.db = db
+    this.tags = new TagStore(db.raw)
   }
 
   async search(query: string, limit: number = 50, options?: SearchOptions): Promise<SearchResult[]> {
@@ -122,6 +125,9 @@ export class SearchEngine {
       const rawSegments = wantSegments ? this.searchVideoSegments(queryVec, limit * 2) : []
       const ocrResults = wantImageChannels ? this.searchByOcr(trimmedQuery, limit * 2) : []
       const fileNameResults = this.db.searchByFileName(trimmedQuery, limit * 2)
+      // 用户 / Eagle 给的元数据：标签名、Eagle 注释。和文字、文件名一样算"明确命中"
+      const tagResults = this.searchByTags(trimmedQuery, limit * 2)
+      const noteResults = this.searchByNotes(trimmedQuery, limit * 2)
 
       // 相关性门槛：向量通道只留明显高于该查询基线的命中（见 RELEVANCE_MIN_Z）
       const relevant = <T extends { distance: number }>(rows: T[], kind: VecKind): T[] => {
@@ -132,7 +138,8 @@ export class SearchEngine {
       let imageVecResults = relevant(rawImageVec, 'image')
       let videoSegmentResults = relevant(rawSegments, 'segment')
       // 什么都没过门槛、文字和文件名也没命中：给少量"最接近"的结果并标明，而不是凑满一屏
-      const lowConfidence = imageVecResults.length + videoSegmentResults.length + ocrResults.length + fileNameResults.length === 0 &&
+      const lowConfidence = imageVecResults.length + videoSegmentResults.length + ocrResults.length + fileNameResults.length +
+        tagResults.length + noteResults.length === 0 &&
         rawImageVec.length + rawSegments.length > 0
       if (lowConfidence) {
         imageVecResults = rawImageVec.slice(0, FALLBACK_LIMIT)
@@ -165,6 +172,8 @@ export class SearchEngine {
           [...videoSegmentAsFileHash].sort((a, b) => a.distance - b.distance),
           [...ocrResults].sort((a, b) => b.score - a.score),
           fileNameResults,
+          tagResults,
+          noteResults,
         ],
         60
       )
@@ -180,6 +189,8 @@ export class SearchEngine {
         ['segment', segmentHashes],
         ['text', new Set(ocrResults.map((r) => r.fileHash))],
         ['filename', new Set(fileNameResults.map((r) => r.fileHash))],
+        ['tag', new Set(tagResults.map((r) => r.fileHash))],
+        ['note', new Set(noteResults.map((r) => r.fileHash))],
       ]
       const matchedBy = (hash: string): MatchChannel[] =>
         channelSets.filter(([, set]) => set.has(hash)).map(([ch]) => ch)
@@ -189,6 +200,7 @@ export class SearchEngine {
         folderHashes: filters.folderId != null ? this.db.getHashesInFolder(filters.folderId) : null,
         personHashes: filters.personId != null ? this.db.getHashesForPerson(filters.personId) : null,
         favoriteHashes: filters.favorite ? this.db.getFavoriteHashes() : null,
+        tagHashes: intersectTagHashes((filters.tagIds ?? []).map((id) => this.tags.hashesForTag(id))),
       }
       const hidden = this.hiddenHashes()
       const results: SearchResult[] = []
@@ -318,6 +330,31 @@ export class SearchEngine {
       return this.db.searchByOcr(query, limit)
     } catch (error) {
       console.error('OCR search failed:', error)
+      return []
+    }
+  }
+
+  private searchByTags(query: string, limit: number): Array<{ fileHash: string }> {
+    try {
+      return this.tags.search(query, limit)
+    } catch (error) {
+      console.error('Tag search failed:', error)
+      return []
+    }
+  }
+
+  /** Eagle 注释里包含查询（子串匹配，中文也适用） */
+  private searchByNotes(query: string, limit: number): Array<{ fileHash: string }> {
+    try {
+      const pattern = `%${query.replace(/[!%_]/g, (c) => `!${c}`)}%`
+      const rows = this.db.raw.prepare(`
+        SELECT DISTINCT file_hash FROM eagle_items
+        WHERE deleted = 0 AND file_hash IS NOT NULL AND annotation != '' AND annotation LIKE ? ESCAPE '!'
+        LIMIT ?
+      `).pluck().all(pattern, limit) as string[]
+      return rows.map((fileHash) => ({ fileHash }))
+    } catch (error) {
+      console.error('Note search failed:', error)
       return []
     }
   }

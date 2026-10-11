@@ -19,15 +19,18 @@ export function splitAlbumFilters(f: MediaFilters): {
   if (rest.durationMax != null) extra.durationMax = rest.durationMax
   if (rest.personId != null) extra.personId = rest.personId
   if (rest.favorite) extra.favorite = true
+  if (rest.tagIds?.length) extra.tagIds = [...rest.tagIds]
   const scope: Pick<MediaFilters, 'kind' | 'folderId'> = {}
   if (kind) scope.kind = kind
   if (folderId != null) scope.folderId = folderId
   return { dateFrom, dateTo, scope, extra }
 }
 
-/** 键排好序、去掉空值后的 JSON：比较"当前条件和相册是否一致"用 */
+/** 键排好序、去掉空值后的 JSON：比较"当前条件和相册是否一致"用（标签 id 列表也排序，选的先后不算差别） */
 function canonical(f: MediaFilters): string {
-  const entries = Object.entries(f).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false)
+  const entries = Object.entries(f)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false && !(Array.isArray(v) && v.length === 0))
+    .map(([k, v]) => [k, Array.isArray(v) ? [...v].sort((a, b) => a - b) : v] as const)
   return JSON.stringify(entries.sort(([a], [b]) => a.localeCompare(b)))
 }
 

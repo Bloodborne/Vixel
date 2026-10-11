@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Tags**: tag photos, videos and audio in the inspector (press T; works on multi-selection),
+  browse by tag from the sidebar, rename / merge / delete from its context menu, filter by tags
+  (AND) in the filter bar and in smart albums. Tag names are also a search channel.
+- **Eagle libraries (read-only)**: add an Eagle `.library` folder and Vixel indexes the originals
+  in place, syncing Eagle tags, folders (as path tags), notes (searchable), source URLs and ratings.
+  Items in Eagle's trash are skipped. Nothing is ever written into the library.
+  Format notes: `docs/review/08-eagle-library-format.md`.
+
 ## [0.3.0] - 2026-10-11
 
 ### Added

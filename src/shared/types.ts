@@ -9,7 +9,7 @@ export type MediaKind = 'image' | 'video' | 'audio'
 export type MenuCommand =
   | 'source:all' | 'source:image' | 'source:video' | 'source:audio' | 'source:map' | 'source:people'
   | 'find' | 'toggle-sidebar' | 'zoom-in' | 'zoom-out' | 'activity' | 'add-folder' | 'toggle-density'
-  | 'toggle-inspector' | 'reveal' | 'quick-look' | 'open-item' | 'select-all' | 'toggle-favorite'
+  | 'toggle-inspector' | 'reveal' | 'quick-look' | 'open-item' | 'select-all' | 'toggle-favorite' | 'add-tag'
   | 'source:cleanup'
 
 /** 网格右键菜单（原生 Menu.popup）里用户选中的动作 */
@@ -37,6 +37,8 @@ export interface MediaFilters {
   durationMax?: number
   personId?: number
   favorite?: boolean
+  /** 同时带有这些标签（AND） */
+  tagIds?: number[]
 }
 
 /** 智能相册：保存下来的"查询 + 筛选"，打开时重新搜索，所以内容总是最新的 */
@@ -124,7 +126,7 @@ export interface WatchedFolder {
 }
 
 /** 命中通道：visual 图片向量 / segment 音视频片段向量 / text 图内文字 / filename 文件名或路径 */
-export type MatchChannel = 'visual' | 'segment' | 'text' | 'filename'
+export type MatchChannel = 'visual' | 'segment' | 'text' | 'filename' | 'tag' | 'note'
 
 export interface SearchResult {
   photo: Photo

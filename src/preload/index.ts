@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace } from '../shared/types'
 import type { Locale, LocaleSetting } from '../shared/i18n'
 import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type HiddenItem, type TrashResult } from '../shared/cleanup'
+import { TAG_CHANNELS, type EagleItemInfo, type Tag, type TagMenuAction, type TagsForSelection } from '../shared/tags'
 
 const api = {
   // 搜索
@@ -248,6 +249,32 @@ const api = {
     dismiss: (groupIds: string[]): Promise<void> => ipcRenderer.invoke(CLEANUP_CHANNELS.DISMISS, groupIds),
     /** 主进程会先弹原生确认框；用户取消时 cancelled = true */
     trash: (hashes: string[]): Promise<TrashResult> => ipcRenderer.invoke(CLEANUP_CHANNELS.TRASH, hashes),
+  },
+
+  // 标签（按内容 hash）
+  tags: {
+    list: (): Promise<Tag[]> => ipcRenderer.invoke(TAG_CHANNELS.LIST),
+    forHashes: (hashes: string[]): Promise<TagsForSelection> => ipcRenderer.invoke(TAG_CHANNELS.FOR_HASHES, hashes),
+    /** 名字不存在就新建；返回标签 id */
+    add: (hashes: string[], name: string): Promise<number | null> => ipcRenderer.invoke(TAG_CHANNELS.ADD, hashes, name),
+    remove: (hashes: string[], tagId: number): Promise<void> => ipcRenderer.invoke(TAG_CHANNELS.REMOVE, hashes, tagId),
+    /** 和已有标签重名就合并过去；返回最终的标签 id */
+    rename: (tagId: number, name: string): Promise<number | null> => ipcRenderer.invoke(TAG_CHANNELS.RENAME, tagId, name),
+    /** 侧栏右键菜单：合并 / 删除在主进程执行完才返回；'rename' 由调用方进入行内编辑 */
+    showMenu: (tagId: number): Promise<TagMenuAction | null> => ipcRenderer.invoke(TAG_CHANNELS.SHOW_MENU, tagId),
+    onChanged: (callback: () => void): (() => void) => {
+      const handler = (): void => callback()
+      ipcRenderer.on(TAG_CHANNELS.CHANGED, handler)
+      return () => { ipcRenderer.removeListener(TAG_CHANNELS.CHANGED, handler) }
+    },
+  },
+
+  // Eagle 资源库（只读）
+  eagle: {
+    info: (fileHash: string): Promise<EagleItemInfo | null> => ipcRenderer.invoke(TAG_CHANNELS.EAGLE_INFO, fileHash),
+    /** 来源链接：只在用户点击时由主进程用系统浏览器打开 */
+    openUrl: (url: string): Promise<boolean> => ipcRenderer.invoke(TAG_CHANNELS.OPEN_URL, url),
+    addLibrary: (): Promise<WatchedFolder | null> => ipcRenderer.invoke(TAG_CHANNELS.ADD_EAGLE_LIBRARY),
   },
 }
 
