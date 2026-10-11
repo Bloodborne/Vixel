@@ -11,7 +11,7 @@ const zh = {
   favoritesEmptyHint: '选中照片或视频后按 F 收藏，它们会出现在这里。',
   // 筛选
   filter: '筛选',
-  filterTitle: '筛选：方向、分辨率、时长、人物、收藏',
+  filterTitle: '筛选：方向、分辨率、时长、颜色、人物、收藏',
   any: '不限',
   orientation: '方向',
   landscape: '横向',
@@ -46,7 +46,7 @@ const en: typeof zh = {
   favoritesEmptyTitle: 'No favorites yet',
   favoritesEmptyHint: 'Select photos or videos and press F to add them here.',
   filter: 'Filter',
-  filterTitle: 'Filter by orientation, resolution, duration, person, favorites',
+  filterTitle: 'Filter by orientation, resolution, duration, color, person, favorites',
   any: 'Any',
   orientation: 'Orientation',
   landscape: 'Landscape',

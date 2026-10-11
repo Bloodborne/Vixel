@@ -20,6 +20,7 @@ export function splitAlbumFilters(f: MediaFilters): {
   if (rest.personId != null) extra.personId = rest.personId
   if (rest.favorite) extra.favorite = true
   if (rest.tagIds?.length) extra.tagIds = [...rest.tagIds]
+  if (rest.color) extra.color = rest.color
   const scope: Pick<MediaFilters, 'kind' | 'folderId'> = {}
   if (kind) scope.kind = kind
   if (folderId != null) scope.folderId = folderId

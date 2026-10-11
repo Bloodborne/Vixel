@@ -39,6 +39,8 @@ export interface MediaFilters {
   favorite?: boolean
   /** 同时带有这些标签（AND） */
   tagIds?: number[]
+  /** 色板里以足够占比出现该色桶（见 shared/colors.ts 的桶名与阈值） */
+  color?: string
 }
 
 /** 智能相册：保存下来的"查询 + 筛选"，打开时重新搜索，所以内容总是最新的 */
@@ -81,6 +83,8 @@ export interface Photo {
   videoId?: number | null
   /** 若是视频抽出的帧：该帧对应的视频时间戳（毫秒） */
   frameTimeMs?: number | null
+  /** 设计格式（PDF / AI）：页数（解析得到时才有） */
+  pages?: number | null
   /** 媒体类型（LEFT JOIN videos 得出；部分旧查询不带此字段时按 image 处理） */
   mediaKind?: MediaKind
   /** 视频/音频时长（毫秒） */
@@ -234,11 +238,21 @@ export interface IndexProgress {
   aiModelReady: boolean
 }
 
+/** 色板项（item_colors.palette 的 JSON 元素；bucket 见 shared/colors.ts） */
+export interface PaletteColor {
+  hex: string
+  /** 占比 0–1 */
+  p: number
+  bucket: string
+}
+
 export interface PhotoDetail extends Photo {
   exif?: ExifData
   caption?: string
   /** PaddleOCR 识别出的图内文字（多行用 \n 分隔），无则不设 */
   ocrText?: string
+  /** 主色板（缩略图时提取；老内容由后台回填），无则不设 */
+  palette?: PaletteColor[]
 }
 
 export interface ExifData {

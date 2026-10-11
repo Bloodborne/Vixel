@@ -1255,7 +1255,15 @@ function App(): JSX.Element {
                 tagFocusKey={tagFocusKey}
               />
             ) : primary && (
-              <Inspector result={primary} onSelect={handleSelect} onClose={dismissInspector} showPreview onToggleFavorite={() => toggleFavorite([primary])} tagFocusKey={tagFocusKey} />
+              <Inspector
+                result={primary}
+                onSelect={handleSelect}
+                onClose={dismissInspector}
+                showPreview
+                onToggleFavorite={() => toggleFavorite([primary])}
+                tagFocusKey={tagFocusKey}
+                onFilterColor={(c) => handleExtraFiltersChange({ ...extraFilters, color: c })}
+              />
             )}
           </aside>
         )}

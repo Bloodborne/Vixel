@@ -19,6 +19,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { extname, join } from 'path'
 import sharp from 'sharp'
+import { isDesignExt, renderDesignPreview } from './design'
 
 export interface DecodedImage {
   /** sharp 可直接消化的 buffer（HEIC/RAW 会被转成 JPEG） */
@@ -30,9 +31,11 @@ export interface DecodedImage {
    */
   originalBuffer: Buffer
   /** 解码来源，便于日志和测试 */
-  source: 'passthrough' | 'sips' | 'embedded-preview' | 'heic-convert'
+  source: 'passthrough' | 'sips' | 'embedded-preview' | 'heic-convert' | 'design'
   /** 原始扩展名（含 .），全小写 */
   ext: string
+  /** 设计格式（PDF / AI）：页数，解析得到时才有 */
+  pages?: number
 }
 
 // 走 sips 兜底的扩展白名单；其它格式 sharp 失败就直接报错
@@ -70,6 +73,13 @@ function loadHeicConvert(): HeicConvert | null {
 export async function decodeImage(filePath: string): Promise<DecodedImage> {
   const ext = extname(filePath).toLowerCase()
   const originalBuffer = await readFile(filePath)
+
+  // 0) 设计格式（SVG / PSD / PSB / PDF / AI）：栅格化预览（见 design.ts 的平台矩阵）。
+  //    不先问 sharp —— 虽然 sharp 读得懂 SVG，但要控制 density / 尺寸上限，统一走 design.ts
+  if (isDesignExt(ext)) {
+    const preview = await renderDesignPreview(filePath, ext, originalBuffer)
+    return { buffer: preview.buffer, originalBuffer, source: 'design', ext, ...(preview.pages ? { pages: preview.pages } : {}) }
+  }
 
   // 1) macOS 上 HEIC / RAW 直接走 sips（系统 codec）。不能先问 sharp：
   //    sharp 读得懂 CR2 / HEIC 的文件头，metadata() 成功，真解码时才失败

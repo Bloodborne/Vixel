@@ -10,6 +10,7 @@ import type { ClusterPlan, PendingFace, PersonCentroid } from './face/cluster'
 import { instrumentStatements } from './perf'
 import { buildFtsQuery } from './text/fts-query'
 import { PANORAMA_RATIO, SQUARE_TOLERANCE } from './filters'
+import { isColorBucket, maskForColor } from '../shared/colors'
 
 // 向量维度 - EmbeddingGemma 2 (768D，Matryoshka 可截断到 512/256/128)
 const EMBEDDING_DIM = 768
@@ -47,6 +48,7 @@ CREATE TABLE IF NOT EXISTS photos (
   face_status     TEXT DEFAULT 'pending',
   video_id        INTEGER REFERENCES videos(id),  -- 视频代表帧：来源视频
   frame_time_ms   INTEGER,                        -- 视频代表帧：时间戳
+  pages           INTEGER,                        -- 设计格式（PDF / AI）：页数
   deleted_at      DATETIME,
   created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -296,6 +298,15 @@ CREATE TABLE IF NOT EXISTS autotag_rejections (
   label_id    TEXT NOT NULL,
   PRIMARY KEY (file_hash, label_id)
 );
+
+-- 色板（按内容 hash）：palette 是 JSON 数组 [{hex,p,bucket}]；
+-- bucket_mask 是 12 个色桶（见 shared/colors.ts）的位掩码，SQL 颜色筛选只查它
+CREATE TABLE IF NOT EXISTS item_colors (
+  file_hash   TEXT PRIMARY KEY,
+  palette     TEXT NOT NULL,
+  bucket_mask INTEGER NOT NULL DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
 
 /** 后来加的表（只读打开旧库时用空 TEMP 表顶替，见 initDatabase） */
@@ -310,6 +321,7 @@ const LATE_TABLES: Record<string, string> = {
   autotag_done: 'file_hash TEXT PRIMARY KEY, version TEXT',
   autotag_rejections: 'file_hash TEXT, label_id TEXT',
   item_sources: 'file_hash TEXT PRIMARY KEY, url TEXT, page_url TEXT, page_title TEXT, collected_at DATETIME',
+  item_colors: 'file_hash TEXT PRIMARY KEY, palette TEXT, bucket_mask INTEGER, created_at DATETIME',
 }
 
 // 照片查询共用列（表别名 p）。LEFT JOIN videos v 补出媒体类型和时长：
@@ -321,7 +333,7 @@ const PHOTO_COLUMNS = `
   p.file_size as fileSize, p.file_mtime as fileMtime, p.file_hash as fileHash,
   p.width, p.height, p.taken_at as takenAt, p.lat, p.lng,
   p.embed_status as embedStatus, p.face_status as faceStatus, p.video_id as videoId, p.frame_time_ms as frameTimeMs,
-  p.deleted_at as deletedAt, p.created_at as createdAt, p.updated_at as updatedAt,
+  p.pages, p.deleted_at as deletedAt, p.created_at as createdAt, p.updated_at as updatedAt,
   ${MEDIA_KIND_EXPR} as mediaKind, v.duration_ms as durationMs,
   EXISTS (SELECT 1 FROM favorites fav WHERE fav.file_hash = p.file_hash) as favorite`
 const MEDIA_JOIN = `LEFT JOIN videos v ON v.id = p.video_id`
@@ -361,6 +373,11 @@ export function filterWhere(f: MediaFilters): { where: string; params: unknown[]
   for (const tagId of f.tagIds ?? []) {
     parts.push('p.file_hash IN (SELECT file_hash FROM item_tags WHERE tag_id = ?)')
     params.push(tagId)
+  }
+  if (f.color) {
+    // bucket_mask 位掩码（shared/colors.ts）；未知颜色名 mask=0 → 永假，不会放大结果
+    parts.push('p.file_hash IN (SELECT file_hash FROM item_colors WHERE (bucket_mask & ?) != 0)')
+    params.push(maskForColor(f.color))
   }
   return { where: parts.map((x) => `AND (${x})`).join(' '), params }
 }
@@ -405,6 +422,8 @@ export function migrateSchema(db: Database.Database): void {
   add('people', 'hidden', 'INTEGER DEFAULT 0')
   // 收集箱：就是一个普通监视文件夹，打个标记（只有 core/collectStore 读它）
   add('watched_folders', 'is_inbox', 'INTEGER DEFAULT 0')
+  // 设计格式（PDF / AI）的页数
+  add('photos', 'pages', 'INTEGER')
   db.exec(`CREATE INDEX IF NOT EXISTS idx_faces_unassigned ON faces(cluster_state) WHERE person_id IS NULL`)
 
   // 自动标签：标签可以对应词表里的一个标签（label_id，界面按语言显示名字）；
@@ -471,7 +490,7 @@ export interface DatabaseInstance {
   getPhotoDetail: (id: number) => PhotoDetail | undefined
   updatePhotoMeta: (
     id: number,
-    data: { width?: number; height?: number; takenAt?: string; lat?: number; lng?: number }
+    data: { width?: number; height?: number; takenAt?: string; lat?: number; lng?: number; pages?: number }
   ) => void
   softDeletePhoto: (path: string) => void
   updatePhotoPath: (id: number, newPath: string) => void
@@ -521,6 +540,15 @@ export interface DatabaseInstance {
   getCaption: (fileHash: string) => string | undefined
   saveOcrText: (fileHash: string, text: string) => void
   getOcrText: (fileHash: string) => string | undefined
+  // 色板（按 file_hash 共享；见 core/color）
+  /** palette: JSON 数组字符串；mask: 色桶位掩码 */
+  saveItemColors: (fileHash: string, paletteJson: string, mask: number) => void
+  getItemColors: (fileHash: string) => { palette: string; mask: number } | undefined
+  hasColorsForHash: (fileHash: string) => boolean
+  /** 含有掩码中任一色桶的内容 hash（搜索结果的颜色后过滤用） */
+  getHashesForColorMask: (mask: number) => Set<string>
+  /** 还没算色板的存活内容（去重后的 hash + 任一代表路径），颜色回填用 */
+  getHashesMissingColors: (limit: number) => Array<{ fileHash: string }>
   getPendingOcrPhotos: () => Array<{ id: number; fileHash: string; filePath: string }>
   /** 清空全部 OCR 结果（FTS 随触发器清），OCR 流水线升级时用；返回清掉的条数 */
   clearAllOcr: () => number
@@ -728,6 +756,7 @@ export function sanitizeFilters(raw: unknown): MediaFilters {
   if (f.kind === 'image' || f.kind === 'video' || f.kind === 'audio') out.kind = f.kind
   if (f.orientation === 'landscape' || f.orientation === 'portrait' || f.orientation === 'square' || f.orientation === 'panorama') out.orientation = f.orientation
   if (f.favorite === true) out.favorite = true
+  if (isColorBucket(f.color)) out.color = f.color
   if (Array.isArray(f.tagIds)) {
     const ids = f.tagIds.filter((x): x is number => typeof x === 'number' && Number.isInteger(x))
     if (ids.length > 0) out.tagIds = [...new Set(ids)]
@@ -994,7 +1023,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       WHERE p.id = ?
     `),
     updatePhotoMeta: db.prepare(`
-      UPDATE photos SET width = ?, height = ?, taken_at = ?, lat = ?, lng = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE photos SET width = ?, height = ?, taken_at = ?, lat = ?, lng = ?, pages = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `),
     softDeletePhoto: db.prepare(`
@@ -1197,6 +1226,21 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     `),
     getOcrText: db.prepare(`SELECT text FROM image_ocr WHERE file_hash = ?`),
     deleteOcrByHash: db.prepare(`DELETE FROM image_ocr WHERE file_hash = ?`),
+    // 色板
+    saveItemColors: db.prepare(`
+      INSERT INTO item_colors (file_hash, palette, bucket_mask) VALUES (?, ?, ?)
+      ON CONFLICT(file_hash) DO UPDATE SET palette = excluded.palette, bucket_mask = excluded.bucket_mask
+    `),
+    getItemColors: db.prepare(`SELECT palette, bucket_mask as mask FROM item_colors WHERE file_hash = ?`),
+    hasColorsForHash: db.prepare(`SELECT 1 FROM item_colors WHERE file_hash = ?`),
+    getHashesForColorMask: db.prepare(`SELECT file_hash FROM item_colors WHERE (bucket_mask & ?) != 0`).pluck(),
+    getHashesMissingColors: db.prepare(`
+      SELECT DISTINCT p.file_hash FROM photos p
+      WHERE p.deleted_at IS NULL AND p.file_hash IS NOT NULL
+        AND p.file_hash NOT IN (SELECT file_hash FROM item_colors)
+      LIMIT ?
+    `).pluck(),
+    deleteItemColorsByHash: db.prepare(`DELETE FROM item_colors WHERE file_hash = ?`),
     deleteFavoriteByHash: db.prepare(`DELETE FROM favorites WHERE file_hash = ?`),
     deleteItemTagsByHash: db.prepare(`DELETE FROM item_tags WHERE file_hash = ?`),
     deleteItemSourceByHash: db.prepare(`DELETE FROM item_sources WHERE file_hash = ?`),
@@ -1512,6 +1556,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     stmts.deleteItemTagsByHash.run(hash)
     stmts.deleteItemSourceByHash.run(hash)
     stmts.deleteAutotagDoneByHash.run(hash)
+    stmts.deleteItemColorsByHash.run(hash)
   }
   /**
    * 软删某视频的全部帧 photo（beforeCommit 在同一事务里先执行），
@@ -1620,7 +1665,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       return stmts.getPhotoWithCaption.get(id) as PhotoDetail | undefined
     },
     updatePhotoMeta: (id, data): void => {
-      stmts.updatePhotoMeta.run(data.width, data.height, data.takenAt, data.lat, data.lng, id)
+      stmts.updatePhotoMeta.run(data.width, data.height, data.takenAt, data.lat, data.lng, data.pages, id)
     },
     softDeletePhoto: (path: string): void => {
       stmts.softDeletePhoto.run(path)
@@ -1848,6 +1893,16 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       return result?.text
     },
     clearAllOcr: () => stmts.clearAllOcr.run().changes,
+    saveItemColors: (fileHash, paletteJson, mask) => {
+      stmts.saveItemColors.run(fileHash, paletteJson, mask)
+    },
+    getItemColors: (fileHash) => {
+      return stmts.getItemColors.get(fileHash) as { palette: string; mask: number } | undefined
+    },
+    hasColorsForHash: (fileHash) => !!stmts.hasColorsForHash.get(fileHash),
+    getHashesForColorMask: (mask) => new Set(stmts.getHashesForColorMask.all(mask) as string[]),
+    getHashesMissingColors: (limit) =>
+      (stmts.getHashesMissingColors.all(limit) as string[]).map((fileHash) => ({ fileHash })),
     getPendingOcrPhotos: () => {
       return stmts.getPendingOcrPhotos.all() as Array<{ id: number; fileHash: string; filePath: string }>
     },
