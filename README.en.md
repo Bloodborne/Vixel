@@ -27,6 +27,17 @@ Local AI search for photos, videos and audio. Fully offline, no account, nothing
 
 <img src="docs/media/video.jpg" width="860" alt="Video segment search" />
 
+## Compared with
+
+| | Vixel | Eagle | Immich | Apple Photos |
+|---|---|---|---|---|
+| Price | Free, open source (MIT) | Paid (lifetime license) | Free, open source | Built in |
+| How it works | Desktop app, indexes your existing folders in place | Desktop app, imports files into its own library | Self-hosted server (Docker) | Manages the Photos library only |
+| Platforms | macOS · Windows | macOS · Windows | Server + web / mobile | Apple devices |
+| Offline natural-language search | ✅ images · video segments · audio | ✅ images only (AI Search plugin) | ✅ on your server | ✅ |
+| Text-in-image search | ✅ local OCR, incl. video frames | Plugin using a Google API | ✅ | ✅ |
+| People | ✅ | — | ✅ | ✅ |
+
 ## Privacy
 
 - **Offline, no exceptions.** All models ship inside the app and run on your machine; there is no first-run download. The basemap is bundled ([Natural Earth](https://www.naturalearthdata.com/)). Every network request from the UI is blocked in code.
