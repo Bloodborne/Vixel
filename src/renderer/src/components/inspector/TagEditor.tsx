@@ -65,7 +65,32 @@ export function TagEditor({ hashes, focusKey = 0 }: { hashes: string[]; focusKey
     <div className="flex flex-col gap-1.5" data-tag-editor>
       {(current.all.length > 0 || current.some.length > 0) && (
         <div className="flex flex-wrap gap-1">
-          {current.all.map((tag) => (
+          {current.all.map((tag) => tag.auto ? (
+            // 自动标签：虚线框 + ✦，✓ 确认（变成普通标签）、× 删除（记住，不再自动打）
+            <span
+              key={tag.id}
+              title={t.autotags.autoHint}
+              data-auto-tag
+              className="h-6 pl-1.5 pr-0.5 rounded-md border border-dashed border-accent/50 text-ink-2 text-caption flex items-center gap-0.5 max-w-full"
+            >
+              <Icon name="sparkles" className="w-3 h-3 text-accent flex-shrink-0" />
+              <span className="truncate">{tag.name}</span>
+              <button
+                onClick={() => void window.api.tags.confirmAuto(hashes, tag.id)}
+                title={t.autotags.confirm}
+                className="w-4 h-4 flex-shrink-0 rounded flex items-center justify-center text-ink-3 hover:text-accent hover:bg-fill-active"
+              >
+                <Icon name="check" className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => remove(tag)}
+                title={t.tags.remove(tag.name)}
+                className="w-4 h-4 flex-shrink-0 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-fill-active"
+              >
+                <Icon name="close" className="w-3 h-3" />
+              </button>
+            </span>
+          ) : (
             <span key={tag.id} className="h-6 pl-2 pr-0.5 rounded-md bg-fill-hover text-ink text-caption flex items-center gap-0.5 max-w-full">
               <span className="truncate">{tag.name}</span>
               <button
