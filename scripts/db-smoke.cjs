@@ -33,6 +33,20 @@ assert(n("select count(*) n from image_vec_map where file_hash='h1'") === 1, 'sh
 // filename LIKE escaping
 assert(db.searchByFileName('_.jpg', 10).length === 0, 'underscore is literal in filename search')
 assert(db.searchByFileName('a.jpg', 10).length === 1, 'plain filename search still matches')
+// hidden_items（近重复清理“隐藏多余”）：网格 / 计数 / 地图都排除，取消隐藏后恢复
+const { CleanupStore } = require(require('path').join(__dirname, '..', 'dist', 'cli', 'core', 'cleanupStore.js'))
+const store = new CleanupStore(db.raw)
+const live = () => db.getRepresentativePhotos(50, 0).map((p) => p.fileHash).sort().join()
+const before = db.getLibraryCounts().image
+store.hide(['h2'])
+assert(!live().includes('h2'), 'hidden item excluded from grid')
+assert(db.getLibraryCounts().image === before - 1, 'hidden item excluded from counts')
+assert(db.getRepresentativePhotosFiltered(50, 0, undefined, undefined, 'image').every((p) => p.fileHash !== 'h2'), 'hidden item excluded from filtered grid')
+assert(store.listHidden().map((h) => h.fileHash).join() === 'h2', 'listHidden returns the hidden item')
+store.unhide(['h2'])
+assert(live().includes('h2') && db.getLibraryCounts().image === before, 'unhide restores the item')
+assert(store.trashTargets(['h1']).map((x) => x.filePath).sort().join() === '/tmp/f1/a.jpg,/tmp/f1/b.jpg', 'trash targets: every live copy inside the watched folder')
+assert(store.trashTargets(['fh', 'nope']).length === 0, 'trash targets: no video frames / unknown hashes')
 // folder delete GCs all
 const orphans = db.deletePhotosByFolder(f.id)
 assert(['h1','h2'].every(h => orphans.includes(h)), 'deletePhotosByFolder returns orphaned hashes')

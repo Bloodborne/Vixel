@@ -223,6 +223,13 @@ CREATE TABLE IF NOT EXISTS video_segment_vec_map (
   rowid       INTEGER PRIMARY KEY AUTOINCREMENT,
   segment_id  INTEGER NOT NULL UNIQUE REFERENCES video_segments(id)
 );
+
+-- 在 Vixel 里隐藏的内容（近重复清理的“隐藏多余”）：原文件不动，网格 / 搜索 / 计数 / 地图都排除
+CREATE TABLE IF NOT EXISTS hidden_items (
+  file_hash   TEXT PRIMARY KEY,
+  reason      TEXT NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
 
 // 照片查询共用列（表别名 p）。LEFT JOIN videos v 补出媒体类型和时长：
@@ -761,6 +768,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
           SELECT MIN(p3.id) FROM photos p3
           WHERE p3.file_hash = p.file_hash AND p3.deleted_at IS NULL
         )
+        AND p.file_hash NOT IN (SELECT file_hash FROM hidden_items)
       ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?
     `),
@@ -916,6 +924,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
           SELECT MIN(p3.id) FROM photos p3
           WHERE p3.file_hash = p.file_hash AND p3.deleted_at IS NULL
         )
+        AND p.file_hash NOT IN (SELECT file_hash FROM hidden_items)
       GROUP BY kind
     `),
     getHashesInFolder: db.prepare(`
@@ -1099,6 +1108,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
           SELECT 1 FROM photos p4
           WHERE p4.file_hash = p.file_hash AND p4.folder_id = ? AND p4.deleted_at IS NULL
         ))
+        AND p.file_hash NOT IN (SELECT file_hash FROM hidden_items)
       ORDER BY p.taken_at DESC, p.created_at DESC
       LIMIT ? OFFSET ?
     `),
@@ -1108,6 +1118,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       ${MEDIA_JOIN}
       WHERE p.deleted_at IS NULL
         AND p.lat IS NOT NULL AND p.lng IS NOT NULL
+        AND p.file_hash NOT IN (SELECT file_hash FROM hidden_items)
         AND p.id = (
           SELECT MIN(p3.id) FROM photos p3
           WHERE p3.file_hash = p.file_hash AND p3.deleted_at IS NULL

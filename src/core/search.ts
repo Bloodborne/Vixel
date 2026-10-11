@@ -193,6 +193,7 @@ export class SearchEngine {
         channelSets.filter(([, set]) => set.has(hash)).map(([ch]) => ch)
 
       const folderHashes = folderId != null ? this.db.getHashesInFolder(folderId) : null
+      const hidden = this.hiddenHashes()
       const results: SearchResult[] = []
       const seenHashes = new Set<string>()
       const seenVideos = new Set<number>()
@@ -200,6 +201,7 @@ export class SearchEngine {
         if (seenHashes.has(fileHash)) continue
         seenHashes.add(fileHash)
         if (folderHashes && !folderHashes.has(fileHash)) continue
+        if (hidden.has(fileHash)) continue
 
         const photo = this.db.getRepresentativeByHash(fileHash)
         if (photo && !photo.deletedAt) {
@@ -251,7 +253,7 @@ export class SearchEngine {
     // 取超采，因为下面会按 hash + video 去重，可能丢一部分
     const results = this.db.findSimilar(fileHash, limit * 3)
     const photos: SearchResult[] = []
-    const seenHashes = new Set<string>([fileHash]) // 排除查询本身
+    const seenHashes = new Set<string>([fileHash, ...this.hiddenHashes()]) // 排除查询本身和已隐藏的
     const seenVideos = new Set<number>()
     for (const { fileHash: hash, distance } of results) {
       const similarity = l2ToCosine(distance)
@@ -270,6 +272,11 @@ export class SearchEngine {
       }
     }
     return photos
+  }
+
+  /** 近重复清理里“在 Vixel 中隐藏”的内容（表很小，每次查询现读） */
+  private hiddenHashes(): Set<string> {
+    return new Set(this.db.raw.prepare('SELECT file_hash FROM hidden_items').pluck().all() as string[])
   }
 
   private async encodeQuery(query: string): Promise<Float32Array | null> {
