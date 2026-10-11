@@ -189,6 +189,15 @@ CREATE TABLE IF NOT EXISTS smart_albums (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 收集来源（收集箱 / 浏览器扩展 / 从浏览器拖入）：按内容 hash；只记录，不发起任何请求
+CREATE TABLE IF NOT EXISTS item_sources (
+  file_hash    TEXT PRIMARY KEY,
+  url          TEXT,
+  page_url     TEXT,
+  page_title   TEXT,
+  collected_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 内部状态 / 一次性迁移标记
 CREATE TABLE IF NOT EXISTS meta_state (
   key   TEXT PRIMARY KEY,
@@ -279,6 +288,7 @@ const LATE_TABLES: Record<string, string> = {
   smart_albums: 'id INTEGER PRIMARY KEY, name TEXT, query TEXT, filters TEXT, sort_order INTEGER, created_at DATETIME, updated_at DATETIME',
   tags: 'id INTEGER PRIMARY KEY, name TEXT, created_at DATETIME',
   item_tags: 'file_hash TEXT, tag_id INTEGER',
+  item_sources: 'file_hash TEXT PRIMARY KEY, url TEXT, page_url TEXT, page_title TEXT, collected_at DATETIME',
 }
 
 // 照片查询共用列（表别名 p）。LEFT JOIN videos v 补出媒体类型和时长：
@@ -372,6 +382,8 @@ export function migrateSchema(db: Database.Database): void {
   add('faces', 'assigned_by', 'TEXT')
   add('people', 'centroid', 'BLOB')
   add('people', 'hidden', 'INTEGER DEFAULT 0')
+  // 收集箱：就是一个普通监视文件夹，打个标记（只有 core/collectStore 读它）
+  add('watched_folders', 'is_inbox', 'INTEGER DEFAULT 0')
   db.exec(`CREATE INDEX IF NOT EXISTS idx_faces_unassigned ON faces(cluster_state) WHERE person_id IS NULL`)
 
   // 开发期曾有过的 Eagle 资源库镜像表（未发布即移除）
@@ -1158,6 +1170,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     deleteOcrByHash: db.prepare(`DELETE FROM image_ocr WHERE file_hash = ?`),
     deleteFavoriteByHash: db.prepare(`DELETE FROM favorites WHERE file_hash = ?`),
     deleteItemTagsByHash: db.prepare(`DELETE FROM item_tags WHERE file_hash = ?`),
+    deleteItemSourceByHash: db.prepare(`DELETE FROM item_sources WHERE file_hash = ?`),
     // 等待 OCR 的照片：已有 embedding 但还没 OCR 结果
     clearAllOcr: db.prepare(`DELETE FROM image_ocr`),
     getPendingOcrPhotos: db.prepare(`
@@ -1467,6 +1480,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     stmts.deleteOcrByHash.run(hash)
     stmts.deleteFavoriteByHash.run(hash)
     stmts.deleteItemTagsByHash.run(hash)
+    stmts.deleteItemSourceByHash.run(hash)
   }
   /**
    * 软删某视频的全部帧 photo（beforeCommit 在同一事务里先执行），

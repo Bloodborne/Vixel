@@ -25,6 +25,7 @@ import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { registerCleanupIpc } from './cleanup'
 import { broadcastTagsChanged, registerTagIpc } from './tags'
+import { registerCollectIpc } from './collect'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
 import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace } from '../shared/types'
@@ -364,6 +365,9 @@ async function immutable(res: Response): Promise<Response> {
 
 /**
  * 隐私承诺落到代码上：渲染进程只许访问本地（vixel:// / file:// / devtools / 开发服务器），没有例外。
+ * 主进程唯一的联网点：用户从浏览器拖进来的只是一个图片地址时，按这一个地址下载一次（main/collect.ts
+ * downloadImage，用户显式操作、限大小 / 类型 / 超时）。浏览器扩展的本地服务只监听 127.0.0.1、默认关闭，
+ * 只接收扩展推过来的字节，从不对外请求。
  * 地图用随应用打包的离线底图（Natural Earth），模型推理在 utilityProcess 里，
  * 且 transformers.js 已关掉远程模型（allowRemoteModels = false）。
  */
@@ -874,6 +878,7 @@ app.whenReady().then(async () => {
   registerIpcHandlers()
   registerCleanupIpc(db, broadcastLibraryChanged)
   registerTagIpc(db)
+  registerCollectIpc({ db, watcher, broadcastLibraryChanged, broadcastTagsChanged, getMainWindow: () => mainWindow })
   installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
   createWindow()
 
