@@ -1,0 +1,21 @@
+{
+  "extName": { "message": "存到 Vixel" },
+  "extDesc": { "message": "右键把网页图片或页面截图存进本机的 Vixel 收集箱。只和 127.0.0.1 上的 Vixel 通信。" },
+  "menuSaveImage": { "message": "存到 Vixel" },
+  "menuSaveShot": { "message": "保存页面截图到 Vixel" },
+  "popupConnected": { "message": "已连接 Vixel $VER$", "placeholders": { "ver": { "content": "$1" } } },
+  "popupUnpaired": { "message": "令牌不对：在选项里粘贴 Vixel 设置中的配对令牌" },
+  "popupOffline": { "message": "连不上 Vixel：请打开 Vixel，并在 设置 → 通用 → 浏览器扩展 里启用" },
+  "popupRecent": { "message": "最近保存" },
+  "popupEmpty": { "message": "还没有保存过内容" },
+  "popupOptions": { "message": "选项…" },
+  "statusSaved": { "message": "已存入收集箱" },
+  "statusExists": { "message": "已在库中" },
+  "statusFailed": { "message": "失败" },
+  "optTitle": { "message": "存到 Vixel · 选项" },
+  "optPort": { "message": "端口" },
+  "optToken": { "message": "配对令牌" },
+  "optTokenHint": { "message": "在 Vixel 的 设置 → 通用 → 浏览器扩展 里拷贝。" },
+  "optSave": { "message": "保存" },
+  "optSaved": { "message": "已保存" }
+}

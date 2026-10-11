@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { max-width: 460px; margin: 24px auto; padding: 0 16px; font: 13px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; }
+    h1 { font-size: 16px; }
+    label { display: block; margin: 14px 0 4px; font-weight: 600; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; background: transparent; color: inherit; }
+    input#token { font-family: ui-monospace, Menlo, monospace; }
+    .hint { margin: 4px 0 0; font-size: 12px; opacity: .6; }
+    button { margin-top: 16px; padding: 6px 16px; font: inherit; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+    #saved { margin-left: 8px; opacity: .7; }
+  </style>
+</head>
+<body>
+  <h1 id="title"></h1>
+  <label for="port" id="port-label"></label>
+  <input id="port" inputmode="numeric" />
+  <label for="token" id="token-label"></label>
+  <input id="token" autocomplete="off" spellcheck="false" />
+  <p class="hint" id="token-hint"></p>
+  <button id="save"></button><span id="saved" hidden></span>
+  <script src="options.js"></script>
+</body>
+</html>

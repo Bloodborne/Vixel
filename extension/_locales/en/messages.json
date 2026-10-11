@@ -1,0 +1,21 @@
+{
+  "extName": { "message": "Save to Vixel" },
+  "extDesc": { "message": "Right-click to save web images or a page screenshot into your local Vixel Inbox. Talks only to Vixel on 127.0.0.1." },
+  "menuSaveImage": { "message": "Save to Vixel" },
+  "menuSaveShot": { "message": "Save page screenshot to Vixel" },
+  "popupConnected": { "message": "Connected to Vixel $VER$", "placeholders": { "ver": { "content": "$1" } } },
+  "popupUnpaired": { "message": "Wrong token: paste the pairing token from Vixel's settings in Options" },
+  "popupOffline": { "message": "Can't reach Vixel: open Vixel and enable it in Settings → General → Browser extension" },
+  "popupRecent": { "message": "Recently saved" },
+  "popupEmpty": { "message": "Nothing saved yet" },
+  "popupOptions": { "message": "Options…" },
+  "statusSaved": { "message": "Saved to Inbox" },
+  "statusExists": { "message": "Already in library" },
+  "statusFailed": { "message": "Failed" },
+  "optTitle": { "message": "Save to Vixel · Options" },
+  "optPort": { "message": "Port" },
+  "optToken": { "message": "Pairing token" },
+  "optTokenHint": { "message": "Copy it from Vixel → Settings → General → Browser extension." },
+  "optSave": { "message": "Save" },
+  "optSaved": { "message": "Saved" }
+}
