@@ -578,6 +578,8 @@ export interface DatabaseInstance {
     fileHash: string,
     limit: number
   ) => Array<{ fileHash: string; distance: number }>
+  /** 某内容 hash 已存的图片向量（以图搜图"以此图搜索"直接用，不再过模型）；没有则 null */
+  getImageVecByHash: (fileHash: string) => Float32Array | null
   getPhotosWithGPS: (limit?: number) => Photo[]
 
   // 人脸
@@ -2056,6 +2058,14 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
         console.error('Find similar error:', error)
         return []
       }
+    },
+
+    getImageVecByHash: (fileHash) => {
+      const mapRow = stmts.getVecMapRowid.get(fileHash) as { rowid: bigint | number } | undefined
+      if (!mapRow) return null
+      const vecRow = stmts.getVecByRowid.get(Number(mapRow.rowid)) as { embedding: Buffer } | undefined
+      if (!vecRow) return null
+      return new Float32Array(vecRow.embedding.buffer, vecRow.embedding.byteOffset, vecRow.embedding.byteLength / 4)
     },
 
     getPhotosWithGPS: (limit = 5000) => {

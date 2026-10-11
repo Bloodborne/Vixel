@@ -74,8 +74,12 @@ const handlers: Record<InferenceRequest['method'], (...args: any[]) => Promise<u
 const queue: InferenceRequest[] = []
 let busy = false
 
-const isUrgent = (r: InferenceRequest): boolean =>
-  r.method === 'embed.encode' && (r.args[0] as EmbeddingInput | undefined)?.type === 'text'
+// 搜索类请求插队：文本查询，和标了 urgent 的以图搜图查询（后台索引的图片批次不带该标记）
+const isUrgent = (r: InferenceRequest): boolean => {
+  if (r.method !== 'embed.encode') return false
+  const input = r.args[0] as EmbeddingInput | undefined
+  return input?.type === 'text' || ((input?.type === 'image' || input?.type === 'multimodal') && !!input.urgent)
+}
 
 async function drain(): Promise<void> {
   if (busy) return

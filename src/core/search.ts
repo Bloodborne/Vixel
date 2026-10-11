@@ -8,6 +8,7 @@ import { hasActiveFilters, intersectTagHashes, matchesFilters, type FilterSets }
 import { TagStore } from './tagStore'
 import { getEmbeddingService } from './embedding'
 import { rrfFuse } from './fusion'
+import { channelStats, cutAndMerge, IMAGE_GATE, MIXED_GATE, type Gate, type ImageHit, type SegmentHit } from './imageQuery'
 
 interface VecSearchResult {
   fileHash: string
@@ -193,12 +194,7 @@ export class SearchEngine {
         channelSets.filter(([, set]) => set.has(hash)).map(([ch]) => ch)
 
       // 需要查库的条件先取成 hash 集合，逐条过滤时只做集合查找
-      const sets: FilterSets = {
-        folderHashes: filters.folderId != null ? this.db.getHashesInFolder(filters.folderId) : null,
-        personHashes: filters.personId != null ? this.db.getHashesForPerson(filters.personId) : null,
-        favoriteHashes: filters.favorite ? this.db.getFavoriteHashes() : null,
-        tagHashes: intersectTagHashes((filters.tagIds ?? []).map((id) => this.tags.hashesForTag(id))),
-      }
+      const sets = this.filterSets(filters)
       const hidden = this.hiddenHashes()
       const results: SearchResult[] = []
       const seenHashes = new Set<string>()
@@ -275,6 +271,93 @@ export class SearchEngine {
       }
     }
     return photos
+  }
+
+  /**
+   * 以图搜图：查询向量（已在调用方编码好）对图片向量 + 音视频片段向量两路 KNN，
+   * 各自按库基线标准化后过门槛再合并（逻辑和标定见 imageQuery.ts）。
+   * 过滤 / 隐藏排除与文字搜索一致；excludeHash 是查询图自己的内容 hash（在库里时从结果中去掉）。
+   * 一个都没过门槛时退化为少量"最接近"的结果并标 lowConfidence（与文字搜索同款语义）。
+   */
+  searchByImage(
+    queryVec: Float32Array,
+    opts: { limit?: number; filters?: MediaFilters; excludeHash?: string | null; mixed?: boolean } = {}
+  ): { results: SearchResult[]; queryInLibrary: boolean } {
+    const limit = opts.limit ?? 60
+    const filters = opts.filters ?? {}
+    const kind = filters.kind
+    const gate: Gate = opts.mixed ? MIXED_GATE : IMAGE_GATE
+
+    // 按类型过滤时跳过用不上的通道（与文字搜索一致）：片段只属于音视频，图片向量属于图片 + 视频代表帧
+    const rawImages: ImageHit[] = kind === 'audio' ? [] : this.db.searchByVec(queryVec, limit * 2)
+      .map((r) => ({ fileHash: r.fileHash, cosine: l2ToCosine(r.distance) }))
+    const rawSegments: SegmentHit[] = kind === 'image' ? [] : this.db.searchVideoSegmentsByVec(queryVec, limit * 2)
+      .map((r) => ({ videoId: r.videoId, startMs: r.startMs, endMs: r.endMs, cosine: l2ToCosine(r.distance) }))
+
+    const stats = {
+      image: channelStats(queryVec, this.baselineSample('image')),
+      segment: channelStats(queryVec, this.baselineSample('segment')),
+    }
+    // 片段命中换成该视频代表帧的 hash（和图片通道同一个 id 空间）；没有存活帧的丢弃
+    const segmentKey = (videoId: number): string | null => {
+      const frames = this.db.getFramePhotosByVideo(videoId)
+      const frame = frames.find((f) => !f.deletedAt) ?? frames[0]
+      return frame?.fileHash ?? null
+    }
+    let merged = cutAndMerge(rawImages, rawSegments, stats, segmentKey, gate)
+    // 查询图就在库里：从结果中排除，并告知 UI
+    const queryInLibrary = !!opts.excludeHash && !!this.db.getRepresentativeByHash(opts.excludeHash)
+    if (opts.excludeHash) merged = merged.filter((h) => h.key !== opts.excludeHash)
+
+    // 什么都没过门槛：给少量"最接近"的结果并标明，而不是一片空白
+    let lowConfidence = false
+    if (merged.length === 0 && rawImages.length + rawSegments.length > 0) {
+      lowConfidence = true
+      const open: Gate = {
+        imageMinZ: -Infinity, imageMinCosine: -Infinity, segmentMinZ: -Infinity, segmentMinCosine: -Infinity,
+        imageMinCosineNoBaseline: -Infinity, segmentMinCosineNoBaseline: -Infinity,
+      }
+      merged = cutAndMerge(rawImages, rawSegments, stats, segmentKey, open)
+        .filter((h) => h.key !== opts.excludeHash)
+        .slice(0, FALLBACK_LIMIT)
+    }
+
+    const sets = this.filterSets(filters)
+    const hidden = this.hiddenHashes()
+    const results: SearchResult[] = []
+    const seenVideos = new Set<number>()
+    const max = Math.min(limit, lowConfidence ? FALLBACK_LIMIT : limit)
+    for (const hit of merged) {
+      if (hidden.has(hit.key)) continue
+      const photo = this.db.getRepresentativeByHash(hit.key)
+      if (!photo || photo.deletedAt) continue
+      if (!matchesFilters(photo, filters, sets)) continue
+      // 同一视频的多个抽帧 hash 不同：按 videoId 再去一次重（merged 已按分数降序，留下的是最佳帧）
+      if (photo.videoId != null) {
+        if (seenVideos.has(photo.videoId)) continue
+        seenVideos.add(photo.videoId)
+      }
+      results.push({
+        photo,
+        // 展示分数用余弦（和 findSimilar 一致、可解释）；顺序已按 z 排好
+        score: hit.cosine,
+        matchedBy: [hit.channel satisfies MatchChannel],
+        ...(hit.segment ? { segment: hit.segment } : {}),
+        ...(lowConfidence ? { lowConfidence: true } : {}),
+      })
+      if (results.length >= max) break
+    }
+    return { results, queryInLibrary }
+  }
+
+  /** 需要查库的过滤条件先取成 hash 集合（文字搜索和以图搜图共用） */
+  private filterSets(filters: MediaFilters): FilterSets {
+    return {
+      folderHashes: filters.folderId != null ? this.db.getHashesInFolder(filters.folderId) : null,
+      personHashes: filters.personId != null ? this.db.getHashesForPerson(filters.personId) : null,
+      favoriteHashes: filters.favorite ? this.db.getFavoriteHashes() : null,
+      tagHashes: intersectTagHashes((filters.tagIds ?? []).map((id) => this.tags.hashesForTag(id))),
+    }
   }
 
   /** 近重复清理里“在 Vixel 中隐藏”的内容（表很小，每次查询现读） */

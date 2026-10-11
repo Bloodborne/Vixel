@@ -13,6 +13,8 @@ export interface TextInput {
 export interface ImageInput {
   type: 'image'
   content: Buffer
+  /** 交互式查询（以图搜图）：在推理进程队列里插队，不等后台索引批次 */
+  urgent?: boolean
 }
 
 export interface AudioInput {
@@ -35,6 +37,8 @@ export interface MultimodalInput {
   image?: Buffer
   audio?: Float32Array
   video?: { frames: Buffer[]; durationSec: number }
+  /** 交互式查询（图 + 文搜索）：在推理进程队列里插队 */
+  urgent?: boolean
 }
 
 export type EmbeddingInput = TextInput | ImageInput | AudioInput | VideoInput | MultimodalInput

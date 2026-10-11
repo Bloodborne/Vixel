@@ -7,14 +7,13 @@ import { t } from '../../../../shared/i18n'
 
 export type KindFilter = 'all' | 'image' | 'video' | 'audio'
 
-/** 侧边栏选中的"来源"：资料库某一类 / 某个文件夹 / 地图 / 人物；similar 由右键"查找相似内容"进入，不在侧栏里 */
+/** 侧边栏选中的"来源"：资料库某一类 / 某个文件夹 / 地图 / 人物 */
 export type Source =
   | { type: 'library'; kind: KindFilter }
   | { type: 'folder'; id: number }
   | { type: 'map' }
   | { type: 'people' }
   | { type: 'cleanup' }
-  | { type: 'similar'; photoId: number; name: string }
   | { type: 'favorites' }
   | { type: 'album'; id: number }
   | { type: 'tag'; id: number }
