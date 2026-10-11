@@ -19,13 +19,13 @@ import { formatBackupName, selectExpired } from '../core/backup'
 import { serveMediaFile } from '../core/media/serve'
 import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
 import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
-import { installAppMenu, popupItemMenu } from './menu'
+import { installAppMenu, popupItemMenu, popupSmartAlbumMenu } from './menu'
 import { locale, resolveLocale, setLocale, t, type LocaleSetting } from '../shared/i18n'
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
-import { IPC_CHANNELS, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace } from '../shared/types'
+import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace } from '../shared/types'
 
 const APP_NAME = 'Vixel'
 
@@ -169,6 +169,11 @@ function openSettingsWindow(): BrowserWindow {
 }
 
 /** 文件夹增删后通知所有窗口：主窗口刷新侧边栏 / 网格，设置窗口刷新列表 */
+/** 智能相册增删改后通知所有窗口刷新侧栏 */
+function broadcastSmartAlbumsChanged(): void {
+  for (const w of BrowserWindow.getAllWindows()) w.webContents.send(IPC_CHANNELS.SMART_ALBUMS_CHANGED)
+}
+
 function broadcastLibraryChanged(): void {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send(IPC_CHANNELS.LIBRARY_CHANGED)
 }
@@ -533,6 +538,35 @@ function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.SET_FAVORITE, async (_event, fileHashes: string[], on: boolean) => {
     db.setFavorite(fileHashes.filter((h) => typeof h === 'string' && h), !!on)
     return !!on
+  })
+
+  handle(IPC_CHANNELS.GET_SMART_ALBUMS, async () => db.getSmartAlbums())
+
+  handle(IPC_CHANNELS.CREATE_SMART_ALBUM, async (_event, album: { name: string; query: string; filters: MediaFilters }) => {
+    const created = db.createSmartAlbum({ name: String(album?.name ?? ''), query: String(album?.query ?? ''), filters: album?.filters ?? {} })
+    broadcastSmartAlbumsChanged()
+    return created
+  })
+
+  handle(IPC_CHANNELS.UPDATE_SMART_ALBUM, async (_event, id: number, patch: { name?: string; query?: string; filters?: MediaFilters }) => {
+    const updated = db.updateSmartAlbum(id, patch ?? {})
+    broadcastSmartAlbumsChanged()
+    return updated ?? null
+  })
+
+  handle(IPC_CHANNELS.DELETE_SMART_ALBUM, async (_event, id: number) => {
+    db.deleteSmartAlbum(id)
+    broadcastSmartAlbumsChanged()
+  })
+
+  handle(IPC_CHANNELS.REORDER_SMART_ALBUMS, async (_event, ids: number[]) => {
+    db.reorderSmartAlbums(Array.isArray(ids) ? ids.filter((x) => typeof x === 'number') : [])
+    broadcastSmartAlbumsChanged()
+  })
+
+  handle(IPC_CHANNELS.SHOW_SMART_ALBUM_MENU, async (event, name: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win ? popupSmartAlbumMenu(win, String(name ?? '')) : null
   })
 
   handle(IPC_CHANNELS.SHOW_ITEM_MENU, async (event, opts: { count: number; isMedia: boolean; favorite: boolean }) => {

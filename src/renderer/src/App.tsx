@@ -14,9 +14,10 @@ import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
 import { t } from '../../shared/i18n'
-import { FilterBar, hasExtraFilters, countExtraFilters, type ExtraFilters } from './components/shell/FilterBar'
+import { FilterBar, hasExtraFilters, countExtraFilters, describeExtraFilters, type ExtraFilters } from './components/shell/FilterBar'
+import { useSmartAlbums, sameAlbumState, splitAlbumFilters } from './lib/smartAlbums'
 import type {
-  SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction, MediaFilters,
+  SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction, MediaFilters, SmartAlbum,
   IndexProgress as IndexProgressType,
 } from '../../shared/types'
 
@@ -110,19 +111,27 @@ function App(): JSX.Element {
   const sourceKey = source.type === 'library' ? `library:${source.kind}`
     : source.type === 'folder' ? `folder:${source.id}`
     : source.type === 'similar' ? `similar:${source.photoId}`
+    : source.type === 'album' ? `album:${source.id}`
     : source.type
   useEffect(() => { setDensityOverride(null) }, [query, sourceKey])
-  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'similar' || source.type === 'favorites'
+  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'similar' || source.type === 'favorites' || source.type === 'album'
 
   // 查询条件放 ref：索引进度刷新等所有 doSearch 调用都自动带上当前来源 + 日期，
   // 不用每个调用点各自传参，也不会因闭包拿到旧值
   const filters = useRef<{ query: string; from: string; to: string; source: Source; extra: ExtraFilters }>({ query: '', from: '', to: '', source, extra: {} })
 
+  // 智能相册：doSearch 从 ref 取相册的来源范围（类型 / 文件夹）
+  const { albums, upsert: upsertAlbum } = useSmartAlbums()
+  const albumsRef = useRef<SmartAlbum[]>(albums)
+  albumsRef.current = albums
+
   const doSearch = useCallback(async (): Promise<SearchResult[]> => {
     const { query: q, from, to, source: src, extra } = filters.current
     if (src.type === 'similar') return window.api.findSimilar(src.photoId, SIMILAR_LIMIT)
-    const kind = src.type === 'library' && src.kind !== 'all' ? src.kind : undefined
-    const folderId = src.type === 'folder' ? src.id : undefined
+    const album = src.type === 'album' ? albumsRef.current.find((a) => a.id === src.id) : undefined
+    const scope = album ? splitAlbumFilters(album.filters).scope : {}
+    const kind = src.type === 'library' && src.kind !== 'all' ? src.kind : scope.kind
+    const folderId = src.type === 'folder' ? src.id : scope.folderId
     const options: MediaFilters = {
       ...extra,
       ...(from ? { dateFrom: from } : {}),
@@ -196,7 +205,30 @@ function App(): JSX.Element {
     }
   }, [doSearch, refreshLibrary])
 
+  /** 打开智能相册：整套换成相册保存的查询 + 日期 + 筛选条件，再重新搜索（所以内容总是最新的） */
+  const openAlbum = useCallback((album: SmartAlbum) => {
+    const { dateFrom: from, dateTo: to, extra } = splitAlbumFilters(album.filters)
+    const next: Source = { type: 'album', id: album.id }
+    setSource(next)
+    setQuery(album.query)
+    setDateFrom(from)
+    setDateTo(to)
+    setExtraFilters(extra)
+    if (from || to) setShowDateFilter(true)
+    filters.current = { query: album.query, from, to, extra, source: next }
+    setSelectedIds(new Set())
+    setFocusId(null)
+    anchorId.current = null
+    setScrollResetKey((k) => k + 1)
+    runSearch()
+  }, [runSearch])
+
   const handleSelectSource = useCallback((next: Source) => {
+    if (next.type === 'album') {
+      const album = albumsRef.current.find((a) => a.id === next.id)
+      if (album) openAlbum(album)
+      return
+    }
     setSource(next)
     filters.current = { ...filters.current, source: next }
     setSelectedIds(new Set())
@@ -204,7 +236,7 @@ function App(): JSX.Element {
     anchorId.current = null
     setScrollResetKey((k) => k + 1)
     if (next.type === 'library' || next.type === 'folder' || next.type === 'similar' || next.type === 'favorites') runSearch()
-  }, [runSearch])
+  }, [runSearch, openAlbum])
 
   const handleSearch = useCallback((q: string) => {
     setQuery(q)
@@ -226,7 +258,7 @@ function App(): JSX.Element {
 
   // 搜索历史：查询停稳 1.5 秒且有结果才记为"最近"，边打字边出的中间结果不算
   const history = useSearchHistory()
-  const { addRecent, toggleSaved, removeRecent } = history
+  const { addRecent, removeRecent } = history
   useEffect(() => {
     if (!query.trim() || isSearching || searchResults.length === 0) return
     const t = setTimeout(() => addRecent(query), 1500)
@@ -234,10 +266,85 @@ function App(): JSX.Element {
   }, [query, isSearching, searchResults, addRecent])
   const activeQuery = isGrid && hasSearchQuery ? normalizeQuery(query) : null
 
-  const handleRemoveSearch = useCallback((q: string, kind: 'saved' | 'recent') => {
-    if (kind === 'saved') toggleSaved(q)
-    else removeRecent(q)
-  }, [toggleSaved, removeRecent])
+  // ---------- 智能相册 ----------
+  // 当前界面上的全部条件（来源范围 + 日期 + 筛选），保存 / 比较相册都用它
+  const currentAlbum = source.type === 'album' ? albums.find((a) => a.id === source.id) : undefined
+  const stateFilters: MediaFilters = {
+    ...extraFilters,
+    ...(source.type === 'favorites' ? { favorite: true } : {}),
+    ...(dateFrom ? { dateFrom } : {}),
+    ...(dateTo ? { dateTo } : {}),
+    ...(source.type === 'album' ? (currentAlbum ? splitAlbumFilters(currentAlbum.filters).scope : {})
+      : source.type === 'library' && source.kind !== 'all' ? { kind: source.kind }
+      : source.type === 'folder' ? { folderId: source.id }
+      : {}),
+  }
+  // 和当前条件完全一致的相册：搜索框的 ☆ 实心，点它直接打开而不是重复保存
+  const matchingAlbum = currentAlbum && sameAlbumState(currentAlbum, query, stateFilters)
+    ? currentAlbum
+    : albums.find((a) => sameAlbumState(a, query, stateFilters))
+  // 在相册里改了查询 / 筛选：不自动写回，标题旁给"更新相册"
+  const albumDirty = !!currentAlbum && !sameAlbumState(currentAlbum, query, stateFilters)
+  const canSaveAlbum = isGrid && source.type !== 'similar' && (!!query.trim() || Object.keys(stateFilters).length > 0)
+  const albumState = useRef({ query, stateFilters, matchingAlbum, folders })
+  albumState.current = { query, stateFilters, matchingAlbum, folders }
+
+  /** 没有查询词时的默认名：竖向 · ≥ 4K · 收藏 */
+  const describeFilters = useCallback(async (f: MediaFilters): Promise<string> => {
+    const { dateFrom: from, dateTo: to, scope, extra } = splitAlbumFilters(f)
+    const person = extra.personId != null ? (await window.api.getPeople()).find((p) => p.id === extra.personId) : undefined
+    const folder = scope.folderId != null ? albumState.current.folders.find((x) => x.id === scope.folderId) : undefined
+    const labels = [
+      ...(scope.kind ? [LIBRARY_ITEMS.find((i) => i.kind === scope.kind)?.label ?? scope.kind] : []),
+      ...(folder ? [folderName(folder.path)] : []),
+      ...describeExtraFilters(extra, person?.name ?? undefined),
+      ...(from || to ? [t.albums.dateRange(from, to)] : []),
+    ]
+    return labels.join(t.common.sep) || t.albums.untitled
+  }, [])
+
+  const saveCurrentAsAlbum = useCallback(async () => {
+    const { query: q, stateFilters: f, matchingAlbum: existing } = albumState.current
+    if (existing) { handleSelectSource({ type: 'album', id: existing.id }); return }
+    const cleanQuery = normalizeQuery(q)
+    const album = await window.api.createSmartAlbum({ name: cleanQuery || await describeFilters(f), query: cleanQuery, filters: f })
+    upsertAlbum(album)
+    albumsRef.current = [...albumsRef.current.filter((a) => a.id !== album.id), album]
+    openAlbum(album)
+  }, [describeFilters, upsertAlbum, openAlbum, handleSelectSource])
+
+  const updateAlbumWithCurrent = useCallback(async (id: number) => {
+    const { query: q, stateFilters: f } = albumState.current
+    const updated = await window.api.updateSmartAlbum(id, { query: normalizeQuery(q), filters: f })
+    if (updated) upsertAlbum(updated)
+  }, [upsertAlbum])
+
+  const handleRenameAlbum = useCallback(async (id: number, name: string) => {
+    const updated = await window.api.updateSmartAlbum(id, { name })
+    if (updated) upsertAlbum(updated)
+  }, [upsertAlbum])
+
+  const handleAlbumMenu = useCallback(async (album: SmartAlbum) => {
+    const action = await window.api.showSmartAlbumMenu(album.name)
+    if (action === 'update') await updateAlbumWithCurrent(album.id)
+    else if (action === 'delete') {
+      await window.api.deleteSmartAlbum(album.id)
+      const src = filters.current.source
+      if (src.type === 'album' && src.id === album.id) handleSelectSource({ type: 'library', kind: 'all' })
+    }
+    return action
+  }, [updateAlbumWithCurrent, handleSelectSource])
+
+  // 当前打开的相册在别的窗口被删了：回到全部
+  useEffect(() => {
+    if (source.type === 'album' && !albums.some((a) => a.id === source.id)) {
+      const timer = setTimeout(() => {
+        const src = filters.current.source
+        if (src.type === 'album' && !albumsRef.current.some((a) => a.id === src.id)) handleSelectSource({ type: 'library', kind: 'all' })
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [albums, source, handleSelectSource])
 
   const handleExtraFiltersChange = useCallback((next: ExtraFilters) => {
     setExtraFilters(next)
@@ -599,8 +706,9 @@ function App(): JSX.Element {
       case 'people': return t.shell.people
       case 'similar': return t.shell.similarTo(source.name)
       case 'favorites': return t.organize.favorites
+      case 'album': return currentAlbum?.name ?? t.albums.untitled
     }
-  }, [source, folders])
+  }, [source, folders, currentAlbum])
 
   const breakdown = useMemo(() => countLine(searchResults.map((r) => r.photo)), [searchResults])
   const subtitle = isGrid
@@ -622,11 +730,15 @@ function App(): JSX.Element {
           counts={counts}
           folders={folders}
           onAddFolder={handleAddFolder}
-          savedSearches={history.saved}
+          albums={albums}
+          canSaveAlbum={canSaveAlbum}
+          onSaveAlbum={saveCurrentAsAlbum}
+          onRenameAlbum={handleRenameAlbum}
+          onAlbumMenu={handleAlbumMenu}
           recentSearches={history.recent}
-          activeQuery={activeQuery}
+          activeQuery={source.type === 'album' ? null : activeQuery}
           onRunSearch={handleSearch}
-          onRemoveSearch={handleRemoveSearch}
+          onRemoveSearch={removeRecent}
         />
       )}
 
@@ -639,8 +751,19 @@ function App(): JSX.Element {
           showSearch={isGrid}
           query={query}
           onSearch={handleSearch}
-          querySaved={history.isSaved(query)}
-          onToggleSaveQuery={() => toggleSaved(query)}
+          querySaved={!!matchingAlbum}
+          saveQueryTitle={matchingAlbum ? t.albums.savedAs(matchingAlbum.name) : t.albums.saveAsAlbum}
+          onToggleSaveQuery={saveCurrentAsAlbum}
+          titleAction={albumDirty && currentAlbum ? (
+            <button
+              onClick={() => updateAlbumWithCurrent(currentAlbum.id)}
+              title={t.albums.updateAlbumTitle}
+              data-update-album
+              className="flex-shrink-0 h-6 px-2 rounded-md text-caption text-accent bg-accent-fill hover:bg-accent/20 transition-colors duration-fast"
+            >
+              {t.albums.updateAlbum}
+            </button>
+          ) : undefined}
           isSearching={isSearching}
           resultCount={hasSearchQuery ? searchResults.length : undefined}
           dateActive={showDateFilter || hasDateFilter}

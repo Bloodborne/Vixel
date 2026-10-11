@@ -38,6 +38,21 @@ export interface MediaFilters {
   favorite?: boolean
 }
 
+/** 智能相册：保存下来的"查询 + 筛选"，打开时重新搜索，所以内容总是最新的 */
+export interface SmartAlbum {
+  id: number
+  name: string
+  /** 搜索词，可为空（纯筛选相册） */
+  query: string
+  /** 含日期、类型、文件夹在内的全部条件 */
+  filters: MediaFilters
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type SmartAlbumMenuAction = 'rename' | 'update' | 'delete'
+
 /** 资料库计数（侧边栏）；all = 三类之和 */
 export type LibraryCounts = Record<MediaKind | 'all' | 'favorites', number>
 
@@ -233,6 +248,15 @@ export const IPC_CHANNELS = {
   LIBRARY_CHANGED: 'library-changed',
   SHOW_ITEM_MENU: 'show-item-menu',
   SET_FAVORITE: 'set-favorite',
+
+  // 智能相册
+  GET_SMART_ALBUMS: 'get-smart-albums',
+  CREATE_SMART_ALBUM: 'create-smart-album',
+  UPDATE_SMART_ALBUM: 'update-smart-album',
+  DELETE_SMART_ALBUM: 'delete-smart-album',
+  REORDER_SMART_ALBUMS: 'reorder-smart-albums',
+  SHOW_SMART_ALBUM_MENU: 'show-smart-album-menu',
+  SMART_ALBUMS_CHANGED: 'smart-albums-changed',
 
   // 照片
   GET_PHOTO_DETAIL: 'get-photo-detail',

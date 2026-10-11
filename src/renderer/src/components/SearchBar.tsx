@@ -7,12 +7,13 @@ interface SearchBarProps {
   onSearch: (query: string) => void
   isSearching: boolean
   resultCount?: number
-  /** 当前查询是否已保存；有查询时右侧显示 ☆ */
+  /** 当前搜索（含筛选条件）是否已存为智能相册；有查询时右侧显示 ☆ */
   saved?: boolean
+  saveTitle?: string
   onToggleSave?: () => void
 }
 
-export function SearchBar({ value, onSearch, isSearching, resultCount, saved, onToggleSave }: SearchBarProps): JSX.Element {
+export function SearchBar({ value, onSearch, isSearching, resultCount, saved, saveTitle, onToggleSave }: SearchBarProps): JSX.Element {
   const [query, setQuery] = useState(value)
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -113,12 +114,12 @@ export function SearchBar({ value, onSearch, isSearching, resultCount, saved, on
             {t.common.items(resultCount ?? 0)}
           </span>
         )}
-        {/* 保存搜索 */}
+        {/* 存为智能相册 */}
         {query.trim() && onToggleSave && (
           <button
             type="button"
             onClick={onToggleSave}
-            title={saved ? t.shell.unsaveThisSearch : t.shell.saveThisSearch}
+            title={saveTitle}
             aria-pressed={!!saved}
             data-save-search
             className="p-1 rounded hover:bg-fill-hover transition-colors"

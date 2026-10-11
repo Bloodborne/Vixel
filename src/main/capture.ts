@@ -65,6 +65,10 @@ const STEPS: Step[] = [
   },
   { name: 'search-text', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[1]))(w) }, wait: 3000 },
   { name: 'search-nomatch', run: js(typeSearch(QUERIES[2])), wait: 3000 },
+  // 智能相册：先在演示库里建好（查询相册 + 纯筛选相册），这里依次打开；最后在相册里改查询，标题旁出现"更新相册"
+  { name: 'albums', run: js(`document.querySelectorAll('[data-album-row] [role="button"]')[0]?.click()`), wait: 3000 },
+  { name: 'album-filters', run: js(`document.querySelectorAll('[data-album-row] [role="button"]')[1]?.click()`), wait: 3000 },
+  { name: 'album-edited', run: js(typeSearch(QUERIES[0])), wait: 3000, after: clickText(() => t.organize.clear) },
   { name: 'people', run: (w) => { js(typeSearch(''))(w); command('source:people')(w) }, wait: 6000 },
   { name: 'map', run: command('source:map'), wait: 3500 },
   { name: 'tasks', run: (w) => { command('source:all')(w); command('activity')(w) }, wait: 2000 },

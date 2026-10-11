@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react'
 
 const RECENT_KEY = 'search.recent'
-const SAVED_KEY = 'search.saved'
+/** 旧版"已保存的搜索"：现在存成智能相册（数据库），启动时迁移一次后删掉 */
+const LEGACY_SAVED_KEY = 'search.saved'
 /** 最近搜索最多记多少条 */
 export const RECENT_LIMIT = 8
 
@@ -22,20 +23,23 @@ export function normalizeQuery(q: string): string {
   return q.trim().replace(/\s+/g, ' ')
 }
 
+/** 取出并清掉旧版已保存的搜索（同步读写，StrictMode 下重复调用第二次拿到空列表） */
+export function takeLegacySavedSearches(): string[] {
+  const list = load(LEGACY_SAVED_KEY)
+  try { localStorage.removeItem(LEGACY_SAVED_KEY) } catch { /* 忽略 */ }
+  return list
+}
+
 export interface SearchHistory {
   recent: string[]
-  saved: string[]
   /** 记一条最近搜索；若是上一条的延伸（继续打字），直接替换上一条 */
   addRecent: (q: string) => void
   removeRecent: (q: string) => void
-  isSaved: (q: string) => boolean
-  toggleSaved: (q: string) => void
 }
 
 /** 侧边栏"搜索"分组的数据：只存本机 localStorage，最近在前 */
 export function useSearchHistory(): SearchHistory {
   const [recent, setRecent] = useState(() => load(RECENT_KEY))
-  const [saved, setSaved] = useState(() => load(SAVED_KEY))
 
   const addRecent = useCallback((raw: string) => {
     const q = normalizeQuery(raw)
@@ -57,17 +61,5 @@ export function useSearchHistory(): SearchHistory {
     })
   }, [])
 
-  const isSaved = useCallback((raw: string) => saved.includes(normalizeQuery(raw)), [saved])
-
-  const toggleSaved = useCallback((raw: string) => {
-    const q = normalizeQuery(raw)
-    if (!q) return
-    setSaved((prev) => {
-      const next = prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]
-      store(SAVED_KEY, next)
-      return next
-    })
-  }, [])
-
-  return { recent, saved, addRecent, removeRecent, isSaved, toggleSaved }
+  return { recent, addRecent, removeRecent }
 }

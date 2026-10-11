@@ -1,6 +1,6 @@
-import { app, Menu, shell, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { app, Menu, shell, dialog, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 
-import { IPC_CHANNELS, type ItemMenuAction, type MenuCommand } from '../shared/types'
+import { IPC_CHANNELS, type ItemMenuAction, type MenuCommand, type SmartAlbumMenuAction } from '../shared/types'
 import { t } from '../shared/i18n'
 
 /** macOS 叫访达，Windows / Linux 是文件管理器。调用时取，切换语言重建菜单后跟着变 */
@@ -138,5 +138,35 @@ export function popupItemMenu(
     ]
     // macOS 上 click 可能晚于关闭回调到达：关闭后稍等再按"未选择"收尾，Promise 只认第一次 resolve
     Menu.buildFromTemplate(template).popup({ window: win, callback: () => setTimeout(() => resolve(null), 100) })
+  })
+}
+
+/** 侧栏智能相册右键菜单；删除先弹确认框，确认了才回传 'delete' */
+export function popupSmartAlbumMenu(win: BrowserWindow, name: string): Promise<SmartAlbumMenuAction | null> {
+  return new Promise((resolve) => {
+    let picked: SmartAlbumMenuAction | null = null
+    const pick = (action: SmartAlbumMenuAction) => (): void => { picked = action }
+    const template: MenuItemConstructorOptions[] = [
+      { label: t.albums.rename, click: pick('rename') },
+      { label: t.albums.update, click: pick('update') },
+      { type: 'separator' },
+      { label: t.albums.delete, click: pick('delete') },
+    ]
+    // 和 popupItemMenu 一样：click 可能晚于关闭回调，稍等再收尾
+    Menu.buildFromTemplate(template).popup({
+      window: win,
+      callback: () => setTimeout(async () => {
+        if (picked !== 'delete') return resolve(picked)
+        const { response } = await dialog.showMessageBox(win, {
+          type: 'warning',
+          message: t.albums.deleteConfirm(name),
+          detail: t.albums.deleteDetail,
+          buttons: [t.albums.deleteButton, t.common.cancel],
+          defaultId: 1,
+          cancelId: 1,
+        })
+        resolve(response === 0 ? 'delete' : null)
+      }, 100),
+    })
   })
 }

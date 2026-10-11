@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import * as sqliteVec from 'sqlite-vec'
-import type { LibraryCounts, MediaFilters,
+import type { LibraryCounts, MediaFilters, SmartAlbum,
   Photo, WatchedFolder, PhotoDetail, PhotoLocation, VideoRecord, MediaKind, MediaDetail, TaskOverview, TaskRow,
 } from '../shared/types'
 import { tokenizeForFtsSync } from './text/tokenize'
@@ -176,6 +176,17 @@ CREATE TABLE IF NOT EXISTS person_dismissed_pairs (
 CREATE TABLE IF NOT EXISTS favorites (
   file_hash  TEXT PRIMARY KEY,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 智能相册：保存的查询 + 筛选条件（JSON），打开时重新搜索
+CREATE TABLE IF NOT EXISTS smart_albums (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  query      TEXT NOT NULL DEFAULT '',
+  filters    TEXT NOT NULL DEFAULT '{}',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 内部状态 / 一次性迁移标记
@@ -464,6 +475,13 @@ export interface DatabaseInstance {
   /** 收藏 / 取消收藏（按内容 hash） */
   setFavorite: (fileHashes: string[], on: boolean) => void
   getFavoriteHashes: () => Set<string>
+  /** 智能相册（按 sort_order） */
+  getSmartAlbums: () => SmartAlbum[]
+  createSmartAlbum: (album: { name: string; query: string; filters: MediaFilters }) => SmartAlbum
+  updateSmartAlbum: (id: number, patch: { name?: string; query?: string; filters?: MediaFilters }) => SmartAlbum | undefined
+  deleteSmartAlbum: (id: number) => void
+  /** 按给定顺序重排；不在列表里的保持原相对顺序排在后面 */
+  reorderSmartAlbums: (ids: number[]) => void
   /** 某人物出现过的内容 hash（人物过滤用） */
   getHashesForPerson: (personId: number) => Set<string>
   /** 某文件夹内出现过的 file_hash（同内容可能多处引用，带搜索词时按 hash 过滤） */
@@ -593,6 +611,30 @@ export interface DatabaseInstance {
  * 而且路径落在 app.asar 里（Electron 的 fs 能读，SQLite 的 dlopen 不能）。
  * 这里用 Node 的模块解析从 sqlite-vec 目录找平台子包，再改指向 app.asar.unpacked。
  */
+interface SmartAlbumRow { id: number; name: string; query: string; filters: string; sortOrder: number; createdAt: string; updatedAt: string }
+
+/** 智能相册的条件存成 JSON：读写时只保留认识的键和合法类型，旧版本 / 手改的脏数据不会传到搜索里 */
+export function sanitizeFilters(raw: unknown): MediaFilters {
+  const f = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const out: MediaFilters = {}
+  const str = (k: 'dateFrom' | 'dateTo'): void => { if (typeof f[k] === 'string' && f[k]) out[k] = f[k] as string }
+  const num = (k: 'folderId' | 'minPixels' | 'maxPixels' | 'durationMin' | 'durationMax' | 'personId'): void => {
+    if (typeof f[k] === 'number' && Number.isFinite(f[k])) out[k] = f[k] as number
+  }
+  str('dateFrom'); str('dateTo')
+  num('folderId'); num('minPixels'); num('maxPixels'); num('durationMin'); num('durationMax'); num('personId')
+  if (f.kind === 'image' || f.kind === 'video' || f.kind === 'audio') out.kind = f.kind
+  if (f.orientation === 'landscape' || f.orientation === 'portrait' || f.orientation === 'square' || f.orientation === 'panorama') out.orientation = f.orientation
+  if (f.favorite === true) out.favorite = true
+  return out
+}
+
+function toSmartAlbum(row: SmartAlbumRow): SmartAlbum {
+  let filters: MediaFilters = {}
+  try { filters = sanitizeFilters(JSON.parse(row.filters)) } catch { /* 坏 JSON 当作无条件 */ }
+  return { ...row, filters }
+}
+
 function vecExtensionPath(): string {
   const unpacked = (p: string): string => p.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1')
   try {
@@ -970,6 +1012,23 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     addFavorite: db.prepare(`INSERT OR IGNORE INTO favorites (file_hash) VALUES (?)`),
     removeFavorite: db.prepare(`DELETE FROM favorites WHERE file_hash = ?`),
     getFavoriteHashes: db.prepare(`SELECT file_hash FROM favorites`),
+    getSmartAlbums: db.prepare(`
+      SELECT id, name, query, filters, sort_order as sortOrder, created_at as createdAt, updated_at as updatedAt
+      FROM smart_albums ORDER BY sort_order, id
+    `),
+    getSmartAlbum: db.prepare(`
+      SELECT id, name, query, filters, sort_order as sortOrder, created_at as createdAt, updated_at as updatedAt
+      FROM smart_albums WHERE id = ?
+    `),
+    insertSmartAlbum: db.prepare(`
+      INSERT INTO smart_albums (name, query, filters, sort_order)
+      VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM smart_albums))
+    `),
+    updateSmartAlbum: db.prepare(`
+      UPDATE smart_albums SET name = ?, query = ?, filters = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `),
+    deleteSmartAlbum: db.prepare(`DELETE FROM smart_albums WHERE id = ?`),
+    setSmartAlbumOrder: db.prepare(`UPDATE smart_albums SET sort_order = ? WHERE id = ?`),
     getHashesForPerson: db.prepare(`SELECT DISTINCT file_hash FROM faces WHERE person_id = ?`),
     getPhotoStats: db.prepare(`
       SELECT
@@ -1832,6 +1891,25 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       db.transaction(() => { for (const h of fileHashes) stmt.run(h) })()
     },
     getFavoriteHashes: () => new Set((stmts.getFavoriteHashes.all() as Array<{ file_hash: string }>).map((r) => r.file_hash)),
+    getSmartAlbums: () => (stmts.getSmartAlbums.all() as SmartAlbumRow[]).map(toSmartAlbum),
+    createSmartAlbum: ({ name, query, filters }) => {
+      const id = Number(stmts.insertSmartAlbum.run(name.trim() || query.trim(), query.trim(), JSON.stringify(sanitizeFilters(filters))).lastInsertRowid)
+      return toSmartAlbum(stmts.getSmartAlbum.get(id) as SmartAlbumRow)
+    },
+    updateSmartAlbum: (id, patch) => {
+      const row = stmts.getSmartAlbum.get(id) as SmartAlbumRow | undefined
+      if (!row) return undefined
+      const cur = toSmartAlbum(row)
+      const name = patch.name?.trim() || cur.name
+      stmts.updateSmartAlbum.run(name, (patch.query ?? cur.query).trim(), JSON.stringify(sanitizeFilters(patch.filters ?? cur.filters)), id)
+      return toSmartAlbum(stmts.getSmartAlbum.get(id) as SmartAlbumRow)
+    },
+    deleteSmartAlbum: (id) => { stmts.deleteSmartAlbum.run(id) },
+    reorderSmartAlbums: (ids) => {
+      const all = (stmts.getSmartAlbums.all() as SmartAlbumRow[]).map((r) => r.id)
+      const order = [...ids.filter((id) => all.includes(id)), ...all.filter((id) => !ids.includes(id))]
+      db.transaction(() => order.forEach((id, i) => stmts.setSmartAlbumOrder.run(i, id)))()
+    },
     getHashesForPerson: (personId) =>
       new Set((stmts.getHashesForPerson.all(personId) as Array<{ file_hash: string }>).map((r) => r.file_hash)),
     getHashesInFolder: (folderId) => {

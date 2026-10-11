@@ -25,8 +25,9 @@ import map from './map'
 import tasks from './tasks'
 import model from './model'
 import organize from './organize'
+import albums from './albums'
 
-const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize }
+const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize, albums }
 
 export type Locale = 'zh-CN' | 'en'
 export type LocaleSetting = 'system' | Locale

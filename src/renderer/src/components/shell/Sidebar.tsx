@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react'
-import type { LibraryCounts, WatchedFolder } from '../../../../shared/types'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { LibraryCounts, SmartAlbum, SmartAlbumMenuAction, WatchedFolder } from '../../../../shared/types'
 import { folderName, kbd } from '../../lib/platform'
 import { Icon, type IconName } from './icons'
 import { t } from '../../../../shared/i18n'
@@ -14,6 +14,7 @@ export type Source =
   | { type: 'people' }
   | { type: 'similar'; photoId: number; name: string }
   | { type: 'favorites' }
+  | { type: 'album'; id: number }
 
 export const LIBRARY_ITEMS: { kind: KindFilter; label: string; icon: IconName; shortcut: string }[] = [
   { kind: 'all', label: t.common.all, icon: 'all', shortcut: kbd('⌘1') },
@@ -33,13 +34,20 @@ interface SidebarProps {
   counts: LibraryCounts | null
   folders: WatchedFolder[]
   onAddFolder: () => void
-  /** "搜索"分组：已保存在前，最近在后（已保存的不重复列出） */
-  savedSearches: string[]
+  /** "智能相册"分组 */
+  albums: SmartAlbum[]
+  /** 当前有搜索词或筛选条件可保存时 + 按钮才可用 */
+  canSaveAlbum: boolean
+  onSaveAlbum: () => void
+  onRenameAlbum: (id: number, name: string) => void
+  /** 右键菜单：更新 / 删除由 App 执行，返回选中的动作（重命名在侧栏里就地编辑） */
+  onAlbumMenu: (album: SmartAlbum) => Promise<SmartAlbumMenuAction | null>
+  /** "搜索"分组：最近搜索 */
   recentSearches: string[]
   /** 当前生效的查询，用来高亮对应的行 */
   activeQuery: string | null
   onRunSearch: (query: string) => void
-  onRemoveSearch: (query: string, kind: 'saved' | 'recent') => void
+  onRemoveSearch: (query: string) => void
 }
 
 /** 侧栏里最近搜索最多列几条，其余留在存储里 */
@@ -49,8 +57,11 @@ export { folderName }
 
 export function Sidebar({
   width, onResize, source, onSelect, counts, folders, onAddFolder,
-  savedSearches, recentSearches, activeQuery, onRunSearch, onRemoveSearch,
+  albums, canSaveAlbum, onSaveAlbum, onRenameAlbum, onAlbumMenu,
+  recentSearches, activeQuery, onRunSearch, onRemoveSearch,
 }: SidebarProps): JSX.Element {
+  // 正在就地改名的相册（双击或右键"重命名"）
+  const [editingAlbum, setEditingAlbum] = useState<number | null>(null)
   // 拖动期间宽度只记在本地，mouseup 才提交给 App——否则每帧都触发
   // savePref + 主内容区 ResizeObserver，虚拟网格跟着抖
   const [dragWidth, setDragWidth] = useState<number | null>(null)
@@ -78,7 +89,7 @@ export function Sidebar({
     document.body.style.cursor = 'col-resize'
   }, [width, onResize])
 
-  const recentShown = recentSearches.filter((q) => !savedSearches.includes(q)).slice(0, RECENT_SHOWN)
+  const recentShown = recentSearches.slice(0, RECENT_SHOWN)
 
   return (
     <aside style={{ width: dragWidth ?? width }} className="relative flex-shrink-0 h-full flex flex-col bg-sidebar border-r border-line select-none">
@@ -112,19 +123,47 @@ export function Sidebar({
           <Row icon="people" label={t.shell.people} hint={kbd('⌘6')} active={source.type === 'people'} onClick={() => onSelect({ type: 'people' })} />
         </Group>
 
-        {(savedSearches.length > 0 || recentShown.length > 0) && (
-          <Group title={t.shell.groupSearches}>
-            {savedSearches.map((q) => (
-              <Row
-                key={`s:${q}`}
-                icon="star"
-                label={q}
-                active={activeQuery === q}
-                onClick={() => onRunSearch(q)}
-                onRemove={() => onRemoveSearch(q, 'saved')}
-                removeTitle={t.shell.unsaveSearch}
+        <Group
+          title={t.albums.group}
+          action={
+            <button
+              onClick={canSaveAlbum ? onSaveAlbum : undefined}
+              title={canSaveAlbum ? t.albums.saveCurrent : t.albums.nothingToSave}
+              aria-disabled={!canSaveAlbum}
+              data-save-album
+              className={`w-5 h-5 rounded flex items-center justify-center transition-colors duration-fast ${
+                canSaveAlbum ? 'text-ink-3 hover:text-ink hover:bg-fill-hover' : 'text-ink-4 opacity-50 cursor-default'
+              }`}
+            >
+              <Icon name="plus" className="w-3.5 h-3.5" />
+            </button>
+          }
+        >
+          {albums.length === 0 ? (
+            <p className="px-2 py-1 text-caption text-ink-3">{t.albums.empty}</p>
+          ) : (
+            albums.map((a) => (
+              <AlbumRow
+                key={a.id}
+                album={a}
+                active={source.type === 'album' && source.id === a.id}
+                editing={editingAlbum === a.id}
+                onClick={() => onSelect({ type: 'album', id: a.id })}
+                onStartEdit={() => setEditingAlbum(a.id)}
+                onEndEdit={(name) => {
+                  setEditingAlbum(null)
+                  if (name != null && name.trim() && name.trim() !== a.name) onRenameAlbum(a.id, name.trim())
+                }}
+                onContextMenu={async () => {
+                  if ((await onAlbumMenu(a)) === 'rename') setEditingAlbum(a.id)
+                }}
               />
-            ))}
+            ))
+          )}
+        </Group>
+
+        {recentShown.length > 0 && (
+          <Group title={t.shell.groupSearches}>
             {recentShown.map((q) => (
               <Row
                 key={`r:${q}`}
@@ -133,7 +172,7 @@ export function Sidebar({
                 muted
                 active={activeQuery === q}
                 onClick={() => onRunSearch(q)}
-                onRemove={() => onRemoveSearch(q, 'recent')}
+                onRemove={() => onRemoveSearch(q)}
                 removeTitle={t.shell.removeRecent}
               />
             ))}
@@ -239,6 +278,48 @@ function Row({ icon, label, active, onClick, count, hint, title, muted, onRemove
           <Icon name="close" className="w-3 h-3" />
         </button>
       )}
+    </div>
+  )
+}
+
+/** 智能相册行：单击打开，双击就地改名（回车确认、Esc 取消、失焦确认），右键弹菜单 */
+function AlbumRow({ album, active, editing, onClick, onStartEdit, onEndEdit, onContextMenu }: {
+  album: SmartAlbum
+  active: boolean
+  editing: boolean
+  onClick: () => void
+  onStartEdit: () => void
+  /** name 为 null 表示取消 */
+  onEndEdit: (name: string | null) => void
+  onContextMenu: () => void
+}): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  if (editing) {
+    return (
+      <div className="h-7 px-2 rounded-md flex items-center gap-2 bg-fill">
+        <Icon name="album" className="w-4 h-4 flex-shrink-0 text-accent" />
+        <input
+          ref={inputRef}
+          defaultValue={album.name}
+          data-album-name-input
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') onEndEdit(e.currentTarget.value)
+            else if (e.key === 'Escape') onEndEdit(null)
+          }}
+          onBlur={(e) => onEndEdit(e.currentTarget.value)}
+          className="flex-1 min-w-0 h-5 px-1 -mx-1 text-body bg-raised border border-accent/50 rounded text-ink focus:outline-none"
+        />
+      </div>
+    )
+  }
+  return (
+    <div data-album-row onDoubleClick={onStartEdit} onContextMenu={(e) => { e.preventDefault(); onContextMenu() }}>
+      <Row icon="album" label={album.name} active={active} onClick={onClick} />
     </div>
   )
 }

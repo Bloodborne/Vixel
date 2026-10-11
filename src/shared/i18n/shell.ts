@@ -28,7 +28,6 @@ const zh = {
   groupFolders: '文件夹',
   map: '地图',
   people: '人物',
-  unsaveSearch: '取消保存',
   removeRecent: '从最近搜索中移除',
   addFolderTitle: (key: string) => `添加文件夹 (${key})`,
   noFolders: '还没有文件夹',
@@ -38,8 +37,6 @@ const zh = {
   settingsTitle: (key: string) => `设置 (${key})`,
   // 搜索框
   searchPlaceholder: '搜索：物体、场景、图内文字、文件名…',
-  unsaveThisSearch: '取消保存此搜索',
-  saveThisSearch: '保存此搜索',
   // 标题 / 副标题
   folder: '文件夹',
   similarTo: (name: string) => `与“${name}”相似`,
@@ -88,7 +85,6 @@ const en: typeof zh = {
   groupFolders: 'Folders',
   map: 'Map',
   people: 'People',
-  unsaveSearch: 'Remove from Saved',
   removeRecent: 'Remove from Recent Searches',
   addFolderTitle: (key) => `Add Folder (${key})`,
   noFolders: 'No folders yet',
@@ -96,8 +92,6 @@ const en: typeof zh = {
   dateFilter: 'Filter by Date',
   settingsTitle: (key) => `Settings (${key})`,
   searchPlaceholder: 'Search objects, scenes, text in images, file names…',
-  unsaveThisSearch: 'Remove Saved Search',
-  saveThisSearch: 'Save This Search',
   folder: 'Folder',
   similarTo: (name) => `Similar to “${name}”`,
   sortedBySimilarity: ' · sorted by similarity',

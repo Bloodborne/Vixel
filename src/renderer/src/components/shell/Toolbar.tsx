@@ -14,7 +14,10 @@ interface ToolbarProps {
   query: string
   onSearch: (query: string) => void
   querySaved: boolean
+  saveQueryTitle: string
   onToggleSaveQuery: () => void
+  /** 标题旁的次要操作（智能相册有改动时的"更新相册"） */
+  titleAction?: React.ReactNode
   isSearching: boolean
   resultCount?: number
   dateActive: boolean
@@ -27,7 +30,7 @@ interface ToolbarProps {
 }
 
 export function Toolbar({
-  title, subtitle, sidebarHidden, onToggleSidebar, showSearch, query, onSearch, querySaved, onToggleSaveQuery, isSearching, resultCount,
+  title, subtitle, sidebarHidden, onToggleSidebar, showSearch, query, onSearch, querySaved, saveQueryTitle, onToggleSaveQuery, titleAction, isSearching, resultCount,
   dateActive, onToggleDate, filterActive, filterCount, onToggleFilter, onOpenSettings,
 }: ToolbarProps): JSX.Element {
   return (
@@ -40,6 +43,7 @@ export function Toolbar({
         <h1 className="text-headline text-ink truncate">{title}</h1>
         {subtitle && <p className="text-caption text-ink-3 truncate tabular-nums">{subtitle}</p>}
       </div>
+      {titleAction}
 
       <div className="flex-1" />
 
@@ -51,6 +55,7 @@ export function Toolbar({
             isSearching={isSearching}
             resultCount={resultCount}
             saved={querySaved}
+            saveTitle={saveQueryTitle}
             onToggleSave={onToggleSaveQuery}
           />
         </div>

@@ -41,6 +41,18 @@ export function countExtraFilters(f: ExtraFilters): number {
   return GROUPS.filter((g) => g.keys.some((k) => f[k] != null)).length + (f.personId != null ? 1 : 0) + (f.favorite ? 1 : 0)
 }
 
+/** 生效条件的文字标签（智能相册默认名用）；人物名由调用方查好传入 */
+export function describeExtraFilters(f: ExtraFilters, personName?: string): string[] {
+  const labels: string[] = []
+  for (const g of GROUPS) {
+    const p = g.presets.find((x) => isPreset(f, g.keys, x))
+    if (p) labels.push(p.label)
+  }
+  if (f.personId != null) labels.push(personName || t.organize.person)
+  if (f.favorite) labels.push(t.organize.favorites)
+  return labels
+}
+
 function without(f: ExtraFilters, keys: Array<keyof ExtraFilters>): ExtraFilters {
   const next = { ...f }
   for (const k of keys) delete next[k]

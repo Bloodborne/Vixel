@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace } from '../shared/types'
+import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace } from '../shared/types'
 import type { Locale, LocaleSetting } from '../shared/i18n'
 
 const api = {
@@ -56,6 +56,33 @@ const api = {
   /** 收藏 / 取消收藏（按内容 hash，同内容的副本一起变） */
   setFavorite: (fileHashes: string[], on: boolean): Promise<boolean> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SET_FAVORITE, fileHashes, on)
+  },
+  // 智能相册
+  getSmartAlbums: (): Promise<SmartAlbum[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_SMART_ALBUMS)
+  },
+  createSmartAlbum: (album: { name: string; query: string; filters: MediaFilters }): Promise<SmartAlbum> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CREATE_SMART_ALBUM, album)
+  },
+  updateSmartAlbum: (id: number, patch: { name?: string; query?: string; filters?: MediaFilters }): Promise<SmartAlbum | null> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SMART_ALBUM, id, patch)
+  },
+  deleteSmartAlbum: (id: number): Promise<void> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.DELETE_SMART_ALBUM, id)
+  },
+  reorderSmartAlbums: (ids: number[]): Promise<void> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.REORDER_SMART_ALBUMS, ids)
+  },
+  /** 右键菜单；选"删除"时主进程已确认过 */
+  showSmartAlbumMenu: (name: string): Promise<SmartAlbumMenuAction | null> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SHOW_SMART_ALBUM_MENU, name)
+  },
+  onSmartAlbumsChanged: (callback: () => void): (() => void) => {
+    const handler = (): void => callback()
+    ipcRenderer.on(IPC_CHANNELS.SMART_ALBUMS_CHANGED, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.SMART_ALBUMS_CHANGED, handler)
+    }
   },
   getFolderStats: (id: number): Promise<{ photoCount: number; photoIds: number[] }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_FOLDER_STATS, id)
