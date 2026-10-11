@@ -50,4 +50,10 @@ describe('matchesFilters', () => {
     expect(matchesFilters(photo({}), { favorite: true }, { favoriteHashes: new Set(['h1']) })).toBe(true)
     expect(matchesFilters(photo({}), { personId: 1 }, { personHashes: new Set(['other']) })).toBe(false)
   })
+  it('color filter uses the colorHashes set (works for search post-filtering too)', () => {
+    expect(hasActiveFilters({ color: 'blue' })).toBe(true)
+    expect(matchesFilters(photo({}), { color: 'blue' }, { colorHashes: new Set(['h1']) })).toBe(true)
+    expect(matchesFilters(photo({}), { color: 'blue' }, { colorHashes: new Set(['other']) })).toBe(false)
+    expect(matchesFilters(photo({}), { color: 'blue' }, { colorHashes: new Set() })).toBe(false)
+  })
 })
