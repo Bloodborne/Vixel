@@ -3,6 +3,7 @@
  *   → 片头（图标 + 一句话）+ 每个场景的下三分之一字幕 + 片尾（隐私承诺）→ 1080p mp4。
  *
  *   node scripts/make-promo.mjs <raw.mp4> <out.mp4>
+ *   PROMO_PRESET=video node scripts/make-promo.mjs …   视频素材版的片头片尾文案（配 VIXEL_PROMO=video 录屏）
  *
  * 字幕和卡片都用系统中文字体渲染（macOS：Hiragino Sans GB）。
  */
@@ -41,14 +42,27 @@ const card = async (lines, file, withIcon) => {
   if (icon) img = img.composite([{ input: icon, left: (W - 260) / 2, top: 200 }])
   await img.png().toFile(file)
 }
+// 片头 / 片尾文案：默认是照片版；video 是面向剪辑师的视频素材版
+const COPY = process.env.PROMO_PRESET === 'video'
+  ? {
+      intro: '一句话，找到视频素材里的那一秒',
+      // 详情页底部是片段时间轴（命中高亮），字幕放高一点别挡住它
+      captionBottom: 270,
+      outro: ['完全离线 · 免费开源', '模型在你的电脑上运行，素材不上传、不需要账号', 'macOS · Windows · github.com/RGB-loop/Vixel'],
+    }
+  : {
+      intro: '用一句话，找到照片和视频里的那一刻',
+      captionBottom: 150,
+      outro: ['完全离线 · 数据不出设备', '模型在你的 Mac 上运行，不上传、不需要账号', '开源 · github.com/RGB-loop/Vixel'],
+    }
 await card([
   { text: 'Vixel', size: 120, weight: 600 },
-  { text: '用一句话，找到照片和视频里的那一刻', size: 54, color: '#D9B48A' },
+  { text: COPY.intro, size: 54, color: '#D9B48A' },
 ], join(tmp, 'intro.png'), true)
 await card([
-  { text: '完全离线 · 数据不出设备', size: 76, weight: 600 },
-  { text: '模型在你的 Mac 上运行，不上传、不需要账号', size: 44, color: '#C9C2B8' },
-  { text: '开源 · github.com/RGB-loop/Vixel', size: 40, color: '#D9B48A' },
+  { text: COPY.outro[0], size: 76, weight: 600 },
+  { text: COPY.outro[1], size: 44, color: '#C9C2B8' },
+  { text: COPY.outro[2], size: 40, color: '#D9B48A' },
 ], join(tmp, 'outro.png'), false)
 
 const still = (png, secs, file) =>
@@ -63,7 +77,7 @@ const captions = timeline.map((s) => {
   const textFile = join(tmp, `cap-${s.name}.txt`)
   writeFileSync(textFile, s.caption)
   return `drawtext=fontfile='${FONT}':textfile='${textFile}':fontsize=46:fontcolor=white:alpha='${alpha}'` +
-    `:box=1:boxcolor=black@0.55:boxborderw=26:x=(w-text_w)/2:y=h-150`
+    `:box=1:boxcolor=black@0.55:boxborderw=26:x=(w-text_w)/2:y=h-${COPY.captionBottom}`
 }).join(',')
 run(['-i', raw, '-vf', `scale=${W}:${H}:flags=lanczos,${captions},format=yuv420p`, '-r', String(FPS), '-c:v', 'libx264', '-crf', '17', '-preset', 'slow', join(tmp, 'main.mp4')])
 

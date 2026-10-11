@@ -111,7 +111,8 @@ export async function runCaptureTour(win: BrowserWindow, outDir: string, openSet
 // 同时把每个场景的起止时间写到 <out>.timeline.json，供 scripts/make-promo.mjs 加字幕和片头片尾。
 // 不需要系统录屏权限，也不会录到鼠标指针以外的任何桌面内容。
 
-interface Scene { name: string; caption: string; run: (win: BrowserWindow) => Promise<void> }
+/** query：这一幕输入的搜索词，写进 timeline 供竖版放大显示（竖版里界面缩得太小，看不清搜索框） */
+interface Scene { name: string; caption: string; query?: string; run: (win: BrowserWindow) => Promise<void> }
 
 /** 逐字输入（触发搜索框自己的防抖），模拟真人打字 */
 const typeSlowly = async (win: BrowserWindow, text: string): Promise<void> => {
@@ -162,6 +163,48 @@ const PROMO_SCENES: Scene[] = [
   } },
 ]
 
+/** 真实鼠标移动（webContents 输入事件）：悬停预览要真的 mouseenter / mousemove，合成 DOM 事件不触发 React 的 enter */
+const hoverScrub = async (win: BrowserWindow, index: number, ms: number): Promise<void> => {
+  const r = await win.webContents.executeJavaScript(`(() => { const c = document.querySelectorAll('.photo-card')[${index}]; if (!c) return null; const b = c.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height } })()`) as { x: number; y: number; w: number; h: number } | null
+  if (!r) return
+  const y = Math.round(r.y + r.h / 2)
+  const steps = Math.max(10, Math.round(ms / 50))
+  for (let i = 0; i <= steps; i++) {
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(r.x + 4 + ((r.w - 8) * i) / steps), y })
+    await sleep(ms / steps)
+  }
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(r.x + r.w + 400), y: 20 })
+}
+
+/** 搜一句话 → 打开第一条（详情里自动跳到命中片段，时间轴高亮） → 返回 */
+const searchAndOpen = (q: string, open: (w: BrowserWindow) => Promise<void> = openFirst, hold = 4600) => async (w: BrowserWindow): Promise<void> => {
+  await typeSlowly(w, q); await sleep(2000); await open(w); await sleep(hold); await press('Escape')(w); await sleep(500)
+}
+
+/**
+ * 视频素材版（VIXEL_PROMO=video）：面向剪辑师 / 自媒体，演示库是公有领域 / CC0 素材
+ * （~/workspace/dancer/vixel-demo/footage，来源见其中 LICENSES.md）。查询都在该库上验证过能稳定命中。
+ */
+const VIDEO_SCENES: Scene[] = [
+  { name: 'library', caption: '一堆视频素材，不用整理、不用打标签', run: async (w) => {
+    command('source:all')(w); await sleep(1800); await hoverScrub(w, 0, 2600); await sleep(400); await hoverScrub(w, 3, 2200); await sleep(600)
+  } },
+  { name: 'seagull', caption: '一句话描述你要的镜头', query: '海鸥喂小鸟', run: searchAndOpen('海鸥喂小鸟') },
+  { name: 'rocket', caption: '直接跳到命中的那一段', query: '火箭发射', run: searchAndOpen('火箭发射', openFirst, 5200) },
+  { name: 'english', caption: '中文、英文都能搜', query: 'train arriving at a station', run: searchAndOpen('train arriving at a station') },
+  { name: 'ocr', caption: '画面里出现过的字，也能搜到', query: 'OLD SACRAMENTO', run: searchAndOpen('OLD SACRAMENTO', openTextHit) },
+  { name: 'filter', caption: '按时长筛选，只看短镜头', run: async (w) => {
+    await typeSlowly(w, ''); await js(typeSearch(''))(w); await sleep(500)
+    await clickTitled(() => t.organize.filterTitle)(w); await sleep(1400)
+    await clickText(() => t.organize.durShort)(w); await sleep(2800)
+    await clickText(() => t.organize.clear)(w); await sleep(500)
+    await clickTitled(() => t.organize.filterTitle)(w); await sleep(800)
+  } },
+  { name: 'offline', caption: '完全离线：素材不上传，不需要账号', query: '烟花', run: async (w) => {
+    await typeSlowly(w, '烟花'); await sleep(2200); await hoverScrub(w, 0, 2400); await sleep(800)
+  } },
+]
+
 export async function runRecording(win: BrowserWindow, outPath: string): Promise<void> {
   const { spawn } = await import('child_process')
   const mod = (await import('ffmpeg-static')) as unknown as { default?: string } & string
@@ -193,11 +236,12 @@ export async function runRecording(win: BrowserWindow, outPath: string): Promise
     while (written < due) { enc.stdin.write(latest); written++ }
   }, 1000 / FPS / 2)
 
-  const timeline: Array<{ name: string; caption: string; start: number; end: number }> = []
-  for (const scene of PROMO_SCENES) {
+  const timeline: Array<{ name: string; caption: string; query?: string; start: number; end: number }> = []
+  const scenes = process.env.VIXEL_PROMO === 'video' ? VIDEO_SCENES : PROMO_SCENES
+  for (const scene of scenes) {
     const start = (Date.now() - t0) / 1000
     await scene.run(win)
-    timeline.push({ name: scene.name, caption: scene.caption, start, end: (Date.now() - t0) / 1000 })
+    timeline.push({ name: scene.name, caption: scene.caption, query: scene.query, start, end: (Date.now() - t0) / 1000 })
     console.log(`[record] ${scene.name} ${start.toFixed(1)}s`)
   }
   await sleep(500)
