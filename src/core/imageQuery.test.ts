@@ -49,6 +49,11 @@ describe('cutAndMerge · 门槛', () => {
     expect(out[0].cosine).toBeCloseTo(0.898)
   })
 
+  it('相关但非同源的内容（另一场火箭发射 0.899 / z 2.03）通过 —— 这是"以此图搜索"替代旧查找相似的前提', () => {
+    const out = cutAndMerge([img('related', 0.899)], [], { image: { mean: 0.696, sd: 0.1 }, segment: stats }, keyOf)
+    expect(out.map((h) => h.key)).toEqual(['related'])
+  })
+
   it('没有基线（小库）只看余弦，门槛更高', () => {
     const none = { image: null, segment: null }
     const out = cutAndMerge([img('hi', 0.9), img('mid', 0.86)], [], none, keyOf)

@@ -39,9 +39,14 @@ export function dot(a: Float32Array, b: Float32Array): number {
  *
  *   图片通道  正例目标：z 2.96–5.20，余弦 0.898–0.977
  *   片段通道  正例目标：z 2.96–4.88，余弦 0.877–0.969
- *   负例最高：z 3.27（做饭视频帧 → 手机样张，余弦只有 0.744）；余弦最高 0.796（z 1.85）
+ *   负例最高余弦 0.796 / 0.797 —— 全部负例都被余弦下限（0.85 / 0.82）挡住；z 最高的负例 3.27 余弦只有 0.744
  *
- *   z 单独不够（小库基线噪声大，负例能到 3.3）；余弦单独也不够（两路尺度不同）。两个都要过（IMAGE_GATE）。
+ *   两个门槛分工不同：余弦下限负责「内容是否真的相近」（正负例之间有 0.08+ 的空隙），
+ *   z 下限负责「同质库」（整库都是花时随便一张花余弦都高、但 z ≈ 0，不该整库倒出来）。
+ *   z 取 2.0 而不是更高：相关但非同源的内容（另一场火箭发射 0.899 / z 2.03）应该出现 ——
+ *   这是右键「以此图搜索」替代旧"查找相似内容"（纯余弦 0.85）的前提；所有实测负例仍全部被挡。
+ *   唯一越线的"负例"（阿尔卑斯湖谷照 → 山涧碧水视频 0.854 / z 2.40）人工复核后其实是真相关：
+ *   都是绿山 + 蓝绿色水面 —— 跨库构造的标签错了，不是门槛错了。
  */
 export interface Gate {
   imageMinZ: number
@@ -54,9 +59,9 @@ export interface Gate {
 }
 
 export const IMAGE_GATE: Gate = {
-  imageMinZ: 2.7,
+  imageMinZ: 2.0,
   imageMinCosine: 0.85,
-  segmentMinZ: 2.8,
+  segmentMinZ: 2.0,
   segmentMinCosine: 0.82,
   imageMinCosineNoBaseline: 0.88,
   segmentMinCosineNoBaseline: 0.86,
