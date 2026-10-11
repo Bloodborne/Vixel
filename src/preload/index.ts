@@ -50,8 +50,12 @@ const api = {
     }
   },
   /** 弹出原生右键菜单，resolve 为选中的动作；菜单关闭未选则为 null */
-  showItemMenu: (opts: { count: number; isMedia: boolean }): Promise<ItemMenuAction | null> => {
+  showItemMenu: (opts: { count: number; isMedia: boolean; favorite: boolean }): Promise<ItemMenuAction | null> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SHOW_ITEM_MENU, opts)
+  },
+  /** 收藏 / 取消收藏（按内容 hash，同内容的副本一起变） */
+  setFavorite: (fileHashes: string[], on: boolean): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SET_FAVORITE, fileHashes, on)
   },
   getFolderStats: (id: number): Promise<{ photoCount: number; photoIds: number[] }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_FOLDER_STATS, id)

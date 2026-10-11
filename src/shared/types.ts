@@ -9,13 +9,37 @@ export type MediaKind = 'image' | 'video' | 'audio'
 export type MenuCommand =
   | 'source:all' | 'source:image' | 'source:video' | 'source:audio' | 'source:map' | 'source:people'
   | 'find' | 'toggle-sidebar' | 'zoom-in' | 'zoom-out' | 'activity' | 'add-folder' | 'toggle-density'
-  | 'toggle-inspector' | 'reveal' | 'quick-look' | 'open-item' | 'select-all'
+  | 'toggle-inspector' | 'reveal' | 'quick-look' | 'open-item' | 'select-all' | 'toggle-favorite'
 
 /** 网格右键菜单（原生 Menu.popup）里用户选中的动作 */
-export type ItemMenuAction = 'open' | 'quick-look' | 'reveal' | 'copy-path' | 'find-similar' | 'open-external'
+export type ItemMenuAction = 'open' | 'quick-look' | 'reveal' | 'copy-path' | 'find-similar' | 'open-external' | 'toggle-favorite'
+
+/** 画面方向：全景 = 长宽比 ≥ 2:1（横竖都算），方形 = 长短边相差 10% 以内 */
+export type Orientation = 'landscape' | 'portrait' | 'square' | 'panorama'
+
+/**
+ * 浏览 / 搜索的过滤条件（无搜索词时走 SQL，有搜索词时对融合结果逐条过滤）。
+ * 时长条件只对音视频有意义：设了就排除图片。
+ */
+export interface MediaFilters {
+  dateFrom?: string
+  dateTo?: string
+  /** 只返回某种媒体；省略 = 全部 */
+  kind?: MediaKind
+  /** 只返回出现在该监视文件夹里的内容 */
+  folderId?: number
+  orientation?: Orientation
+  /** 像素数下限 / 上限（宽 × 高） */
+  minPixels?: number
+  maxPixels?: number
+  durationMin?: number
+  durationMax?: number
+  personId?: number
+  favorite?: boolean
+}
 
 /** 资料库计数（侧边栏）；all = 三类之和 */
-export type LibraryCounts = Record<MediaKind | 'all', number>
+export type LibraryCounts = Record<MediaKind | 'all' | 'favorites', number>
 
 export interface Photo {
   id: number
@@ -43,6 +67,8 @@ export interface Photo {
   mediaKind?: MediaKind
   /** 视频/音频时长（毫秒） */
   durationMs?: number | null
+  /** 已收藏（按内容 hash；SQLite 返回 0 / 1，只做真假判断） */
+  favorite?: boolean | number
   deletedAt?: string
   createdAt: string
   updatedAt: string
@@ -206,6 +232,7 @@ export const IPC_CHANNELS = {
   OPEN_SETTINGS: 'open-settings',
   LIBRARY_CHANGED: 'library-changed',
   SHOW_ITEM_MENU: 'show-item-menu',
+  SET_FAVORITE: 'set-favorite',
 
   // 照片
   GET_PHOTO_DETAIL: 'get-photo-detail',

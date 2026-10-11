@@ -18,6 +18,8 @@ interface InspectorProps {
   onClose?: () => void
   /** 播放器读到的真实分辨率（库里没记录时） */
   resolution?: { w: number; h: number } | null
+  /** 收藏 / 取消收藏（F） */
+  onToggleFavorite?: () => void
 }
 
 /**
@@ -25,7 +27,7 @@ interface InspectorProps {
  * 主窗口右侧停靠面板和全屏详情页的侧栏共用这一个组件。
  * 媒体的 photo 行是代表图（首帧 / 封面 / 波形），文件大小、路径要用 MediaDetail 里源文件的。
  */
-export function Inspector({ result, onSelect, showPreview, onClose, resolution: resolutionOverride }: InspectorProps): JSX.Element {
+export function Inspector({ result, onSelect, showPreview, onClose, resolution: resolutionOverride, onToggleFavorite }: InspectorProps): JSX.Element {
   const { photo, segment } = result
   const kind = mediaKindOf(photo)
   const isMedia = kind !== 'image' && photo.videoId != null
@@ -89,6 +91,7 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
 
       <div className="flex items-start gap-2 px-4 pt-3">
         <h2 className="text-headline text-ink flex-1 break-all">{photo.fileName}</h2>
+        {onToggleFavorite && <FavoriteButton on={!!photo.favorite} onClick={onToggleFavorite} />}
         {onClose && <CloseButton onClick={onClose} />}
       </div>
 
@@ -235,12 +238,13 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
 }
 
 /** 多选时检查器显示的汇总 */
-export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, onClose }: {
+export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, onClose, onToggleFavorite }: {
   results: SearchResult[]
   breakdown: string
   onReveal: () => void
   onCopyPaths: () => void
   onClose?: () => void
+  onToggleFavorite?: () => void
 }): JSX.Element {
   const preview = results.slice(0, 9)
   return (
@@ -257,6 +261,7 @@ export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, on
           <h2 className="text-headline text-ink">{t.inspector.selectedCount(results.length)}</h2>
           <p className="text-callout text-ink-3 mt-0.5">{breakdown}</p>
         </div>
+        {onToggleFavorite && <FavoriteButton on={results.every((r) => r.photo.favorite)} onClick={onToggleFavorite} />}
         {onClose && <CloseButton onClick={onClose} />}
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -264,6 +269,22 @@ export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, on
         <ActionButton icon="all" onClick={onCopyPaths}>{t.common.copyPath}</ActionButton>
       </div>
     </div>
+  )
+}
+
+/** 心形收藏开关；多选时"全部已收藏"才显示实心 */
+function FavoriteButton({ on, onClick }: { on: boolean; onClick: () => void }): JSX.Element {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick() }}
+      aria-pressed={on}
+      title={t.organize.favoriteTitle(on)}
+      className={`w-6 h-6 rounded-md flex-shrink-0 flex items-center justify-center transition-colors duration-fast ${
+        on ? 'text-accent hover:bg-fill-hover' : 'text-ink-3 hover:text-ink hover:bg-fill-hover'
+      }`}
+    >
+      <Icon name="heart" filled={on} className="w-4 h-4" />
+    </button>
   )
 }
 

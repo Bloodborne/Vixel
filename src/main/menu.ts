@@ -53,6 +53,7 @@ export function installAppMenu(
         { type: 'separator' },
         hint(t.menu.open, 'Enter', 'open-item'),
         hint(t.menu.quickLook, 'Space', 'quick-look'),
+        hint(t.organize.favoriteToggle, 'F', 'toggle-favorite'),
         item(revealLabel(), 'CmdOrCtrl+Shift+R', 'reveal'),
         { type: 'separator' },
         { role: 'close', label: t.menu.closeWindow },
@@ -115,7 +116,7 @@ export function installAppMenu(
 /** 网格项右键菜单：动作由渲染进程执行（它知道选中了哪些项），这里只负责弹出并回传选择 */
 export function popupItemMenu(
   win: BrowserWindow,
-  { count, isMedia }: { count: number; isMedia: boolean }
+  { count, isMedia, favorite }: { count: number; isMedia: boolean; favorite: boolean }
 ): Promise<ItemMenuAction | null> {
   return new Promise((resolve) => {
     const pick = (action: ItemMenuAction) => (): void => resolve(action)
@@ -128,6 +129,7 @@ export function popupItemMenu(
       ] as MenuItemConstructorOptions[]),
       { label: multi ? t.menu.revealMany(revealLabel(), count) : revealLabel(), accelerator: 'CmdOrCtrl+Shift+R', click: pick('reveal') },
       { label: multi ? t.menu.copyPaths(count) : t.common.copyPath, click: pick('copy-path') },
+      { label: favorite ? t.organize.unfavorite : t.organize.favorite, accelerator: 'F', registerAccelerator: false, click: pick('toggle-favorite') },
       ...(multi ? [] : [
         { type: 'separator' },
         { label: t.menu.findSimilar, click: pick('find-similar') },

@@ -9,10 +9,11 @@ import { app, type BrowserWindow, nativeTheme } from 'electron'
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { IPC_CHANNELS, type MenuCommand } from '../shared/types'
+import { t } from '../shared/i18n'
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
-interface Step { name: string; run: (win: BrowserWindow) => Promise<void> | void; wait?: number }
+interface Step { name: string; run: (win: BrowserWindow) => Promise<void> | void; wait?: number; after?: (win: BrowserWindow) => Promise<void> | void }
 
 const command = (cmd: MenuCommand) => (win: BrowserWindow) => win.webContents.send(IPC_CHANNELS.MENU_COMMAND, cmd)
 
@@ -25,6 +26,15 @@ const typeSearch = (q: string): string => `
   set.call(el, ${JSON.stringify(q)}); el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));`
 
+// 文案按当前语言取，所以在运行时（而不是模块加载时）拼选择器
+const clickSidebar = (label: () => string) => (win: BrowserWindow) =>
+  js(`document.querySelector(${JSON.stringify(`nav [role="button"][title="${label()}"]`)})?.click()`)(win)
+const clickTitled = (title: () => string) => (win: BrowserWindow) =>
+  js(`document.querySelector(${JSON.stringify(`button[title="${title()}"]`)})?.click()`)(win)
+
+const clickText = (text: () => string) => (win: BrowserWindow) =>
+  js(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text())})?.click()`)(win)
+
 const QUERIES = (process.env.VIXEL_CAPTURE_QUERIES || '西瓜,微信支付,海边').split(',')
 
 const STEPS: Step[] = [
@@ -34,6 +44,25 @@ const STEPS: Step[] = [
   { name: 'inspector', run: js(`document.querySelector('.photo-card')?.click()`), wait: 2000 },
   { name: 'detail', run: js(`document.querySelector('.photo-card')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`), wait: 2000 },
   { name: 'video', run: (w) => { js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)(w); command('source:video')(w) }, wait: 2000 },
+  { name: 'favorites', run: (w) => { js(typeSearch(''))(w); clickSidebar(() => t.organize.favorites)(w) }, wait: 2500 },
+  {
+    name: 'filters',
+    run: (w) => { command('source:all')(w); clickTitled(() => t.organize.filterTitle)(w) },
+    wait: 2000,
+  },
+  // 选两个条件后收起筛选栏：只剩可移除的条件标签
+  {
+    name: 'filters-active',
+    run: async (w) => {
+      await clickText(() => t.organize.landscape)(w)
+      await sleep(600)
+      await clickText(() => t.organize.favoritesOnly)(w)
+      await sleep(600)
+      await clickTitled(() => t.organize.filterTitle)(w)
+    },
+    wait: 2000,
+    after: clickText(() => t.organize.clear),
+  },
   { name: 'search-text', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[1]))(w) }, wait: 3000 },
   { name: 'search-nomatch', run: js(typeSearch(QUERIES[2])), wait: 3000 },
   { name: 'people', run: (w) => { js(typeSearch(''))(w); command('source:people')(w) }, wait: 6000 },
@@ -55,6 +84,7 @@ export async function runCaptureTour(win: BrowserWindow, outDir: string, openSet
       const img = await win.webContents.capturePage()
       await writeFile(join(outDir, `${theme}-${step.name}.png`), img.toPNG())
       console.log(`[capture] ${theme}-${step.name}.png`)
+      await step.after?.(win)
     }
     // 设置窗口（通用页：外观、语言）
     const settings = openSettings()

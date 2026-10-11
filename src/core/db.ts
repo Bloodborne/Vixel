@@ -2,13 +2,14 @@ import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import * as sqliteVec from 'sqlite-vec'
-import type { LibraryCounts,
+import type { LibraryCounts, MediaFilters,
   Photo, WatchedFolder, PhotoDetail, PhotoLocation, VideoRecord, MediaKind, MediaDetail, TaskOverview, TaskRow,
 } from '../shared/types'
 import { tokenizeForFtsSync } from './text/tokenize'
 import type { ClusterPlan, PendingFace, PersonCentroid } from './face/cluster'
 import { instrumentStatements } from './perf'
 import { buildFtsQuery } from './text/fts-query'
+import { PANORAMA_RATIO, SQUARE_TOLERANCE } from './filters'
 
 // 向量维度 - EmbeddingGemma 2 (768D，Matryoshka 可截断到 512/256/128)
 const EMBEDDING_DIM = 768
@@ -171,6 +172,12 @@ CREATE TABLE IF NOT EXISTS person_dismissed_pairs (
   PRIMARY KEY (a, b)
 );
 
+-- 收藏（按内容 hash：同一张照片在多个文件夹里共享收藏状态；原文件不动）
+CREATE TABLE IF NOT EXISTS favorites (
+  file_hash  TEXT PRIMARY KEY,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 内部状态 / 一次性迁移标记
 CREATE TABLE IF NOT EXISTS meta_state (
   key   TEXT PRIMARY KEY,
@@ -235,8 +242,44 @@ const PHOTO_COLUMNS = `
   p.width, p.height, p.taken_at as takenAt, p.lat, p.lng,
   p.embed_status as embedStatus, p.face_status as faceStatus, p.video_id as videoId, p.frame_time_ms as frameTimeMs,
   p.deleted_at as deletedAt, p.created_at as createdAt, p.updated_at as updatedAt,
-  ${MEDIA_KIND_EXPR} as mediaKind, v.duration_ms as durationMs`
+  ${MEDIA_KIND_EXPR} as mediaKind, v.duration_ms as durationMs,
+  EXISTS (SELECT 1 FROM favorites fav WHERE fav.file_hash = p.file_hash) as favorite`
 const MEDIA_JOIN = `LEFT JOIN videos v ON v.id = p.video_id`
+
+/**
+ * 过滤条件 → WHERE 片段（以 AND 开头，表别名 p / v）。判定与 filters.ts 的 matchesFilters 一致；
+ * 片段只由条件种类决定，值都走参数，调用方按片段缓存预编译语句。
+ */
+export function filterWhere(f: MediaFilters): { where: string; params: unknown[] } {
+  const parts: string[] = []
+  const params: unknown[] = []
+  if (f.dateFrom) { parts.push('p.taken_at >= ?'); params.push(f.dateFrom) }
+  if (f.dateTo) { parts.push('p.taken_at <= ?'); params.push(f.dateTo) }
+  if (f.kind) { parts.push(`${MEDIA_KIND_EXPR} = ?`); params.push(f.kind) }
+  if (f.folderId != null) {
+    parts.push('EXISTS (SELECT 1 FROM photos p4 WHERE p4.file_hash = p.file_hash AND p4.folder_id = ? AND p4.deleted_at IS NULL)')
+    params.push(f.folderId)
+  }
+  if (f.orientation) {
+    const long = 'MAX(p.width, p.height)'
+    const short = 'MIN(p.width, p.height)'
+    const sized = 'p.width > 0 AND p.height > 0'
+    parts.push({
+      panorama: `${sized} AND ${long} >= ${PANORAMA_RATIO} * ${short}`,
+      square: `${sized} AND ${long} <= ${SQUARE_TOLERANCE} * ${short}`,
+      landscape: `${sized} AND p.width > p.height AND ${long} > ${SQUARE_TOLERANCE} * ${short} AND ${long} < ${PANORAMA_RATIO} * ${short}`,
+      portrait: `${sized} AND p.height > p.width AND ${long} > ${SQUARE_TOLERANCE} * ${short} AND ${long} < ${PANORAMA_RATIO} * ${short}`,
+    }[f.orientation])
+  }
+  if (f.minPixels) { parts.push('p.width * p.height >= ?'); params.push(f.minPixels) }
+  if (f.maxPixels) { parts.push('p.width * p.height > 0 AND p.width * p.height < ?'); params.push(f.maxPixels) }
+  if (f.durationMin != null || f.durationMax != null) parts.push('p.video_id IS NOT NULL AND v.duration_ms IS NOT NULL')
+  if (f.durationMin != null) { parts.push('v.duration_ms >= ?'); params.push(f.durationMin) }
+  if (f.durationMax != null) { parts.push('v.duration_ms < ?'); params.push(f.durationMax) }
+  if (f.personId != null) { parts.push('p.file_hash IN (SELECT file_hash FROM faces WHERE person_id = ?)'); params.push(f.personId) }
+  if (f.favorite) parts.push('EXISTS (SELECT 1 FROM favorites fav WHERE fav.file_hash = p.file_hash)')
+  return { where: parts.map((x) => `AND (${x})`).join(' '), params }
+}
 
 /** 音视频切片长度；indexer 与任务面板的"预期片段数"共用 */
 export const SEGMENT_MS = 32_000
@@ -416,14 +459,13 @@ export interface DatabaseInstance {
     limit: number
   ) => Array<{ fileHash: string; score: number }>
   getRepresentativeByHash: (fileHash: string) => Photo | undefined
-  getRepresentativePhotosFiltered: (
-    limit: number,
-    offset: number,
-    dateFrom?: string,
-    dateTo?: string,
-    kind?: Photo['mediaKind'],
-    folderId?: number
-  ) => Photo[]
+  /** 无搜索词时按过滤条件浏览（拍摄时间倒序） */
+  getRepresentativePhotosFiltered: (limit: number, offset: number, filters: MediaFilters) => Photo[]
+  /** 收藏 / 取消收藏（按内容 hash） */
+  setFavorite: (fileHashes: string[], on: boolean) => void
+  getFavoriteHashes: () => Set<string>
+  /** 某人物出现过的内容 hash（人物过滤用） */
+  getHashesForPerson: (personId: number) => Set<string>
   /** 某文件夹内出现过的 file_hash（同内容可能多处引用，带搜索词时按 hash 过滤） */
   getHashesInFolder: (folderId: number) => Set<string>
   findSimilar: (
@@ -921,6 +963,14 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     getHashesInFolder: db.prepare(`
       SELECT DISTINCT file_hash FROM photos WHERE folder_id = ? AND deleted_at IS NULL
     `),
+    countFavorites: db.prepare(`
+      SELECT COUNT(*) as n FROM favorites f
+      WHERE EXISTS (SELECT 1 FROM photos p WHERE p.file_hash = f.file_hash AND p.deleted_at IS NULL)
+    `),
+    addFavorite: db.prepare(`INSERT OR IGNORE INTO favorites (file_hash) VALUES (?)`),
+    removeFavorite: db.prepare(`DELETE FROM favorites WHERE file_hash = ?`),
+    getFavoriteHashes: db.prepare(`SELECT file_hash FROM favorites`),
+    getHashesForPerson: db.prepare(`SELECT DISTINCT file_hash FROM faces WHERE person_id = ?`),
     getPhotoStats: db.prepare(`
       SELECT
         COUNT(*) as total,
@@ -970,6 +1020,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     `),
     getOcrText: db.prepare(`SELECT text FROM image_ocr WHERE file_hash = ?`),
     deleteOcrByHash: db.prepare(`DELETE FROM image_ocr WHERE file_hash = ?`),
+    deleteFavoriteByHash: db.prepare(`DELETE FROM favorites WHERE file_hash = ?`),
     // 等待 OCR 的照片：已有 embedding 但还没 OCR 结果
     clearAllOcr: db.prepare(`DELETE FROM image_ocr`),
     getPendingOcrPhotos: db.prepare(`
@@ -1079,28 +1130,6 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       WHERE image_ocr_fts MATCH ?
       ORDER BY score
       LIMIT ?
-    `),
-    // 带时间过滤的代表照片查询
-    getRepresentativePhotosFiltered: db.prepare(`
-      SELECT ${PHOTO_COLUMNS},
-             (SELECT COUNT(*) FROM photos p2
-              WHERE p2.file_hash = p.file_hash AND p2.deleted_at IS NULL) as duplicateCount
-      FROM photos p
-      ${MEDIA_JOIN}
-      WHERE p.deleted_at IS NULL
-        AND p.id = (
-          SELECT MIN(p3.id) FROM photos p3
-          WHERE p3.file_hash = p.file_hash AND p3.deleted_at IS NULL
-        )
-        AND (? IS NULL OR p.taken_at >= ?)
-        AND (? IS NULL OR p.taken_at <= ?)
-        AND (? IS NULL OR ${MEDIA_KIND_EXPR} = ?)
-        AND (? IS NULL OR EXISTS (
-          SELECT 1 FROM photos p4
-          WHERE p4.file_hash = p.file_hash AND p4.folder_id = ? AND p4.deleted_at IS NULL
-        ))
-      ORDER BY p.taken_at DESC, p.created_at DESC
-      LIMIT ? OFFSET ?
     `),
     getPhotosWithGPS: db.prepare(`
       SELECT ${PHOTO_COLUMNS}
@@ -1286,6 +1315,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     for (const pid of new Set(rows.map((r) => r.personId).filter((x): x is number => x != null))) refreshPerson(pid)
   }
   /** 某个 hash 的全部派生内容：图像向量 / 人脸 / caption / OCR（FTS 随触发器清） */
+  const filteredStmts = new Map<string, Database.Statement>()
   const deleteContent = (hash: string): void => {
     const row = stmts.deleteImageVecByHash.get(hash) as { rowid: bigint | number } | undefined
     if (row) {
@@ -1295,6 +1325,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     deleteFacesForHash(hash)
     stmts.deleteCaptionByHash.run(hash)
     stmts.deleteOcrByHash.run(hash)
+    stmts.deleteFavoriteByHash.run(hash)
   }
   /**
    * 软删某视频的全部帧 photo（beforeCommit 在同一事务里先执行），
@@ -1772,21 +1803,43 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
         return []
       }
     },
-    getRepresentativePhotosFiltered: (limit, offset, dateFrom, dateTo, kind, folderId) => {
-      return stmts.getRepresentativePhotosFiltered.all(
-        dateFrom || null, dateFrom || null,
-        dateTo || null, dateTo || null,
-        kind || null, kind || null,
-        folderId ?? null, folderId ?? null,
-        limit, offset
-      ) as Photo[]
+    getRepresentativePhotosFiltered: (limit, offset, filters) => {
+      const { where, params } = filterWhere(filters)
+      // 每种条件组合一条预编译语句（组合数有限），参数照常绑定
+      let stmt = filteredStmts.get(where)
+      if (!stmt) {
+        stmt = db.prepare(`
+          SELECT ${PHOTO_COLUMNS},
+                 (SELECT COUNT(*) FROM photos p2
+                  WHERE p2.file_hash = p.file_hash AND p2.deleted_at IS NULL) as duplicateCount
+          FROM photos p
+          ${MEDIA_JOIN}
+          WHERE p.deleted_at IS NULL
+            AND p.id = (
+              SELECT MIN(p3.id) FROM photos p3
+              WHERE p3.file_hash = p.file_hash AND p3.deleted_at IS NULL
+            )
+            ${where}
+          ORDER BY p.taken_at DESC, p.created_at DESC
+          LIMIT ? OFFSET ?
+        `)
+        filteredStmts.set(where, stmt)
+      }
+      return stmt.all(...params, limit, offset) as Photo[]
     },
+    setFavorite: (fileHashes, on) => {
+      const stmt = on ? stmts.addFavorite : stmts.removeFavorite
+      db.transaction(() => { for (const h of fileHashes) stmt.run(h) })()
+    },
+    getFavoriteHashes: () => new Set((stmts.getFavoriteHashes.all() as Array<{ file_hash: string }>).map((r) => r.file_hash)),
+    getHashesForPerson: (personId) =>
+      new Set((stmts.getHashesForPerson.all(personId) as Array<{ file_hash: string }>).map((r) => r.file_hash)),
     getHashesInFolder: (folderId) => {
       const rows = stmts.getHashesInFolder.all(folderId) as Array<{ file_hash: string }>
       return new Set(rows.map((r) => r.file_hash))
     },
     getLibraryCounts: () => {
-      const counts: LibraryCounts = { all: 0, image: 0, video: 0, audio: 0 }
+      const counts: LibraryCounts = { all: 0, image: 0, video: 0, audio: 0, favorites: (stmts.countFavorites.get() as { n: number }).n }
       for (const { kind, n } of stmts.getLibraryCounts.all() as Array<{ kind: MediaKind; n: number }>) {
         counts[kind] = n
         counts.all += n

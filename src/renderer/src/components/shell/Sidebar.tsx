@@ -13,6 +13,7 @@ export type Source =
   | { type: 'map' }
   | { type: 'people' }
   | { type: 'similar'; photoId: number; name: string }
+  | { type: 'favorites' }
 
 export const LIBRARY_ITEMS: { kind: KindFilter; label: string; icon: IconName; shortcut: string }[] = [
   { kind: 'all', label: t.common.all, icon: 'all', shortcut: kbd('⌘1') },
@@ -97,6 +98,13 @@ export function Sidebar({
               onClick={() => onSelect({ type: 'library', kind })}
             />
           ))}
+          <Row
+            icon="heart"
+            label={t.organize.favorites}
+            count={counts?.favorites}
+            active={source.type === 'favorites'}
+            onClick={() => onSelect({ type: 'favorites' })}
+          />
         </Group>
 
         <Group title={t.shell.groupBrowse}>

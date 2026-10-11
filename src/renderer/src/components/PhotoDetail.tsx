@@ -13,12 +13,13 @@ interface PhotoDetailProps {
   siblings?: SearchResult[]
   onSelect: (result: SearchResult) => void
   onClose: () => void
+  onToggleFavorite?: () => void
 }
 
 /**
  * 全屏详情：只负责看大图 / 播放；元数据都在右侧检查器（与主窗口共用）。
  */
-export function PhotoDetail({ result, siblings, onSelect, onClose }: PhotoDetailProps): JSX.Element {
+export function PhotoDetail({ result, siblings, onSelect, onClose, onToggleFavorite }: PhotoDetailProps): JSX.Element {
   const { photo, segment } = result
   const kind = mediaKindOf(photo)
   const isMedia = kind !== 'image' && photo.videoId != null
@@ -141,7 +142,7 @@ export function PhotoDetail({ result, siblings, onSelect, onClose }: PhotoDetail
 
       {/* 信息侧栏：与主窗口检查器同一组件 */}
       <div className="w-[272px] flex-shrink-0 bg-sidebar border-l border-line animate-slide-in">
-        <Inspector result={result} onSelect={onSelect} onClose={onClose} resolution={resolution} />
+        <Inspector result={result} onSelect={onSelect} onClose={onClose} resolution={resolution} onToggleFavorite={onToggleFavorite} />
       </div>
     </div>
   )

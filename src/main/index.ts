@@ -530,7 +530,12 @@ function registerIpcHandlers(): void {
     return db.getPhotoLocations(photo.fileHash)
   })
 
-  handle(IPC_CHANNELS.SHOW_ITEM_MENU, async (event, opts: { count: number; isMedia: boolean }) => {
+  handle(IPC_CHANNELS.SET_FAVORITE, async (_event, fileHashes: string[], on: boolean) => {
+    db.setFavorite(fileHashes.filter((h) => typeof h === 'string' && h), !!on)
+    return !!on
+  })
+
+  handle(IPC_CHANNELS.SHOW_ITEM_MENU, async (event, opts: { count: number; isMedia: boolean; favorite: boolean }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     return win ? popupItemMenu(win, opts) : null
   })

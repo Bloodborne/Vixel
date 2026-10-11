@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - English interface. Follows the system language; switch between System / 简体中文 / English in
   Settings → General. All UI strings live in typed dictionaries under `src/shared/i18n/`.
+- Favorites: press F (or use the heart in the inspector / context menu) to favorite photos and
+  videos; a Favorites view in the sidebar. Stored per content hash in the library database —
+  original files are never touched.
+- Filter bar: orientation, resolution, duration, person and favorites-only, combined with search
+  and the date filter. Active filters stay visible as removable chips.
 
 ## [0.2.0] - 2026-10-11
 

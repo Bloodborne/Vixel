@@ -14,8 +14,9 @@ import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
 import { t } from '../../shared/i18n'
+import { FilterBar, hasExtraFilters, countExtraFilters, type ExtraFilters } from './components/shell/FilterBar'
 import type {
-  SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction,
+  SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction, MediaFilters,
   IndexProgress as IndexProgressType,
 } from '../../shared/types'
 
@@ -69,6 +70,9 @@ function App(): JSX.Element {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [showDateFilter, setShowDateFilter] = useState(false)
+  // 方向 / 分辨率 / 时长 / 人物 / 仅收藏；换查询、换来源都保留（和日期一样）
+  const [extraFilters, setExtraFilters] = useState<ExtraFilters>({})
+  const [showFilters, setShowFilters] = useState(false)
   const [showTasks, setShowTasks] = useState(false)
   const [source, setSource] = useState<Source>({ type: 'library', kind: 'all' })
   const [counts, setCounts] = useState<LibraryCounts | null>(null)
@@ -108,21 +112,26 @@ function App(): JSX.Element {
     : source.type === 'similar' ? `similar:${source.photoId}`
     : source.type
   useEffect(() => { setDensityOverride(null) }, [query, sourceKey])
-  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'similar'
+  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'similar' || source.type === 'favorites'
 
   // 查询条件放 ref：索引进度刷新等所有 doSearch 调用都自动带上当前来源 + 日期，
   // 不用每个调用点各自传参，也不会因闭包拿到旧值
-  const filters = useRef({ query: '', from: '', to: '', source })
+  const filters = useRef<{ query: string; from: string; to: string; source: Source; extra: ExtraFilters }>({ query: '', from: '', to: '', source, extra: {} })
 
   const doSearch = useCallback(async (): Promise<SearchResult[]> => {
-    const { query: q, from, to, source: src } = filters.current
+    const { query: q, from, to, source: src, extra } = filters.current
     if (src.type === 'similar') return window.api.findSimilar(src.photoId, SIMILAR_LIMIT)
     const kind = src.type === 'library' && src.kind !== 'all' ? src.kind : undefined
     const folderId = src.type === 'folder' ? src.id : undefined
-    const options = (from || to || kind || folderId != null)
-      ? { dateFrom: from || undefined, dateTo: to || undefined, kind, folderId }
-      : undefined
-    return window.api.search(q, q.trim() ? undefined : BROWSE_LIMIT, options)
+    const options: MediaFilters = {
+      ...extra,
+      ...(from ? { dateFrom: from } : {}),
+      ...(to ? { dateTo: to } : {}),
+      ...(kind ? { kind } : {}),
+      ...(folderId != null ? { folderId } : {}),
+      ...(src.type === 'favorites' ? { favorite: true } : {}),
+    }
+    return window.api.search(q, q.trim() ? undefined : BROWSE_LIMIT, Object.keys(options).length ? options : undefined)
   }, [])
 
   const runSearch = useCallback(async () => {
@@ -194,7 +203,7 @@ function App(): JSX.Element {
     setFocusId(null)
     anchorId.current = null
     setScrollResetKey((k) => k + 1)
-    if (next.type === 'library' || next.type === 'folder' || next.type === 'similar') runSearch()
+    if (next.type === 'library' || next.type === 'folder' || next.type === 'similar' || next.type === 'favorites') runSearch()
   }, [runSearch])
 
   const handleSearch = useCallback((q: string) => {
@@ -229,6 +238,12 @@ function App(): JSX.Element {
     if (kind === 'saved') toggleSaved(q)
     else removeRecent(q)
   }, [toggleSaved, removeRecent])
+
+  const handleExtraFiltersChange = useCallback((next: ExtraFilters) => {
+    setExtraFilters(next)
+    filters.current = { ...filters.current, extra: next }
+    runSearch()
+  }, [runSearch])
 
   const handleDateFilterChange = useCallback((from: string, to: string) => {
     setDateFrom(from)
@@ -385,6 +400,21 @@ function App(): JSX.Element {
     handleSelectSource({ type: 'similar', photoId: r.photo.id, name: r.photo.fileName })
   }, [handleSelectSource])
 
+  // 收藏：有任何一项没收藏就全部收藏，否则全部取消（与访达标签、照片 App 一致）。
+  // 只改动受影响的结果对象，网格里其余卡片不重渲染
+  const toggleFavorite = useCallback(async (items: SearchResult[]) => {
+    if (items.length === 0) return
+    const on = !items.every((r) => r.photo.favorite)
+    const hashes = new Set(items.map((r) => r.photo.fileHash).filter(Boolean))
+    await window.api.setFavorite([...hashes], on)
+    const patch = (r: SearchResult): SearchResult =>
+      hashes.has(r.photo.fileHash) ? { ...r, photo: { ...r.photo, favorite: on } } : r
+    if (!on && filters.current.source.type === 'favorites') runSearch()
+    else setSearchResults((rs) => rs.map(patch))
+    setSelected((s) => (s ? patch(s) : s))
+    refreshLibrary()
+  }, [runSearch, refreshLibrary])
+
   const runItemAction = useCallback((action: ItemMenuAction, items: SearchResult[]) => {
     const first = items[0]
     if (!first) return
@@ -395,8 +425,9 @@ function App(): JSX.Element {
       case 'copy-path': copyPaths(items); break
       case 'find-similar': findSimilarTo(first); break
       case 'open-external': if (first.photo.videoId != null) window.api.openSourceVideo(first.photo.videoId); break
+      case 'toggle-favorite': toggleFavorite(items); break
     }
-  }, [revealItems, copyPaths, findSimilarTo])
+  }, [revealItems, copyPaths, findSimilarTo, toggleFavorite])
 
   const handleItemContextMenu = useCallback(async (index: number, e: React.MouseEvent) => {
     e.preventDefault()
@@ -412,7 +443,7 @@ function App(): JSX.Element {
       items = [r]
     }
     const isMedia = items.length === 1 && mediaKindOf(r.photo) !== 'image' && r.photo.videoId != null
-    const action = await window.api.showItemMenu({ count: items.length, isMedia })
+    const action = await window.api.showItemMenu({ count: items.length, isMedia, favorite: items.every((x) => x.photo.favorite) })
     if (action) runItemAction(action, items)
   }, [selectOnly, runItemAction])
 
@@ -423,6 +454,10 @@ function App(): JSX.Element {
   }, [focusIndex, selectedIds, searchResults, selectedResults])
 
   const quickLookResult = quickLookId != null ? searchResults[idIndex.get(quickLookId) ?? -1] ?? null : null
+
+  /** F / 菜单"收藏"作用的对象：详情 > 快速查看 > 当前选择 */
+  const favoriteTargets = (): SearchResult[] =>
+    selected ? [selected] : quickLookResult ? [quickLookResult] : selectedResults
   const handleCloseQuickLook = useCallback(() => setQuickLookId(null), [])
   const handleQuickLookNavigate = useCallback((key: string) => {
     moveFocus(key, false)
@@ -497,6 +532,9 @@ function App(): JSX.Element {
       case 'quick-look':
         if (primary && isGrid && !selected) setQuickLookId((q) => (q == null ? primary.photo.id : null))
         break
+      case 'toggle-favorite':
+        if (!isTextInput(document.activeElement)) toggleFavorite(favoriteTargets())
+        break
       case 'open-item':
         if (primary && isGrid && !selected) { setQuickLookId(null); setSelected(primary) }
         break
@@ -514,6 +552,12 @@ function App(): JSX.Element {
       if (isTextInput(e.target)) return
       if (selected) setSelected(null)
       else if (!showTasks && selectedIds.size > 0) clearSelection()
+      return
+    }
+    // F：收藏当前详情 / 快速查看 / 选中项（详情页里也可用）
+    if ((e.key === 'f' || e.key === 'F') && !isTextInput(e.target) && !e.metaKey && !e.ctrlKey && !e.altKey && !showTasks) {
+      e.preventDefault()
+      toggleFavorite(favoriteTargets())
       return
     }
     if (!isGrid || selected || showTasks) return
@@ -554,6 +598,7 @@ function App(): JSX.Element {
       case 'map': return t.shell.map
       case 'people': return t.shell.people
       case 'similar': return t.shell.similarTo(source.name)
+      case 'favorites': return t.organize.favorites
     }
   }, [source, folders])
 
@@ -563,7 +608,7 @@ function App(): JSX.Element {
       ? t.common.items(searchResults.length) + t.shell.sortedBySimilarity
       : hasSearchQuery
       ? `${t.shell.quoted(query.trim())}${t.common.sep}${t.common.items(searchResults.length)}`
-      : searchResults.length > 0 ? `${t.common.items(searchResults.length)}${hasDateFilter ? t.shell.dateFiltered : ''}` : undefined
+      : searchResults.length > 0 ? `${t.common.items(searchResults.length)}${hasDateFilter ? t.shell.dateFiltered : hasExtraFilters(extraFilters) ? t.organize.filtered : ''}` : undefined
     : undefined
 
   return (
@@ -600,6 +645,9 @@ function App(): JSX.Element {
           resultCount={hasSearchQuery ? searchResults.length : undefined}
           dateActive={showDateFilter || hasDateFilter}
           onToggleDate={() => setShowDateFilter((s) => !s)}
+          filterActive={showFilters || hasExtraFilters(extraFilters)}
+          filterCount={countExtraFilters(extraFilters)}
+          onToggleFilter={() => setShowFilters((s) => !s)}
           onOpenSettings={() => window.api.openSettings()}
         />
 
@@ -629,6 +677,17 @@ function App(): JSX.Element {
               </button>
             )}
           </div>
+        )}
+
+        {/* 筛选栏：展开时列出全部选项；收起但有生效条件时只显示条件标签 */}
+        {isGrid && source.type !== 'similar' && (showFilters || hasExtraFilters(extraFilters)) && (
+          <FilterBar
+            value={extraFilters}
+            expanded={showFilters}
+            onChange={handleExtraFiltersChange}
+            onExpand={() => setShowFilters(true)}
+            onClose={() => setShowFilters(false)}
+          />
         )}
 
         {/* 主内容区 */}
@@ -675,11 +734,15 @@ function App(): JSX.Element {
               hint={t.shell.emptyLibraryHint}
               action={{ label: t.shell.addFolderEllipsis, onClick: handleAddFolder }}
             />
-          ) : counts === null || isSearching ? null : (
+          ) : counts === null || isSearching ? null : source.type === 'favorites' && !hasSearchQuery && !hasDateFilter && !hasExtraFilters(extraFilters) ? (
+            <EmptyState icon="image" title={t.organize.favoritesEmptyTitle} hint={t.organize.favoritesEmptyHint} />
+          ) : (
             <EmptyState
               icon="search"
               title={hasSearchQuery ? t.shell.noMatchTitle : t.shell.nothingHereTitle}
-              hint={hasSearchQuery
+              hint={hasExtraFilters(extraFilters)
+                ? t.organize.noFilterMatchHint
+                : hasSearchQuery
                 ? t.shell.noMatchHint
                 : hasDateFilter ? t.shell.widenDateHint : t.shell.otherCategoryHint}
             />
@@ -697,6 +760,7 @@ function App(): JSX.Element {
           >
             {selectedResults.length > 1 ? (
               <SelectionSummary
+                onToggleFavorite={() => toggleFavorite(selectedResults)}
                 results={selectedResults}
                 breakdown={countLine(selectedResults.map((r) => r.photo))}
                 onReveal={() => revealItems(selectedResults)}
@@ -704,7 +768,7 @@ function App(): JSX.Element {
                 onClose={dismissInspector}
               />
             ) : primary && (
-              <Inspector result={primary} onSelect={handleSelect} onClose={dismissInspector} showPreview />
+              <Inspector result={primary} onSelect={handleSelect} onClose={dismissInspector} showPreview onToggleFavorite={() => toggleFavorite([primary])} />
             )}
           </aside>
         )}
@@ -742,6 +806,7 @@ function App(): JSX.Element {
           siblings={isGrid ? searchResults : undefined}
           onSelect={handleSelect}
           onClose={handleCloseDetail}
+          onToggleFavorite={() => toggleFavorite([selected])}
         />
       )}
 
