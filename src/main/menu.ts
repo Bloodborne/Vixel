@@ -118,7 +118,7 @@ export function installAppMenu(
 /** 网格项右键菜单：动作由渲染进程执行（它知道选中了哪些项），这里只负责弹出并回传选择 */
 export function popupItemMenu(
   win: BrowserWindow,
-  { count, isMedia, favorite }: { count: number; isMedia: boolean; favorite: boolean }
+  { count, isMedia, favorite, canImageSearch }: { count: number; isMedia: boolean; favorite: boolean; canImageSearch: boolean }
 ): Promise<ItemMenuAction | null> {
   return new Promise((resolve) => {
     const pick = (action: ItemMenuAction) => (): void => resolve(action)
@@ -134,7 +134,8 @@ export function popupItemMenu(
       { label: favorite ? t.organize.unfavorite : t.organize.favorite, accelerator: 'F', registerAccelerator: false, click: pick('toggle-favorite') },
       ...(multi ? [] : [
         { type: 'separator' },
-        { label: t.menu.findSimilar, click: pick('find-similar') },
+        // 取代了"查找相似内容"：同一套向量，但连视频片段一起搜，门槛也按库标定（见 imageQuery.ts）
+        ...(canImageSearch ? [{ label: t.imagesearch.searchWithThis, click: pick('search-by-image') }] : []),
         ...(isMedia ? [{ label: t.menu.openInPlayer, click: pick('open-external') }] : []),
       ] as MenuItemConstructorOptions[]),
     ]

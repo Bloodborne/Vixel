@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Search by image.** Drag an image onto the toolbar drop target (or paste one with ⌘V) to find
+  visually similar photos *and* the video moments it appears in — video hits open at the matching
+  segment. Add words next to the image chip to narrow it down ("this, but at night"), done as a
+  single multimodal embedding. Right-click → "Search with This Image" replaces "Find Similar" and
+  now covers videos too. Results pass a per-library relevance gate instead of padding the grid;
+  the query image is processed in memory only and never stored. Calibration in `src/core/imageQuery.ts`
+  (script: `scripts/image-search-eval.cjs`).
+
+### Added
 - **Offline auto tags.** Photos and videos get up to three tags from a built-in 152-label vocabulary
   (scenes, subjects, document types, activities, light), matched against their existing embeddings —
   no extra model, no network. Library-relative thresholds favour precision (92% of 89 hand-checked

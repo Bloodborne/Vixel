@@ -65,6 +65,13 @@ const STEPS: Step[] = [
   },
   { name: 'search-text', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[1]))(w) }, wait: 3000 },
   { name: 'search-nomatch', run: js(typeSearch(QUERIES[2])), wait: 3000 },
+  // 以图搜图：VIXEL_CAPTURE_IMAGE=<库外查询图路径>（事件入口见 App.tsx；要过一遍模型，多等一会）
+  ...(process.env.VIXEL_CAPTURE_IMAGE ? [{
+    name: 'image-search',
+    run: (w: BrowserWindow) => { js(typeSearch(''))(w); return js(`window.dispatchEvent(new CustomEvent('vixel:image-search', { detail: { path: ${JSON.stringify(process.env.VIXEL_CAPTURE_IMAGE)} } }))`)(w) },
+    wait: 8000,
+    after: js(`document.querySelector('[data-clear-image]')?.click()`),
+  } satisfies Step] : []),
   // 智能相册：先在演示库里建好（查询相册 + 纯筛选相册），这里依次打开；最后在相册里改查询，标题旁出现"更新相册"
   { name: 'albums', run: js(`document.querySelectorAll('[data-album-row] [role="button"]')[0]?.click()`), wait: 3000 },
   { name: 'album-filters', run: js(`document.querySelectorAll('[data-album-row] [role="button"]')[1]?.click()`), wait: 3000 },
