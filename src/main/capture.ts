@@ -141,15 +141,15 @@ export async function runCaptureTour(win: BrowserWindow, outDir: string, openSet
     await sleep(2000)
     await writeFile(join(outDir, `${theme}-settings.png`), (await settings.webContents.capturePage()).toPNG())
     console.log(`[capture] ${theme}-settings.png`)
-    // 设置 › 通用 › 浏览器扩展：开一下服务让令牌面板露出来，截完再关掉（改的是演示库的 meta_state）
+    // 设置 › 通用 › 浏览器扩展：确保服务开着让令牌面板露出来，截完恢复原状（改的是演示库的 meta_state）
     const sjs = (code: string): Promise<void> => settings.webContents.executeJavaScript(`try { ${code} } catch (e) {}`).then(() => {})
-    await sjs(`document.querySelector('[data-collect-server-toggle]')?.click()`)
+    await sjs(`window.__vxWasOn = document.querySelector('[data-collect-server-toggle]')?.checked; if (window.__vxWasOn === false) document.querySelector('[data-collect-server-toggle]').click()`)
     await sleep(800)
     await sjs(`document.querySelector('[data-collect-settings]')?.scrollIntoView({ block: 'center' })`)
     await sleep(400)
     await writeFile(join(outDir, `${theme}-settings-extension.png`), (await settings.webContents.capturePage()).toPNG())
     console.log(`[capture] ${theme}-settings-extension.png`)
-    await sjs(`document.querySelector('[data-collect-server-toggle]')?.click()`)
+    await sjs(`if (window.__vxWasOn === false) document.querySelector('[data-collect-server-toggle]')?.click()`)
     await sleep(400)
     settings.close()
     // 收起抽屉 / 清空搜索，下一轮从干净状态开始
