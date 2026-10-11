@@ -56,6 +56,12 @@ describe('autotag assignment', () => {
     expect(merged.map((m) => [m.labelId, m.z])).toEqual([['a', 4], ['b', 3.5]])
   })
 
+  it('segment-only labels need a higher score than labels the frame agrees on', () => {
+    const frame = [{ labelId: 'cat', cosine: 0.74, z: 3.1 }]
+    const segs = [[{ labelId: 'motorcycle', cosine: 0.72, z: 4.1 }, { labelId: 'cat', cosine: 0.75, z: 4.3 }], [{ labelId: 'street', cosine: 0.8, z: 5 }]]
+    expect(mergeAssignments(segs, 3, frame).map((m) => m.labelId)).toEqual(['street', 'cat'])
+  })
+
   it('vocabulary ids are unique and every label has names and prompts', () => {
     const ids = VOCABULARY.map((l) => l.id)
     expect(new Set(ids).size).toBe(ids.length)

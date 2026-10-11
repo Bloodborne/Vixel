@@ -14,8 +14,8 @@
  *   三个库：演示库 34 项、公有领域视频素材 22 段、真实库 358 个视频帧
  *   所有（图, 标签）余弦：p50 0.650，p90 0.681，p99 0.723，最大 0.812；本库合并 sd 0.020–0.025
  *   第一版 z ≥ 3 / top3 / margin 0.03：演示库 + 素材库 62 个标签人工看对 54 个（87%）；
- *   错的多是第二标签（河流、白板、建筑）和动作（冲浪）→ 第二个起要 z ≥ 3.6、活动类 +0.5。
- *   终版结果见 docs/review/09-autotags.md
+ *   错的多是第二标签（河流、白板、建筑）和动作（冲浪）→ 第二个起要 z ≥ 3.8、活动类 +0.7。
+ *   终版：人工核对 89 个标签对 82 个（92%），见 docs/review/09-autotags.md
  */
 
 export interface LabelVector {
@@ -96,12 +96,22 @@ export function assignLabels(vector: Float32Array, labels: LabelVector[], baseli
   return out.slice(0, o.maxPerItem)
 }
 
-/** 多条向量（视频的代表帧 + 各片段）的结果合并：同一标签取 z 最高的那次，再按 z 取前 maxPerItem */
-export function mergeAssignments(lists: Assignment[][], maxPerItem = DEFAULT_ASSIGN.maxPerItem): Assignment[] {
+/**
+ * 多条向量（视频的代表帧 + 各片段）的结果合并：同一标签取 z 最高的那次，再按 z 取前 maxPerItem。
+ * 只在片段里出现、代表帧没有的标签要多过 segmentOnlyExtraZ —— 片段向量混了声音和多帧，
+ * 标定里单靠片段判出的标签错得最多（素材库里猫的视频被片段判成"摩托车"）
+ */
+export function mergeAssignments(lists: Assignment[][], maxPerItem = DEFAULT_ASSIGN.maxPerItem, primary?: Assignment[], segmentOnlyExtraZ = SEGMENT_ONLY_EXTRA_Z): Assignment[] {
+  const onPrimary = new Set((primary ?? []).map((a) => a.labelId))
   const best = new Map<string, Assignment>()
+  for (const a of primary ?? []) best.set(a.labelId, a)
   for (const list of lists) for (const a of list) {
+    if (primary && !onPrimary.has(a.labelId) && a.z < DEFAULT_ASSIGN.minZ + segmentOnlyExtraZ) continue
     const cur = best.get(a.labelId)
     if (!cur || a.z > cur.z) best.set(a.labelId, a)
   }
   return [...best.values()].sort((a, b) => b.z - a.z).slice(0, maxPerItem)
 }
+
+/** 只在视频片段里判出的标签额外要求的 z */
+export const SEGMENT_ONLY_EXTRA_Z = 1.5

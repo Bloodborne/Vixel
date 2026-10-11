@@ -102,10 +102,10 @@ export function registerAutoTags(db: DatabaseInstance, onTagsChanged: () => void
         const b = ensureBaselines(vecs)!
         for (const hash of hashes) {
           const img = store.imageVector(hash)
-          const lists = img ? [assignLabels(img, vecs, b.image)] : []
-          // 视频 / 音频：各片段（画面 + 声音）也判一遍，合并
-          for (const seg of store.segmentVectors(hash)) lists.push(assignLabels(seg, vecs, b.segment))
-          changed += store.apply(hash, VOCABULARY_VERSION, mergeAssignments(lists), labels)
+          const primary = img ? assignLabels(img, vecs, b.image) : []
+          // 视频 / 音频：各片段（画面 + 声音）也判一遍，合并；只在片段里出现的标签门槛更高
+          const segs = store.segmentVectors(hash).map((seg) => assignLabels(seg, vecs, b.segment))
+          changed += store.apply(hash, VOCABULARY_VERSION, mergeAssignments(segs, undefined, primary), labels)
         }
         broadcast()
         await new Promise((r) => setImmediate(r))

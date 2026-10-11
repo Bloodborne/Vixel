@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Offline auto tags.** Photos and videos get up to three tags from a built-in 152-label vocabulary
+  (scenes, subjects, document types, activities, light), matched against their existing embeddings —
+  no extra model, no network. Library-relative thresholds favour precision (92% of 89 hand-checked
+  tags were right). Auto tags are marked ✦: ✓ keeps one, × removes it for good; names follow the UI
+  language and are searchable in both. Toggle and Regenerate in Settings → General.
+  See `docs/review/09-autotags.md`.
+
 ### Fixed
 - **Chinese word segmentation never ran** (since the @node-rs/jieba 2.x upgrade the old `cut` export was
   gone and tokenizing silently fell back to raw text), so text-in-image search could not find a Chinese
