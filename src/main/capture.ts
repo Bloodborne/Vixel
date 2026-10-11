@@ -38,6 +38,7 @@ const STEPS: Step[] = [
   { name: 'search-nomatch', run: js(typeSearch(QUERIES[2])), wait: 3000 },
   { name: 'people', run: (w) => { js(typeSearch(''))(w); command('source:people')(w) }, wait: 6000 },
   { name: 'map', run: command('source:map'), wait: 3500 },
+  { name: 'cleanup', run: command('source:cleanup'), wait: 4000 },
   { name: 'tasks', run: (w) => { command('source:all')(w); command('activity')(w) }, wait: 2000 },
 ]
 

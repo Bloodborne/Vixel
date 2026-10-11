@@ -12,6 +12,7 @@ export type Source =
   | { type: 'folder'; id: number }
   | { type: 'map' }
   | { type: 'people' }
+  | { type: 'cleanup' }
   | { type: 'similar'; photoId: number; name: string }
 
 export const LIBRARY_ITEMS: { kind: KindFilter; label: string; icon: IconName; shortcut: string }[] = [
@@ -102,6 +103,7 @@ export function Sidebar({
         <Group title={t.shell.groupBrowse}>
           <Row icon="map" label={t.shell.map} hint={kbd('⌘5')} active={source.type === 'map'} onClick={() => onSelect({ type: 'map' })} />
           <Row icon="people" label={t.shell.people} hint={kbd('⌘6')} active={source.type === 'people'} onClick={() => onSelect({ type: 'people' })} />
+          <Row icon="stack" label={t.cleanup.navLabel} title={t.cleanup.title} active={source.type === 'cleanup'} onClick={() => onSelect({ type: 'cleanup' })} />
         </Group>
 
         {(savedSearches.length > 0 || recentShown.length > 0) && (

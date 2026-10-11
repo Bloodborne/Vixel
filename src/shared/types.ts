@@ -10,6 +10,7 @@ export type MenuCommand =
   | 'source:all' | 'source:image' | 'source:video' | 'source:audio' | 'source:map' | 'source:people'
   | 'find' | 'toggle-sidebar' | 'zoom-in' | 'zoom-out' | 'activity' | 'add-folder' | 'toggle-density'
   | 'toggle-inspector' | 'reveal' | 'quick-look' | 'open-item' | 'select-all'
+  | 'source:cleanup'
 
 /** 网格右键菜单（原生 Menu.popup）里用户选中的动作 */
 export type ItemMenuAction = 'open' | 'quick-look' | 'reveal' | 'copy-path' | 'find-similar' | 'open-external'

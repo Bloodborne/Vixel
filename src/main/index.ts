@@ -23,6 +23,7 @@ import { installAppMenu, popupItemMenu } from './menu'
 import { locale, resolveLocale, setLocale, t, type LocaleSetting } from '../shared/i18n'
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
+import { registerCleanupIpc } from './cleanup'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
 import { IPC_CHANNELS, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace } from '../shared/types'
@@ -830,6 +831,7 @@ app.whenReady().then(async () => {
   enforceOfflinePolicy()
   registerVixelProtocol()
   registerIpcHandlers()
+  registerCleanupIpc(db, broadcastLibraryChanged)
   installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
   createWindow()
 
