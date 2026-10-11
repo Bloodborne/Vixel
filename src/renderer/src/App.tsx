@@ -18,6 +18,7 @@ import { t } from '../../shared/i18n'
 import { FilterBar, hasExtraFilters, countExtraFilters, describeExtraFilters, useTags, type ExtraFilters } from './components/shell/FilterBar'
 import { useSmartAlbums, sameAlbumState, splitAlbumFilters } from './lib/smartAlbums'
 import type { Tag } from '../../shared/tags'
+import type { CollectResult } from '../../shared/collect'
 import type {
   SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction, MediaFilters, SmartAlbum,
   ImageQueryInput,
@@ -100,6 +101,10 @@ function App(): JSX.Element {
   const [imageQuery, setImageQuery] = useState<ImageQueryState | null>(null)
   const [imageNotice, setImageNotice] = useState<{ inLibrary?: boolean; error?: 'decode-failed' | 'model-not-ready' } | null>(null)
   const [imageDrag, setImageDrag] = useState(false)
+  // 收集箱：带文件的拖动悬停在网格上时显示"松开收集"的提示层
+  const [collectDrag, setCollectDrag] = useState(false)
+  // 收集结果提示条（底部居中）；undoPaths 非空时带"撤销"
+  const [collectToast, setCollectToast] = useState<{ text: string; undoPaths?: string[] } | null>(null)
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try { return localStorage.getItem('shell.sidebarHidden') === '1' } catch { return false }
   })
@@ -334,32 +339,53 @@ function App(): JSX.Element {
     if (file) void queryWithFile(file)
   }, [queryWithFile])
 
-  // 窗口级拖拽跟踪：带文件的拖动悬停时工具栏显示落点；其它位置的 drop 一律吞掉
-  // （阻止 Chromium 直接导航到文件；网格区的落点保留给之后的"导入收件箱"，这里不处理）
+  // 窗口级拖拽跟踪：带图片的拖动悬停时工具栏显示以图搜图落点，任何文件 / 链接的拖动在网格上显示
+  // "收进收集箱"；落在工具栏落点上的 drop 归以图搜图（Toolbar data-image-drop），其余位置归收集箱，
+  // 两者不会同时触发。窗口内部发起的拖动（人物合并等）不算
+  const collectDropRef = useRef<(e: DragEvent) => void>(() => {})
   useEffect(() => {
     let depth = 0
-    // 拖动中只能看到 mime，看不到文件名：image/* 或未知类型（RAW 常为空）才算；PDF / 文本拖动不出落点
+    let internal = false
+    // 拖动中只能看到 mime，看不到文件名：image/* 或未知类型（RAW 常为空）才算图片；PDF / 文本拖动不出以图搜图落点
     const hasImage = (e: DragEvent): boolean =>
       !!e.dataTransfer && Array.from(e.dataTransfer.items ?? []).some((i) => i.kind === 'file' && (i.type === '' || i.type.startsWith('image/')))
+    // 可收集：任何文件（含文件夹），或浏览器拖来的链接（text/uri-list）
+    const collectible = (e: DragEvent): boolean =>
+      !internal && !!e.dataTransfer &&
+      (Array.from(e.dataTransfer.items ?? []).some((i) => i.kind === 'file') || e.dataTransfer.types.includes('text/uri-list'))
+    const onStart = (): void => { internal = true }
+    const onEnd = (): void => { internal = false }
     const onEnter = (e: DragEvent): void => {
-      if (!hasImage(e)) return
+      if (!collectible(e)) return
       depth++
-      setImageDrag(true)
+      setCollectDrag(true)
+      if (hasImage(e)) setImageDrag(true)
     }
     const onLeave = (): void => {
-      if (depth > 0 && --depth === 0) setImageDrag(false)
+      if (depth > 0 && --depth === 0) { setImageDrag(false); setCollectDrag(false) }
     }
-    const onOver = (e: DragEvent): void => { if (hasImage(e)) e.preventDefault() }
+    const onOver = (e: DragEvent): void => { if (collectible(e)) e.preventDefault() }
     const onDrop = (e: DragEvent): void => {
       depth = 0
+      const wasCollectible = collectible(e)
+      internal = false
       setImageDrag(false)
+      setCollectDrag(false)
       e.preventDefault()
+      if (!wasCollectible) return
+      // 工具栏的以图搜图落点自己处理了这个 drop（它不 stopPropagation，这里只负责复位状态）
+      if ((e.target as HTMLElement | null)?.closest?.('[data-image-drop]')) return
+      collectDropRef.current(e)
     }
+    window.addEventListener('dragstart', onStart)
+    window.addEventListener('dragend', onEnd)
     window.addEventListener('dragenter', onEnter)
     window.addEventListener('dragleave', onLeave)
     window.addEventListener('dragover', onOver)
     window.addEventListener('drop', onDrop)
     return () => {
+      window.removeEventListener('dragstart', onStart)
+      window.removeEventListener('dragend', onEnd)
       window.removeEventListener('dragenter', onEnter)
       window.removeEventListener('dragleave', onLeave)
       window.removeEventListener('dragover', onOver)
@@ -367,16 +393,23 @@ function App(): JSX.Element {
     }
   }, [])
 
-  // 粘贴图片（⌘V）：搜索框聚焦，或焦点不在任何可编辑元素上时生效；非图片粘贴不拦
+  // 粘贴图片（⌘V）：搜索框聚焦时作以图搜图；焦点不在任何可编辑元素上时存进收集箱；其他输入框不拦
+  const collectPasteRef = useRef<(file: File) => void>(() => {})
   useEffect(() => {
     const onPaste = (e: ClipboardEvent): void => {
       const el = document.activeElement
-      if (isTextInput(el) && !(el as HTMLElement).hasAttribute('data-search-input')) return
       const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.kind === 'file' && i.type.startsWith('image/'))
       const file = item?.getAsFile()
       if (!file) return
+      if (isTextInput(el)) {
+        if ((el as HTMLElement).hasAttribute('data-search-input')) {
+          e.preventDefault()
+          void queryWithFile(file)
+        }
+        return
+      }
       e.preventDefault()
-      void queryWithFile(file)
+      collectPasteRef.current(file)
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
@@ -604,6 +637,68 @@ function App(): JSX.Element {
     setFocusId(id)
     anchorId.current = id
   }, [])
+
+  // ---------- 收集箱（拖入 / 粘贴 / 浏览器扩展） ----------
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showCollectToast = useCallback((text: string, undoPaths?: string[]) => {
+    setCollectToast({ text, ...(undoPaths && undoPaths.length > 0 ? { undoPaths } : {}) })
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setCollectToast(null), 6000)
+  }, [])
+
+  /** 收集结果：刷新文件夹列表（收集箱可能刚建出来）、切到对应文件夹并选中新项、弹提示条 */
+  const handleCollectResult = useCallback(async (r: CollectResult) => {
+    if (r.cancelled) return
+    await refreshLibrary()
+    if (r.revealFolderId != null) {
+      handleSelectSource({ type: 'folder', id: r.revealFolderId })
+      if (r.revealPhotoId != null) selectOnly(r.revealPhotoId)
+    }
+    const text = r.error ? r.error
+      : r.saved > 0 && r.existing > 0 ? t.collect.savedAndExisting(r.saved, r.existing)
+      : r.saved > 0 ? t.collect.savedToInbox(r.saved)
+      : r.existing > 0 ? t.collect.alreadyInLibrary
+      : r.addedFolders > 0 ? t.collect.foldersAdded(r.addedFolders)
+      : t.collect.nothingToImport
+    showCollectToast(r.via === 'extension' ? `${t.collect.fromExtension}${t.common.sep}${text}` : text, r.saved > 0 ? r.createdPaths : undefined)
+  }, [refreshLibrary, handleSelectSource, selectOnly, showCollectToast])
+
+  /** 撤销：把这次收进来的文件移到废纸篓 */
+  const handleCollectUndo = useCallback(async () => {
+    const paths = collectToast?.undoPaths
+    setCollectToast(null)
+    if (!paths?.length) return
+    await window.api.collect.undo(paths)
+    showCollectToast(t.collect.undone)
+  }, [collectToast, showCollectToast])
+
+  // 拖进窗口（工具栏落点之外）：本地文件 / 文件夹走路径，浏览器拖来的图片字节直接收，
+  // 只有链接时交给主进程下载这一次（渲染进程自己不发请求，见 main/collect.ts）
+  collectDropRef.current = (e: DragEvent): void => {
+    const dt = e.dataTransfer
+    if (!dt) return
+    const files = Array.from(dt.files)
+    // getData 只能在 drop 事件里同步读
+    const uri = dt.getData('text/uri-list').split('\n').map((s) => s.trim()).find((s) => s && !s.startsWith('#'))
+    void (async () => {
+      const paths = files.map((f) => window.api.getPathForFile(f)).filter(Boolean)
+      if (paths.length > 0) return handleCollectResult(await window.api.collect.importPaths(paths))
+      const img = files.find(isImageFile) ?? files[0]
+      if (img) {
+        const bytes = new Uint8Array(await img.arrayBuffer())
+        return handleCollectResult(await window.api.collect.importBytes(bytes, img.name ?? '', 'drop'))
+      }
+      if (uri && /^https?:/i.test(uri)) return handleCollectResult(await window.api.collect.importUrl(uri))
+    })()
+  }
+  collectPasteRef.current = (file: File): void => {
+    void file.arrayBuffer().then((buf) => window.api.collect.importBytes(new Uint8Array(buf), '', 'paste')).then(handleCollectResult)
+  }
+
+  // 浏览器扩展收进来的：主进程推过来，同样定位 + 提示
+  const collectResultRef = useRef(handleCollectResult)
+  collectResultRef.current = handleCollectResult
+  useEffect(() => window.api.collect.onCollected((r) => { void collectResultRef.current(r) }), [])
 
   // 打开详情（详情页 ← → 翻页、检查器里点相似内容都走这里）；在当前列表里的同步成选择
   const handleSelect = useCallback((result: SearchResult) => {
@@ -920,7 +1015,7 @@ function App(): JSX.Element {
       case 'library': return LIBRARY_ITEMS.find((i) => i.kind === source.kind)?.label ?? t.common.all
       case 'folder': {
         const f = folders.find((x) => x.id === source.id)
-        return f ? folderName(f.path) : t.shell.folder
+        return f ? (f.isInbox ? t.collect.inbox : folderName(f.path)) : t.shell.folder
       }
       case 'map': return t.shell.map
       case 'people': return t.shell.people
@@ -1043,6 +1138,25 @@ function App(): JSX.Element {
 
         {/* 主内容区 */}
         <div className="relative flex-1 min-h-0 flex">
+        {/* 拖动悬停：松开收进收集箱（工具栏落点归以图搜图，见 Toolbar）。pointer-events-none，drop 由窗口级监听处理 */}
+        {collectDrag && (
+          <div data-collect-drop-hint className="absolute inset-0 z-30 m-2 rounded-lg border-2 border-dashed border-accent bg-canvas/70 backdrop-blur-sm flex flex-col items-center justify-center gap-1.5 pointer-events-none">
+            <Icon name="inbox" className="w-9 h-9 text-accent" />
+            <p className="text-body font-medium text-accent">{t.collect.dropHint}</p>
+            <p className="text-caption text-ink-2">{t.collect.dropHintSub}</p>
+          </div>
+        )}
+        {/* 收集提示条：已存入 / 已在库中 / 撤销 */}
+        {collectToast && (
+          <div data-collect-toast className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-raised border border-line text-callout text-ink shadow-lg animate-fade-in">
+            <span>{collectToast.text}</span>
+            {collectToast.undoPaths && (
+              <button onClick={handleCollectUndo} className="h-6 px-2 -mr-1 rounded text-accent hover:bg-fill transition-colors duration-fast">
+                {t.collect.undo}
+              </button>
+            )}
+          </div>
+        )}
         <main className="flex-1 min-w-0 overflow-hidden">
           {source.type === 'cleanup' ? (
             <CleanupView onOpenPhoto={(id) => { window.api.getPhotoDetail(id).then(handleSelectPhoto).catch(() => {}) }} />

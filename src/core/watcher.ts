@@ -21,6 +21,11 @@ async function getHasher(): Promise<(input: Uint8Array) => string> {
   return hashFn
 }
 
+/** 图片内容 hash（与入库时的 photos.file_hash 完全一致）：收集箱写盘前用它判重 */
+export async function hashImageContent(data: Uint8Array): Promise<string> {
+  return (await getHasher())(data)
+}
+
 // 支持的图片格式
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp', '.gif', '.bmp', '.tiff', '.tif',

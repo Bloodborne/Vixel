@@ -260,11 +260,12 @@ export function Sidebar({
           {folders.length === 0 ? (
             <p className="px-2 py-1 text-caption text-ink-3">{t.shell.noFolders}</p>
           ) : (
-            folders.map((f) => (
+            // 收集箱永远排最前（拖入 / 粘贴 / 浏览器扩展收来的内容）
+            [...folders].sort((a, b) => Number(!!b.isInbox) - Number(!!a.isInbox)).map((f) => (
               <Row
                 key={f.id}
-                icon="folder"
-                label={folderName(f.path)}
+                icon={f.isInbox ? 'inbox' : 'folder'}
+                label={f.isInbox ? t.collect.inbox : folderName(f.path)}
                 title={f.path}
                 count={f.photoCount}
                 active={source.type === 'folder' && source.id === f.id}

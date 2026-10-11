@@ -39,6 +39,18 @@ const QUERIES = (process.env.VIXEL_CAPTURE_QUERIES || '西瓜,微信支付,海�
 
 const STEPS: Step[] = [
   { name: 'all', run: command('source:all'), wait: 2500 },
+  // 收集箱：侧栏置顶的文件夹（演示库里要先收集过至少一张，见 docs/extension.md / e2e）；
+  // 选中第一项让检查器露出"来源"
+  {
+    name: 'inbox',
+    run: async (w) => {
+      await js(`[...document.querySelectorAll('nav [role="button"]')].find((b) => (b.textContent || '').startsWith(${JSON.stringify(t.collect.inbox)}))?.click()`)(w)
+      await sleep(1500)
+      await js(`document.querySelector('.photo-card')?.click()`)(w)
+    },
+    wait: 2000,
+    after: (w) => { js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)(w); return command('source:all')(w) },
+  },
   // 查询可用环境变量覆盖（逗号分隔：语义查询, 图中文字查询, 库里没有的东西）
   { name: 'search', run: js(typeSearch(QUERIES[0])), wait: 3000 },
   { name: 'inspector', run: js(`document.querySelector('.photo-card')?.click()`), wait: 2000 },
@@ -129,6 +141,16 @@ export async function runCaptureTour(win: BrowserWindow, outDir: string, openSet
     await sleep(2000)
     await writeFile(join(outDir, `${theme}-settings.png`), (await settings.webContents.capturePage()).toPNG())
     console.log(`[capture] ${theme}-settings.png`)
+    // 设置 › 通用 › 浏览器扩展：确保服务开着让令牌面板露出来，截完恢复原状（改的是演示库的 meta_state）
+    const sjs = (code: string): Promise<void> => settings.webContents.executeJavaScript(`try { ${code} } catch (e) {}`).then(() => {})
+    await sjs(`window.__vxWasOn = document.querySelector('[data-collect-server-toggle]')?.checked; if (window.__vxWasOn === false) document.querySelector('[data-collect-server-toggle]').click()`)
+    await sleep(800)
+    await sjs(`document.querySelector('[data-collect-settings]')?.scrollIntoView({ block: 'center' })`)
+    await sleep(400)
+    await writeFile(join(outDir, `${theme}-settings-extension.png`), (await settings.webContents.capturePage()).toPNG())
+    console.log(`[capture] ${theme}-settings-extension.png`)
+    await sjs(`if (window.__vxWasOn === false) document.querySelector('[data-collect-server-toggle]')?.click()`)
+    await sleep(400)
     settings.close()
     // 收起抽屉 / 清空搜索，下一轮从干净状态开始
     await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)(win)

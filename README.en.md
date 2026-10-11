@@ -44,6 +44,9 @@ Local AI search for photos, videos and audio. Fully offline, no account, nothing
 
 - **Offline, no exceptions.** All models ship inside the app and run on your machine; there is no first-run download. The basemap is bundled ([Natural Earth](https://www.naturalearthdata.com/)). Every network request from the UI is blocked in code.
 - No account, no telemetry, no cloud. Original files are read-only; the index lives in the app's data folder.
+- **Two notes about collecting** (since v0.4):
+  - When you **drag an image from a browser** into Vixel and the drag carries only a URL (no image data), the main process downloads that one URL, once, at the moment you drop it (size/type limits and a timeout; the source is recorded under "Source"). This user-initiated, one-off fetch is the app's only outbound request; the UI's network allowlist stays empty.
+  - The browser extension's local server is **off by default**; when enabled it listens on `127.0.0.1` only, requires a random pairing token, and **never makes outbound requests** — the extension fetches the image in the browser and hands Vixel the bytes.
 
 ## Download
 

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace, type ImageQueryInput, type ImageSearchResponse } from '../shared/types'
 import type { Locale, LocaleSetting } from '../shared/i18n'
 import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type HiddenItem, type TrashResult } from '../shared/cleanup'
+import { COLLECT_CHANNELS, type CollectResult, type CollectServerStatus, type InboxInfo, type ItemSource } from '../shared/collect'
 import { TAG_CHANNELS, type Tag, type TagMenuAction, type TagsForSelection } from '../shared/tags'
 import { AUTOTAG_CHANNELS, type AutoTagStatus } from '../shared/autotags'
 
@@ -241,6 +242,31 @@ const api = {
     const handler = (): void => callback()
     ipcRenderer.on(IPC_CHANNELS.PEOPLE_CHANGED, handler)
     return () => { ipcRenderer.removeListener(IPC_CHANNELS.PEOPLE_CHANGED, handler) }
+  },
+
+  // 收集箱：拖入 / 粘贴 / 浏览器扩展
+  collect: {
+    getInbox: (): Promise<InboxInfo> => ipcRenderer.invoke(COLLECT_CHANNELS.GET_INBOX),
+    chooseInbox: (): Promise<InboxInfo> => ipcRenderer.invoke(COLLECT_CHANNELS.CHOOSE_INBOX),
+    openInbox: (): Promise<void> => ipcRenderer.invoke(COLLECT_CHANNELS.OPEN_INBOX),
+    /** 拖入的 File 对应的本地路径（Electron 32 起 File.path 没了，要走 webUtils）；不是本地文件时为 '' */
+    pathForFile: (file: File): string => {
+      try { return webUtils.getPathForFile(file) } catch { return '' }
+    },
+    importPaths: (paths: string[]): Promise<CollectResult> => ipcRenderer.invoke(COLLECT_CHANNELS.IMPORT_PATHS, paths),
+    importBytes: (data: Uint8Array, name: string, via: 'paste' | 'drop'): Promise<CollectResult> => ipcRenderer.invoke(COLLECT_CHANNELS.IMPORT_BYTES, data, name, via),
+    importUrl: (url: string, pageUrl?: string): Promise<CollectResult> => ipcRenderer.invoke(COLLECT_CHANNELS.IMPORT_URL, url, pageUrl),
+    undo: (paths: string[]): Promise<number> => ipcRenderer.invoke(COLLECT_CHANNELS.UNDO, paths),
+    getSource: (fileHash: string): Promise<ItemSource | null> => ipcRenderer.invoke(COLLECT_CHANNELS.GET_SOURCE, fileHash),
+    openSource: (url: string): Promise<void> => ipcRenderer.invoke(COLLECT_CHANNELS.OPEN_SOURCE, url),
+    serverStatus: (): Promise<CollectServerStatus> => ipcRenderer.invoke(COLLECT_CHANNELS.SERVER_STATUS),
+    setServer: (patch: Partial<Pick<CollectServerStatus, 'enabled' | 'port' | 'extensionId'>>): Promise<CollectServerStatus> => ipcRenderer.invoke(COLLECT_CHANNELS.SERVER_SET, patch),
+    newToken: (): Promise<CollectServerStatus> => ipcRenderer.invoke(COLLECT_CHANNELS.SERVER_NEW_TOKEN),
+    onCollected: (callback: (r: CollectResult) => void): (() => void) => {
+      const handler = (_: unknown, r: CollectResult): void => callback(r)
+      ipcRenderer.on(COLLECT_CHANNELS.COLLECTED, handler)
+      return () => { ipcRenderer.removeListener(COLLECT_CHANNELS.COLLECTED, handler) }
+    },
   },
 
   // 清理相似照片（近重复）

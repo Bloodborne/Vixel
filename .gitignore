@@ -1,5 +1,5 @@
 # Dependencies
-node_modules/
+node_modules
 
 # Build output
 out/
@@ -42,7 +42,7 @@ coverage/
 *.tsbuildinfo
 
 # LiteRT-LM 原生库（scripts/download-models.mjs litert-runtime 下载）
-resources/litert/
+resources/litert
 
 # Native modules cache
 .node-gyp/

@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Collect: Inbox, drag & drop, paste, browser extension.** New "Inbox" watched folder
+  (default `~/Pictures/Vixel Inbox`, created on first collect, files laid out `YYYY/MM/<name>`;
+  change its location in Settings → Folders). Drop files anywhere on the window to copy them in;
+  drop a folder and choose "add as watched folder (index in place)" — the default — or "copy to
+  Inbox"; ⌘V an image with nothing focused to save it as "Pasted <date>". Duplicate content is
+  never copied twice: if the bytes are already anywhere in your library, Vixel selects the existing
+  item and says so. Every import selects the new item and offers Undo (moves the file to the Trash).
+  A Chrome/Edge extension (`extension/`, see `docs/extension.md`) adds "Save to Vixel" on images
+  plus a page-screenshot action; it POSTs the bytes to a local server that is **off by default**,
+  listens on 127.0.0.1 only, and requires a per-install random token (Settings → General → Browser
+  extension). Collected items remember their source URL / page, shown in the inspector ("Source").
+  Privacy: the renderer still cannot make any network request; the one narrow exception is in the
+  main process, when a browser drag carries only an image URL — that URL alone is fetched once,
+  on your explicit drop (size / type limits, timeout). The extension's local server never makes
+  outbound requests.
+
+### Added
 - **Search by image.** Drag an image onto the toolbar drop target (or paste one with ⌘V) to find
   visually similar photos *and* the video moments it appears in — video hits open at the matching
   segment. Add words next to the image chip to narrow it down ("this, but at night"), done as a

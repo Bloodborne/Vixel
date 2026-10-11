@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { MediaDetail, PhotoDetail, PhotoLocation, SearchResult } from '../../../../shared/types'
+import type { ItemSource } from '../../../../shared/collect'
 import { formatDuration, formatFileSize, mediaKindOf } from '../../lib/format'
 import { thumbUrl } from '../../lib/mediaUrl'
 import { revealLabel } from '../../lib/platform'
@@ -38,6 +39,7 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
   const [media, setMedia] = useState<MediaDetail | null>(null)
   const [locations, setLocations] = useState<PhotoLocation[]>([])
   const [similar, setSimilar] = useState<SearchResult[]>([])
+  const [source, setSource] = useState<ItemSource | null>(null)
   const [isEditingCaption, setIsEditingCaption] = useState(false)
   const [editCaption, setEditCaption] = useState('')
 
@@ -48,17 +50,20 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
     setDetail(null)
     setLocations([])
     setSimilar([])
+    setSource(null)
     // 方向键连按时防抖 250ms：停在哪张才为哪张发详情 / 位置 / 相似检索
     const timer = setTimeout(() => {
       Promise.all([
         window.api.getPhotoDetail(photo.id),
         window.api.getPhotoLocations(photo.id),
         window.api.findSimilar(photo.id, 6),
-      ]).then(([d, locs, sim]) => {
+        photo.fileHash ? window.api.collect.getSource(photo.fileHash) : Promise.resolve(null),
+      ]).then(([d, locs, sim, src]) => {
         if (cancelled) return
         setDetail(d)
         setLocations(locs)
         setSimilar(sim)
+        setSource(src)
       })
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
@@ -223,6 +228,25 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
           </div>
         </Section>
 
+        {/* 来源：浏览器扩展 / 拖入时记下的原始地址，点击在系统浏览器打开（主进程只放行 http/https） */}
+        {source && (source.url || source.pageUrl) && (
+          <Section title={t.collect.source}>
+            <dl className="flex flex-col gap-1.5 text-callout">
+              {source.pageUrl && (
+                <Row label={t.collect.sourcePage}>
+                  <SourceLink url={source.pageUrl} label={source.pageTitle || hostOf(source.pageUrl)} />
+                </Row>
+              )}
+              {source.url && (
+                <Row label={t.collect.source}>
+                  <SourceLink url={source.url} label={hostOf(source.url)} />
+                </Row>
+              )}
+              {source.collectedAt && <Row label={t.collect.collectedAt}>{formatDate(source.collectedAt.includes('T') ? source.collectedAt : `${source.collectedAt.replace(' ', 'T')}Z`)}</Row>}
+            </dl>
+          </Section>
+        )}
+
         {similar.length > 0 && (
           <Section title={t.inspector.similar}>
             <div className="grid grid-cols-3 gap-1">
@@ -353,4 +377,22 @@ function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleString(intlLocale(), {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
+}
+
+/** 来源链接显示用的主机名；解析不了就原样给 */
+function hostOf(url: string): string {
+  try { return new URL(url).hostname } catch { return url }
+}
+
+/** 点击经主进程 shell.openExternal 打开（只放行 http/https），不在应用内导航 */
+function SourceLink({ url, label }: { url: string; label: string }): JSX.Element {
+  return (
+    <button
+      onClick={() => { void window.api.collect.openSource(url) }}
+      title={url}
+      className="max-w-full truncate text-accent hover:underline text-right"
+    >
+      {label}
+    </button>
+  )
 }

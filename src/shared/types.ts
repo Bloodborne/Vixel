@@ -123,6 +123,8 @@ export interface WatchedFolder {
   recursive: boolean
   createdAt: string
   photoCount?: number // 该文件夹中的照片数量
+  /** 收集箱（拖入 / 粘贴 / 浏览器扩展收来的内容存这里）；侧栏置顶显示 */
+  isInbox?: boolean
 }
 
 /** 命中通道：visual 图片向量 / segment 音视频片段向量 / text 图内文字 / filename 文件名或路径 */
