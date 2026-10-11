@@ -46,3 +46,6 @@ resources/litert/
 
 # Native modules cache
 .node-gyp/
+
+# agent worktrees
+.claude/worktrees/
