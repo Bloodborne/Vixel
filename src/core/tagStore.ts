@@ -3,7 +3,6 @@
  * 表在 db.ts 的 SCHEMA 里建（filterWhere / 内容 GC 要引用它们）。
  *
  * 标签挂在内容 hash 上（同一张照片的多份副本共享），原文件不动。
- * item_tags.origin 为 NULL 是用户打的；非空是从某个 Eagle 资源库同步来的（见 eagle.ts）。
  * 没有任何内容的标签自动删掉（没有"空标签"这个概念，界面上也不提供单独创建）。
  */
 import type Database from 'better-sqlite3'
@@ -59,19 +58,19 @@ export class TagStore {
     const db = this.raw
     return {
       list: db.prepare(`
-        SELECT t.id, t.name, t.source,
+        SELECT t.id, t.name,
                (SELECT COUNT(DISTINCT it.file_hash) FROM item_tags it WHERE it.tag_id = t.id AND ${LIVE}) as count
         FROM tags t
         ORDER BY count DESC, t.name COLLATE NOCASE
       `),
-      byName: db.prepare(`SELECT id, name, source FROM tags WHERE name = ? COLLATE NOCASE`),
-      byId: db.prepare(`SELECT id, name, source FROM tags WHERE id = ?`),
-      insertTag: db.prepare(`INSERT INTO tags (name, source) VALUES (?, ?)`),
-      link: db.prepare(`INSERT OR IGNORE INTO item_tags (file_hash, tag_id, origin) VALUES (?, ?, ?)`),
+      byName: db.prepare(`SELECT id, name FROM tags WHERE name = ? COLLATE NOCASE`),
+      byId: db.prepare(`SELECT id, name FROM tags WHERE id = ?`),
+      insertTag: db.prepare(`INSERT INTO tags (name) VALUES (?)`),
+      link: db.prepare(`INSERT OR IGNORE INTO item_tags (file_hash, tag_id) VALUES (?, ?)`),
       unlink: db.prepare(`DELETE FROM item_tags WHERE file_hash = ? AND tag_id = ?`),
       tagsOfHash: db.prepare(`SELECT tag_id FROM item_tags WHERE file_hash = ?`).pluck(),
       rename: db.prepare(`UPDATE tags SET name = ? WHERE id = ?`),
-      moveLinks: db.prepare(`INSERT OR IGNORE INTO item_tags (file_hash, tag_id, origin) SELECT file_hash, ?, origin FROM item_tags WHERE tag_id = ?`),
+      moveLinks: db.prepare(`INSERT OR IGNORE INTO item_tags (file_hash, tag_id) SELECT file_hash, ? FROM item_tags WHERE tag_id = ?`),
       dropLinks: db.prepare(`DELETE FROM item_tags WHERE tag_id = ?`),
       dropTag: db.prepare(`DELETE FROM tags WHERE id = ?`),
       gc: db.prepare(`DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM item_tags)`),
@@ -89,28 +88,25 @@ export class TagStore {
     return row ? { ...row, count: 0 } : undefined
   }
 
-  /** 按名字取标签，没有就建（source 只在新建时生效） */
-  ensure(name: string, source: Tag['source'] = 'user'): number {
+  /** 按名字取标签，没有就建 */
+  ensure(name: string): number {
     const clean = normalizeTagName(name)
     if (!clean) throw new Error('empty tag name')
     const row = this.stmts.byName.get(clean) as { id: number } | undefined
     if (row) return row.id
-    return Number(this.stmts.insertTag.run(clean, source).lastInsertRowid)
+    return Number(this.stmts.insertTag.run(clean).lastInsertRowid)
   }
 
-  /** 给一批内容加标签（用户操作）；返回标签 id */
+  /** 给一批内容加标签；返回标签 id */
   add(hashes: string[], name: string): number {
     return this.raw.transaction(() => {
       const id = this.ensure(name)
-      for (const h of hashes) this.stmts.link.run(h, id, null)
+      for (const h of hashes) this.stmts.link.run(h, id)
       return id
     })()
   }
 
-  /**
-   * 从一批内容上去掉标签（不论来源）。Eagle 同步来的标签，下次同步时会按 Eagle 里的状态恢复 ——
-   * 要永久去掉得在 Eagle 里改。
-   */
+  /** 从一批内容上去掉标签；没有内容了的标签随之删掉 */
   remove(hashes: string[], tagId: number): void {
     this.raw.transaction(() => {
       for (const h of hashes) this.stmts.unlink.run(h, tagId)

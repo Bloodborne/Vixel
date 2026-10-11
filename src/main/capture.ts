@@ -82,20 +82,8 @@ const STEPS: Step[] = [
     },
     wait: 2000,
   },
-  // 标签名 / Eagle 注释也是搜索通道：结果卡片上有"标签""注释"角标（查询可用 VIXEL_CAPTURE_QUERIES 第 4、5 项覆盖）
+  // 标签名也是搜索通道：结果卡片上有"标签"角标（查询可用 VIXEL_CAPTURE_QUERIES 第 4 项覆盖）
   { name: 'tag-search', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[3] ?? '花卉'))(w) }, wait: 3000 },
-  { name: 'note-search', run: js(typeSearch(QUERIES[4] ?? '游隼')), wait: 3000 },
-  // Eagle 资源库作为文件夹出现在侧栏；选中一项，检查器里有 Eagle 的注释 / 来源 / 星级 / 文件夹
-  {
-    name: 'eagle',
-    run: async (w) => {
-      await js(typeSearch(''))(w)
-      await js(`document.querySelector('nav [role="button"][title$=".library"]')?.click()`)(w)
-      await sleep(1500)
-      await js(`document.querySelector('.photo-card')?.click()`)(w)
-    },
-    wait: 2500,
-  },
   { name: 'people', run: (w) => { js(typeSearch(''))(w); command('source:people')(w) }, wait: 6000 },
   { name: 'map', run: command('source:map'), wait: 3500 },
   { name: 'cleanup', run: command('source:cleanup'), wait: 4000 },

@@ -363,7 +363,7 @@ function App(): JSX.Element {
   const tagsRef = useRef<Tag[]>(tags)
   tagsRef.current = tags
   const currentTag = source.type === 'tag' ? tags.find((x) => x.id === source.id) : undefined
-  // 标签有变化（改名合并删除、Eagle 同步）：当前在看某个标签或按标签筛选时重新搜索；
+  // 标签有变化（打标签、改名合并删除）：当前在看某个标签或按标签筛选时重新搜索；
   // 看的标签没了（被删 / 合并走）回到全部，筛选里去掉不存在的标签
   useEffect(() => window.api.tags.onChanged(() => {
     window.api.tags.list().then((list) => {

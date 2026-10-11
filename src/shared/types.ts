@@ -126,7 +126,7 @@ export interface WatchedFolder {
 }
 
 /** 命中通道：visual 图片向量 / segment 音视频片段向量 / text 图内文字 / filename 文件名或路径 */
-export type MatchChannel = 'visual' | 'segment' | 'text' | 'filename' | 'tag' | 'note'
+export type MatchChannel = 'visual' | 'segment' | 'text' | 'filename' | 'tag'
 
 export interface SearchResult {
   photo: Photo

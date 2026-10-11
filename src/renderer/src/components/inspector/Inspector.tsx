@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import type { MediaDetail, PhotoDetail, PhotoLocation, SearchResult } from '../../../../shared/types'
-import type { EagleItemInfo } from '../../../../shared/tags'
 import { formatDuration, formatFileSize, mediaKindOf } from '../../lib/format'
 import { thumbUrl } from '../../lib/mediaUrl'
 import { revealLabel } from '../../lib/platform'
@@ -39,7 +38,6 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
   const [media, setMedia] = useState<MediaDetail | null>(null)
   const [locations, setLocations] = useState<PhotoLocation[]>([])
   const [similar, setSimilar] = useState<SearchResult[]>([])
-  const [eagle, setEagle] = useState<EagleItemInfo | null>(null)
   const [isEditingCaption, setIsEditingCaption] = useState(false)
   const [editCaption, setEditCaption] = useState('')
 
@@ -50,20 +48,17 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
     setDetail(null)
     setLocations([])
     setSimilar([])
-    setEagle(null)
     // 方向键连按时防抖 250ms：停在哪张才为哪张发详情 / 位置 / 相似检索
     const timer = setTimeout(() => {
       Promise.all([
         window.api.getPhotoDetail(photo.id),
         window.api.getPhotoLocations(photo.id),
         window.api.findSimilar(photo.id, 6),
-        photo.fileHash ? window.api.eagle.info(photo.fileHash) : Promise.resolve(null),
-      ]).then(([d, locs, sim, e]) => {
+      ]).then(([d, locs, sim]) => {
         if (cancelled) return
         setDetail(d)
         setLocations(locs)
         setSimilar(sim)
-        setEagle(e)
       })
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
@@ -161,28 +156,6 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
         <Section title={t.tags.tags}>
           <TagEditor hashes={photo.fileHash ? [photo.fileHash] : []} focusKey={tagFocusKey} />
         </Section>
-
-        {/* Eagle 资源库里的注释 / 来源 / 星级 / 文件夹（只读） */}
-        {eagle && (eagle.annotation || eagle.url || eagle.star > 0 || eagle.folders.length > 0) && (
-          <Section title={`${t.tags.eagle} · ${eagle.libraryName}`}>
-            <dl className="flex flex-col gap-1.5 text-callout">
-              {eagle.annotation && <p className="text-ink text-callout whitespace-pre-line break-words">{eagle.annotation}</p>}
-              {eagle.folders.length > 0 && <Row label={t.tags.eagleFolders}>{eagle.folders.join(t.common.sep)}</Row>}
-              {eagle.star > 0 && <Row label={t.tags.eagleStar}><span className="text-accent">{'★'.repeat(eagle.star)}</span></Row>}
-              {eagle.url && (
-                <Row label={t.tags.eagleUrl}>
-                  <button
-                    onClick={() => void window.api.eagle.openUrl(eagle.url)}
-                    title={eagle.url}
-                    className="text-accent hover:underline truncate max-w-[170px] inline-block align-bottom"
-                  >
-                    {eagle.url.replace(/^https?:\/\/(www\.)?/, '')}
-                  </button>
-                </Row>
-              )}
-            </dl>
-          </Section>
-        )}
 
         {detail?.ocrText && detail.ocrText.trim().length > 0 && (
           <Section title={t.inspector.textInImage}>

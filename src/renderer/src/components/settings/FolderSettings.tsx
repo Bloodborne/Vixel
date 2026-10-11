@@ -104,27 +104,16 @@ export function FolderSettings(): JSX.Element {
         )}
       </div>
 
-      <div className="px-5 pb-5 flex flex-col gap-2">
-        <div className="flex gap-2">
-          <button
-            onClick={handleAddFolder}
-            className="flex-1 py-2 px-3 bg-fill-hover hover:bg-fill-active text-ink text-callout rounded-md transition-colors flex items-center justify-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            {t.settings.addFolder}
-          </button>
-          {/* Eagle 资源库：只读接入，标签 / 文件夹 / 注释同步进 Vixel */}
-          <button
-            onClick={() => { void window.api.eagle.addLibrary() }}
-            data-add-eagle
-            className="flex-1 py-2 px-3 bg-fill-hover hover:bg-fill-active text-ink text-callout rounded-md transition-colors flex items-center justify-center gap-1.5"
-          >
-            {t.tags.addEagleLibrary}
-          </button>
-        </div>
-        <p className="text-caption text-ink-4">{t.tags.eagleLibraryHint}</p>
+      <div className="px-5 pb-5">
+        <button
+          onClick={handleAddFolder}
+          className="w-full py-2 px-3 bg-fill-hover hover:bg-fill-active text-ink text-callout rounded-md transition-colors flex items-center justify-center gap-1.5"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          {t.settings.addFolder}
+        </button>
       </div>
 
     {/* 删除确认对话框 */}

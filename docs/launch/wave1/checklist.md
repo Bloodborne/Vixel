@@ -27,7 +27,7 @@
 - GitHub：star、Release 下载量（`gh release view v0.3.0 --json assets`）、新 issue。
 - 各平台：前 2 小时的回复量（决定能否上热门 / 首页）、收藏数。
 - 记录用户贴出来的「搜不准」的例子，汇总到一个 issue，下个版本调门槛。
-- 记录最多人问的功能（预计：Linux、Intel Mac、标签、Eagle 导入），作为 0.4 优先级依据。
+- 记录最多人问的功能（预计：Linux、Intel Mac、标签、浏览器收藏），作为 0.4 优先级依据。有人问「能不能导入 Eagle 资源库」时如实说：不做，Vixel 直接索引你的文件夹。
 
 ## FAQ（回复时用自己的话说）
 

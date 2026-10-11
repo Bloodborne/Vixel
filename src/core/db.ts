@@ -255,43 +255,20 @@ CREATE TABLE IF NOT EXISTS dismissed_dup_groups (
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 标签（名字不分大小写唯一）。source：'user' 在 Vixel 里打的 / 'eagle' 从 Eagle 资源库同步来的
+-- 标签（名字不分大小写唯一）
 CREATE TABLE IF NOT EXISTS tags (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  source      TEXT NOT NULL DEFAULT 'user',
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 内容 ↔ 标签（按内容 hash，同一张照片的多份副本共享）。
--- origin：NULL = 用户打的；否则是同步来源 Eagle 资源库的 watched_folders.id，移除资源库时据此整批撤掉
+-- 内容 ↔ 标签（按内容 hash，同一张照片的多份副本共享）
 CREATE TABLE IF NOT EXISTS item_tags (
   file_hash   TEXT NOT NULL,
   tag_id      INTEGER NOT NULL REFERENCES tags(id),
-  origin      INTEGER,
   PRIMARY KEY (file_hash, tag_id)
 );
 CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
-CREATE INDEX IF NOT EXISTS idx_item_tags_origin ON item_tags(origin);
-
--- Eagle 资源库里的条目（只读镜像：Eagle 的 images/<id>.info/metadata.json）。
--- file_hash 在该文件被索引后才回填（视频要等抽完首帧）；tag_names 已含 Eagle 文件夹路径
-CREATE TABLE IF NOT EXISTS eagle_items (
-  folder_id   INTEGER NOT NULL,
-  eagle_id    TEXT NOT NULL,
-  source_path TEXT NOT NULL,
-  file_hash   TEXT,
-  name        TEXT NOT NULL DEFAULT '',
-  annotation  TEXT NOT NULL DEFAULT '',
-  url         TEXT NOT NULL DEFAULT '',
-  star        INTEGER NOT NULL DEFAULT 0,
-  tag_names   TEXT NOT NULL DEFAULT '[]',
-  folder_paths TEXT NOT NULL DEFAULT '[]',
-  deleted     INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (folder_id, eagle_id)
-);
-CREATE INDEX IF NOT EXISTS idx_eagle_items_hash ON eagle_items(file_hash);
-CREATE INDEX IF NOT EXISTS idx_eagle_items_path ON eagle_items(source_path);
 `
 
 /** 后来加的表（只读打开旧库时用空 TEMP 表顶替，见 initDatabase） */
@@ -300,9 +277,8 @@ const LATE_TABLES: Record<string, string> = {
   hidden_items: 'file_hash TEXT PRIMARY KEY, reason TEXT, created_at DATETIME',
   dismissed_dup_groups: 'group_id TEXT PRIMARY KEY, created_at DATETIME',
   smart_albums: 'id INTEGER PRIMARY KEY, name TEXT, query TEXT, filters TEXT, sort_order INTEGER, created_at DATETIME, updated_at DATETIME',
-  tags: 'id INTEGER PRIMARY KEY, name TEXT, source TEXT, created_at DATETIME',
-  item_tags: 'file_hash TEXT, tag_id INTEGER, origin INTEGER',
-  eagle_items: 'folder_id INTEGER, eagle_id TEXT, source_path TEXT, file_hash TEXT, name TEXT, annotation TEXT, url TEXT, star INTEGER, tag_names TEXT, folder_paths TEXT, deleted INTEGER',
+  tags: 'id INTEGER PRIMARY KEY, name TEXT, created_at DATETIME',
+  item_tags: 'file_hash TEXT, tag_id INTEGER',
 }
 
 // 照片查询共用列（表别名 p）。LEFT JOIN videos v 补出媒体类型和时长：
@@ -397,6 +373,9 @@ export function migrateSchema(db: Database.Database): void {
   add('people', 'centroid', 'BLOB')
   add('people', 'hidden', 'INTEGER DEFAULT 0')
   db.exec(`CREATE INDEX IF NOT EXISTS idx_faces_unassigned ON faces(cluster_state) WHERE person_id IS NULL`)
+
+  // 开发期曾有过的 Eagle 资源库镜像表（未发布即移除）
+  db.exec(`DROP TABLE IF EXISTS eagle_items; DROP INDEX IF EXISTS idx_item_tags_origin`)
 
   // 分词方式变了：用已存的 OCR 原文重建全文索引（只重新切词，不重新识别）
   const tokenizer = (db.prepare(`SELECT value FROM meta_state WHERE key = 'fts.tokenizer'`).get() as { value: string } | undefined)?.value

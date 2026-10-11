@@ -11,7 +11,7 @@ const THUMB_MAX_RETRIES = 20
 
 /** 命中原因角标：只列确定性通道 */
 const MATCH_LABELS: Array<[MatchChannel, string]> = [
-  ['tag', t.tags.matchTag], ['note', t.tags.matchNote], ['text', t.grid.matchText], ['filename', t.grid.matchFilename],
+  ['tag', t.tags.matchTag], ['text', t.grid.matchText], ['filename', t.grid.matchFilename],
 ]
 import { spriteUrl, thumbUrl } from '../../lib/mediaUrl'
 

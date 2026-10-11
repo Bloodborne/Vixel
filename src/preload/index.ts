@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace } from '../shared/types'
 import type { Locale, LocaleSetting } from '../shared/i18n'
 import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type HiddenItem, type TrashResult } from '../shared/cleanup'
-import { TAG_CHANNELS, type EagleItemInfo, type Tag, type TagMenuAction, type TagsForSelection } from '../shared/tags'
+import { TAG_CHANNELS, type Tag, type TagMenuAction, type TagsForSelection } from '../shared/tags'
 
 const api = {
   // 搜索
@@ -267,14 +267,6 @@ const api = {
       ipcRenderer.on(TAG_CHANNELS.CHANGED, handler)
       return () => { ipcRenderer.removeListener(TAG_CHANNELS.CHANGED, handler) }
     },
-  },
-
-  // Eagle 资源库（只读）
-  eagle: {
-    info: (fileHash: string): Promise<EagleItemInfo | null> => ipcRenderer.invoke(TAG_CHANNELS.EAGLE_INFO, fileHash),
-    /** 来源链接：只在用户点击时由主进程用系统浏览器打开 */
-    openUrl: (url: string): Promise<boolean> => ipcRenderer.invoke(TAG_CHANNELS.OPEN_URL, url),
-    addLibrary: (): Promise<WatchedFolder | null> => ipcRenderer.invoke(TAG_CHANNELS.ADD_EAGLE_LIBRARY),
   },
 }
 

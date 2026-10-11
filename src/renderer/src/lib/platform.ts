@@ -20,8 +20,7 @@ export function kbd(mac: string): string {
   return [...mods, key].join('+')
 }
 
-/** 路径的最后一段（同时认 / 和 \，Windows 路径也能取到文件夹名）；Eagle 资源库（*.library）显示成"名字（Eagle）" */
+/** 路径的最后一段（同时认 / 和 \，Windows 路径也能取到文件夹名） */
 export function folderName(path: string): string {
-  const last = path.split(/[\\/]/).filter(Boolean).pop() ?? path
-  return /\.library$/i.test(last) ? last.replace(/\.library$/i, '') + t.tags.eagleSuffix : last
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path
 }
