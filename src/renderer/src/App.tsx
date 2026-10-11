@@ -15,8 +15,9 @@ import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
 import { t } from '../../shared/i18n'
-import { FilterBar, hasExtraFilters, countExtraFilters, describeExtraFilters, type ExtraFilters } from './components/shell/FilterBar'
+import { FilterBar, hasExtraFilters, countExtraFilters, describeExtraFilters, useTags, type ExtraFilters } from './components/shell/FilterBar'
 import { useSmartAlbums, sameAlbumState, splitAlbumFilters } from './lib/smartAlbums'
+import type { Tag } from '../../shared/tags'
 import type {
   SearchResult, Photo, LibraryCounts, WatchedFolder, MenuCommand, ItemMenuAction, MediaFilters, SmartAlbum,
   IndexProgress as IndexProgressType,
@@ -33,6 +34,11 @@ const INSPECTOR_WIDTH = 272
 function isTextInput(el: EventTarget | null): boolean {
   const t = el as HTMLElement | null
   return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+}
+
+/** 标签视图的标签并进筛选栏已选的标签（AND） */
+function withTag(ids: number[] | undefined, id: number): number[] {
+  return [...new Set([...(ids ?? []), id])]
 }
 
 /** 源文件路径：音视频的 photo 行是代表图，真实路径要从 MediaDetail 取 */
@@ -113,9 +119,11 @@ function App(): JSX.Element {
     : source.type === 'folder' ? `folder:${source.id}`
     : source.type === 'similar' ? `similar:${source.photoId}`
     : source.type === 'album' ? `album:${source.id}`
+    : source.type === 'tag' ? `tag:${source.id}`
     : source.type
   useEffect(() => { setDensityOverride(null) }, [query, sourceKey])
-  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'similar' || source.type === 'favorites' || source.type === 'album'
+  const isGrid = source.type === 'library' || source.type === 'folder' || source.type === 'similar' || source.type === 'favorites' ||
+    source.type === 'album' || source.type === 'tag'
 
   // 查询条件放 ref：索引进度刷新等所有 doSearch 调用都自动带上当前来源 + 日期，
   // 不用每个调用点各自传参，也不会因闭包拿到旧值
@@ -140,6 +148,7 @@ function App(): JSX.Element {
       ...(kind ? { kind } : {}),
       ...(folderId != null ? { folderId } : {}),
       ...(src.type === 'favorites' ? { favorite: true } : {}),
+      ...(src.type === 'tag' ? { tagIds: withTag(extra.tagIds, src.id) } : {}),
     }
     return window.api.search(q, q.trim() ? undefined : BROWSE_LIMIT, Object.keys(options).length ? options : undefined)
   }, [])
@@ -236,7 +245,7 @@ function App(): JSX.Element {
     setFocusId(null)
     anchorId.current = null
     setScrollResetKey((k) => k + 1)
-    if (next.type === 'library' || next.type === 'folder' || next.type === 'similar' || next.type === 'favorites') runSearch()
+    if (next.type === 'library' || next.type === 'folder' || next.type === 'similar' || next.type === 'favorites' || next.type === 'tag') runSearch()
   }, [runSearch, openAlbum])
 
   const handleSearch = useCallback((q: string) => {
@@ -273,6 +282,7 @@ function App(): JSX.Element {
   const stateFilters: MediaFilters = {
     ...extraFilters,
     ...(source.type === 'favorites' ? { favorite: true } : {}),
+    ...(source.type === 'tag' ? { tagIds: withTag(extraFilters.tagIds, source.id) } : {}),
     ...(dateFrom ? { dateFrom } : {}),
     ...(dateTo ? { dateTo } : {}),
     ...(source.type === 'album' ? (currentAlbum ? splitAlbumFilters(currentAlbum.filters).scope : {})
@@ -295,10 +305,11 @@ function App(): JSX.Element {
     const { dateFrom: from, dateTo: to, scope, extra } = splitAlbumFilters(f)
     const person = extra.personId != null ? (await window.api.getPeople()).find((p) => p.id === extra.personId) : undefined
     const folder = scope.folderId != null ? albumState.current.folders.find((x) => x.id === scope.folderId) : undefined
+    const tagNames = (extra.tagIds ?? []).map((id) => tagsRef.current.find((x) => x.id === id)?.name).filter((x): x is string => !!x)
     const labels = [
       ...(scope.kind ? [LIBRARY_ITEMS.find((i) => i.kind === scope.kind)?.label ?? scope.kind] : []),
       ...(folder ? [folderName(folder.path)] : []),
-      ...describeExtraFilters(extra, person?.name ?? undefined),
+      ...describeExtraFilters(extra, person?.name ?? undefined, tagNames),
       ...(from || to ? [t.albums.dateRange(from, to)] : []),
     ]
     return labels.join(t.common.sep) || t.albums.untitled
@@ -346,6 +357,47 @@ function App(): JSX.Element {
       return () => clearTimeout(timer)
     }
   }, [albums, source, handleSelectSource])
+
+  // ---------- 标签 ----------
+  const tags = useTags()
+  const tagsRef = useRef<Tag[]>(tags)
+  tagsRef.current = tags
+  const currentTag = source.type === 'tag' ? tags.find((x) => x.id === source.id) : undefined
+  // 标签有变化（改名合并删除、Eagle 同步）：当前在看某个标签或按标签筛选时重新搜索；
+  // 看的标签没了（被删 / 合并走）回到全部，筛选里去掉不存在的标签
+  useEffect(() => window.api.tags.onChanged(() => {
+    window.api.tags.list().then((list) => {
+      const ids = new Set(list.map((x) => x.id))
+      const { source: src, extra } = filters.current
+      if (src.type === 'tag' && !ids.has(src.id)) { handleSelectSource({ type: 'library', kind: 'all' }); return }
+      if (extra.tagIds?.some((id) => !ids.has(id))) {
+        const kept = extra.tagIds.filter((id) => ids.has(id))
+        const next: ExtraFilters = { ...extra }
+        if (kept.length) next.tagIds = kept
+        else delete next.tagIds
+        setExtraFilters(next)
+        filters.current = { ...filters.current, extra: next }
+      }
+      if (src.type === 'tag' || filters.current.extra.tagIds?.length || filters.current.query.trim()) runSearch()
+    }).catch(() => {})
+  }), [handleSelectSource, runSearch])
+
+  const handleRenameTag = useCallback(async (id: number, name: string) => {
+    const finalId = await window.api.tags.rename(id, name)
+    // 改成已有标签的名字 = 合并过去：正在看这个标签就跟过去
+    const src = filters.current.source
+    if (finalId != null && finalId !== id && src.type === 'tag' && src.id === id) handleSelectSource({ type: 'tag', id: finalId })
+  }, [handleSelectSource])
+
+  const handleTagMenu = useCallback(async (tag: Tag) => {
+    const action = await window.api.tags.showMenu(tag.id)
+    const src = filters.current.source
+    if (action?.action === 'merge' && src.type === 'tag' && src.id === tag.id) handleSelectSource({ type: 'tag', id: action.intoId })
+    return action
+  }, [handleSelectSource])
+
+  // T：把焦点放进检查器的标签输入框（检查器收起时先展开）
+  const [tagFocusKey, setTagFocusKey] = useState(0)
 
   const handleExtraFiltersChange = useCallback((next: ExtraFilters) => {
     setExtraFilters(next)
@@ -596,6 +648,14 @@ function App(): JSX.Element {
     })
   }, [])
   const dismissInspector = useCallback(() => setInspectorDismissed(true), [])
+  const focusTagInput = useCallback(() => {
+    setInspectorDismissed(false)
+    setInspectorAuto((o) => {
+      if (!o) savePref('shell.inspector', '1')
+      return true
+    })
+    setTagFocusKey((k) => k + 1)
+  }, [])
 
   // 文件夹在任意窗口（设置窗口 / 侧边栏 +）增删后主进程广播过来
   const handleLibraryChanged = useCallback(async () => {
@@ -644,6 +704,9 @@ function App(): JSX.Element {
       case 'toggle-favorite':
         if (!isTextInput(document.activeElement)) toggleFavorite(favoriteTargets())
         break
+      case 'add-tag':
+        if (isGrid && !selected && selectedResults.length > 0 && !isTextInput(document.activeElement)) focusTagInput()
+        break
       case 'open-item':
         if (primary && isGrid && !selected) { setQuickLookId(null); setSelected(primary) }
         break
@@ -671,6 +734,12 @@ function App(): JSX.Element {
     }
     if (!isGrid || selected || showTasks) return
     if (isTextInput(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
+    // T：给选中项加标签（焦点进检查器的标签输入框）
+    if ((e.key === 't' || e.key === 'T') && selectedResults.length > 0) {
+      e.preventDefault()
+      focusTagInput()
+      return
+    }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown'
       || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
       e.preventDefault()
@@ -710,8 +779,9 @@ function App(): JSX.Element {
       case 'similar': return t.shell.similarTo(source.name)
       case 'favorites': return t.organize.favorites
       case 'album': return currentAlbum?.name ?? t.albums.untitled
+      case 'tag': return currentTag?.name ?? t.tags.section
     }
-  }, [source, folders, currentAlbum])
+  }, [source, folders, currentAlbum, currentTag])
 
   const breakdown = useMemo(() => countLine(searchResults.map((r) => r.photo)), [searchResults])
   const subtitle = isGrid
@@ -738,6 +808,9 @@ function App(): JSX.Element {
           onSaveAlbum={saveCurrentAsAlbum}
           onRenameAlbum={handleRenameAlbum}
           onAlbumMenu={handleAlbumMenu}
+          tags={tags}
+          onRenameTag={handleRenameTag}
+          onTagMenu={handleTagMenu}
           recentSearches={history.recent}
           activeQuery={source.type === 'album' ? null : activeQuery}
           onRunSearch={handleSearch}
@@ -864,6 +937,8 @@ function App(): JSX.Element {
             />
           ) : counts === null || isSearching ? null : source.type === 'favorites' && !hasSearchQuery && !hasDateFilter && !hasExtraFilters(extraFilters) ? (
             <EmptyState icon="image" title={t.organize.favoritesEmptyTitle} hint={t.organize.favoritesEmptyHint} />
+          ) : source.type === 'tag' && !hasSearchQuery && !hasDateFilter && !hasExtraFilters(extraFilters) ? (
+            <EmptyState icon="image" title={t.tags.emptyTitle} hint={t.tags.emptyHint} />
           ) : (
             <EmptyState
               icon="search"
@@ -894,9 +969,10 @@ function App(): JSX.Element {
                 onReveal={() => revealItems(selectedResults)}
                 onCopyPaths={() => copyPaths(selectedResults)}
                 onClose={dismissInspector}
+                tagFocusKey={tagFocusKey}
               />
             ) : primary && (
-              <Inspector result={primary} onSelect={handleSelect} onClose={dismissInspector} showPreview onToggleFavorite={() => toggleFavorite([primary])} />
+              <Inspector result={primary} onSelect={handleSelect} onClose={dismissInspector} showPreview onToggleFavorite={() => toggleFavorite([primary])} tagFocusKey={tagFocusKey} />
             )}
           </aside>
         )}

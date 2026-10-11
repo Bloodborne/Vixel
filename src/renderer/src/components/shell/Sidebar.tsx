@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LibraryCounts, SmartAlbum, SmartAlbumMenuAction, WatchedFolder } from '../../../../shared/types'
+import type { Tag, TagMenuAction } from '../../../../shared/tags'
 import { folderName, kbd } from '../../lib/platform'
 import { Icon, type IconName } from './icons'
 import { t } from '../../../../shared/i18n'
@@ -16,6 +17,7 @@ export type Source =
   | { type: 'similar'; photoId: number; name: string }
   | { type: 'favorites' }
   | { type: 'album'; id: number }
+  | { type: 'tag'; id: number }
 
 export const LIBRARY_ITEMS: { kind: KindFilter; label: string; icon: IconName; shortcut: string }[] = [
   { kind: 'all', label: t.common.all, icon: 'all', shortcut: kbd('⌘1') },
@@ -43,6 +45,11 @@ interface SidebarProps {
   onRenameAlbum: (id: number, name: string) => void
   /** 右键菜单：更新 / 删除由 App 执行，返回选中的动作（重命名在侧栏里就地编辑） */
   onAlbumMenu: (album: SmartAlbum) => Promise<SmartAlbumMenuAction | null>
+  /** "标签"分组（只列有内容的） */
+  tags: Tag[]
+  onRenameTag: (id: number, name: string) => void
+  /** 右键菜单：合并 / 删除由主进程执行，返回选中的动作（重命名在侧栏里就地编辑） */
+  onTagMenu: (tag: Tag) => Promise<TagMenuAction | null>
   /** "搜索"分组：最近搜索 */
   recentSearches: string[]
   /** 当前生效的查询，用来高亮对应的行 */
@@ -53,16 +60,34 @@ interface SidebarProps {
 
 /** 侧栏里最近搜索最多列几条，其余留在存储里 */
 const RECENT_SHOWN = 5
+/** 标签默认只列使用最多的这么多个，其余点"显示全部"展开 */
+const TAGS_SHOWN = 15
+const TAGS_COLLAPSED_KEY = 'sidebar.tagsCollapsed'
 
 export { folderName }
 
 export function Sidebar({
   width, onResize, source, onSelect, counts, folders, onAddFolder,
   albums, canSaveAlbum, onSaveAlbum, onRenameAlbum, onAlbumMenu,
+  tags, onRenameTag, onTagMenu,
   recentSearches, activeQuery, onRunSearch, onRemoveSearch,
 }: SidebarProps): JSX.Element {
-  // 正在就地改名的相册（双击或右键"重命名"）
+  // 正在就地改名的相册 / 标签（双击或右键"重命名"）
   const [editingAlbum, setEditingAlbum] = useState<number | null>(null)
+  const [editingTag, setEditingTag] = useState<number | null>(null)
+  const [tagsCollapsed, setTagsCollapsed] = useState(() => {
+    try { return localStorage.getItem(TAGS_COLLAPSED_KEY) === '1' } catch { return false }
+  })
+  const [showAllTags, setShowAllTags] = useState(false)
+  const toggleTags = (): void => {
+    setTagsCollapsed((c) => {
+      try { localStorage.setItem(TAGS_COLLAPSED_KEY, c ? '0' : '1') } catch { /* ignore */ }
+      return !c
+    })
+  }
+  const liveTags = tags.filter((x) => x.count > 0)
+  // 当前打开的标签即使排在后面也列出来，不然侧栏上看不到高亮
+  const tagsShown = showAllTags ? liveTags : liveTags.filter((x, i) => i < TAGS_SHOWN || (source.type === 'tag' && source.id === x.id))
   // 拖动期间宽度只记在本地，mouseup 才提交给 App——否则每帧都触发
   // savePref + 主内容区 ResizeObserver，虚拟网格跟着抖
   const [dragWidth, setDragWidth] = useState<number | null>(null)
@@ -145,9 +170,11 @@ export function Sidebar({
             <p className="px-2 py-1 text-caption text-ink-3">{t.albums.empty}</p>
           ) : (
             albums.map((a) => (
-              <AlbumRow
+              <EditableRow
                 key={a.id}
-                album={a}
+                icon="album"
+                name={a.name}
+                data="album"
                 active={source.type === 'album' && source.id === a.id}
                 editing={editingAlbum === a.id}
                 onClick={() => onSelect({ type: 'album', id: a.id })}
@@ -163,6 +190,43 @@ export function Sidebar({
             ))
           )}
         </Group>
+
+        {liveTags.length > 0 && (
+          <Group title={t.tags.section} collapsed={tagsCollapsed} onToggle={toggleTags}>
+            {!tagsCollapsed && (
+              <>
+                {tagsShown.map((tag) => (
+                  <EditableRow
+                    key={tag.id}
+                    icon="tag"
+                    name={tag.name}
+                    count={tag.count}
+                    data="tag"
+                    active={source.type === 'tag' && source.id === tag.id}
+                    editing={editingTag === tag.id}
+                    onClick={() => onSelect({ type: 'tag', id: tag.id })}
+                    onStartEdit={() => setEditingTag(tag.id)}
+                    onEndEdit={(name) => {
+                      setEditingTag(null)
+                      if (name != null && name.trim() && name.trim() !== tag.name) onRenameTag(tag.id, name.trim())
+                    }}
+                    onContextMenu={async () => {
+                      if ((await onTagMenu(tag))?.action === 'rename') setEditingTag(tag.id)
+                    }}
+                  />
+                ))}
+                {liveTags.length > TAGS_SHOWN && (
+                  <button
+                    onClick={() => setShowAllTags((s) => !s)}
+                    className="h-6 px-2 text-left text-caption text-ink-3 hover:text-ink transition-colors duration-fast"
+                  >
+                    {showAllTags ? t.tags.showLess : t.tags.showAll(liveTags.length)}
+                  </button>
+                )}
+              </>
+            )}
+          </Group>
+        )}
 
         {recentShown.length > 0 && (
           <Group title={t.shell.groupSearches}>
@@ -220,11 +284,25 @@ export function Sidebar({
   )
 }
 
-function Group({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }): JSX.Element {
+/** collapsed / onToggle：标题可点，折叠整组（标签分组用） */
+function Group({ title, action, collapsed, onToggle, children }: {
+  title: string
+  action?: React.ReactNode
+  collapsed?: boolean
+  onToggle?: () => void
+  children: React.ReactNode
+}): JSX.Element {
   return (
     <section className="flex flex-col gap-px">
       <div className="h-6 px-2 flex items-center justify-between">
-        <h3 className="text-micro font-medium text-ink-3">{title}</h3>
+        {onToggle ? (
+          <button onClick={onToggle} aria-expanded={!collapsed} className="group/g flex items-center gap-1 text-micro font-medium text-ink-3 hover:text-ink-2">
+            {title}
+            <Icon name="chevron" className={`w-2.5 h-2.5 opacity-0 group-hover/g:opacity-100 transition-transform duration-fast ${collapsed ? '' : 'rotate-90'}`} />
+          </button>
+        ) : (
+          <h3 className="text-micro font-medium text-ink-3">{title}</h3>
+        )}
         {action}
       </div>
       {children}
@@ -284,9 +362,13 @@ function Row({ icon, label, active, onClick, count, hint, title, muted, onRemove
   )
 }
 
-/** 智能相册行：单击打开，双击就地改名（回车确认、Esc 取消、失焦确认），右键弹菜单 */
-function AlbumRow({ album, active, editing, onClick, onStartEdit, onEndEdit, onContextMenu }: {
-  album: SmartAlbum
+/** 可改名的行（智能相册 / 标签）：单击打开，双击就地改名（回车确认、Esc 取消、失焦确认），右键弹菜单 */
+function EditableRow({ icon, name, count, data, active, editing, onClick, onStartEdit, onEndEdit, onContextMenu }: {
+  icon: IconName
+  name: string
+  count?: number
+  /** 自动化测试 / 截图巡检用的定位属性：data-<data>-row、data-<data>-name-input */
+  data: 'album' | 'tag'
   active: boolean
   editing: boolean
   onClick: () => void
@@ -303,11 +385,11 @@ function AlbumRow({ album, active, editing, onClick, onStartEdit, onEndEdit, onC
   if (editing) {
     return (
       <div className="h-7 px-2 rounded-md flex items-center gap-2 bg-fill">
-        <Icon name="album" className="w-4 h-4 flex-shrink-0 text-accent" />
+        <Icon name={icon} className="w-4 h-4 flex-shrink-0 text-accent" />
         <input
           ref={inputRef}
-          defaultValue={album.name}
-          data-album-name-input
+          defaultValue={name}
+          {...{ [`data-${data}-name-input`]: true }}
           onKeyDown={(e) => {
             e.stopPropagation()
             if (e.key === 'Enter') onEndEdit(e.currentTarget.value)
@@ -320,8 +402,8 @@ function AlbumRow({ album, active, editing, onClick, onStartEdit, onEndEdit, onC
     )
   }
   return (
-    <div data-album-row onDoubleClick={onStartEdit} onContextMenu={(e) => { e.preventDefault(); onContextMenu() }}>
-      <Row icon="album" label={album.name} active={active} onClick={onClick} />
+    <div {...{ [`data-${data}-row`]: true }} onDoubleClick={onStartEdit} onContextMenu={(e) => { e.preventDefault(); onContextMenu() }}>
+      <Row icon={icon} label={name} count={count} active={active} onClick={onClick} />
     </div>
   )
 }
