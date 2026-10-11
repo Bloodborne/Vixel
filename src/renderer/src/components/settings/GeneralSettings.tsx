@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ThemeMode } from '../../../../shared/types'
 import { t, type LocaleSetting } from '../../../../shared/i18n'
 import { AutoTagSettings } from './AutoTagSettings'
+import { CollectSettings } from './CollectSettings'
 
 /** 外观选项的迷你窗口示意：侧栏 + 内容区两块，颜色写死（预览的就是另一种外观） */
 const SWATCH = {
@@ -100,6 +101,8 @@ export function GeneralSettings(): JSX.Element {
       </section>
 
       <AutoTagSettings />
+
+      <CollectSettings />
     </div>
   )
 }

@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { folderName } from '../../lib/platform'
+import { folderName, revealLabel } from '../../lib/platform'
 import type { WatchedFolder } from '../../../../shared/types'
+import type { InboxInfo } from '../../../../shared/collect'
 import { t } from '../../../../shared/i18n'
 
-/** 设置 › 文件夹：监视的文件夹列表，添加 / 移除（移除前确认） */
+/** 设置 › 文件夹：收集箱位置 + 监视的文件夹列表，添加 / 移除（移除前确认） */
 export function FolderSettings(): JSX.Element {
   const [folders, setFolders] = useState<WatchedFolder[]>([])
+  const [inbox, setInbox] = useState<InboxInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [deleteConfirm, setDeleteConfirm] = useState<{ folder: WatchedFolder; isOpen: boolean } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -17,9 +19,15 @@ export function FolderSettings(): JSX.Element {
         setFolders(data)
         setIsLoading(false)
       })
+      window.api.collect.getInbox().then(setInbox).catch(() => {})
     }
     load()
     return window.api.onLibraryChanged(load)
+  }, [])
+
+  // 更改位置只是换登记（不移动已有文件，文案里说明）；旧收集箱保留为普通文件夹
+  const handleChangeInbox = useCallback(async () => {
+    setInbox(await window.api.collect.chooseInbox())
   }, [])
 
   const handleAddFolder = useCallback(async () => {
@@ -52,6 +60,39 @@ export function FolderSettings(): JSX.Element {
 
   return (
     <>
+      <div className="p-5 pb-0" data-inbox-settings>
+        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-fill">
+          <svg className="w-4 h-4 text-accent/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-callout font-medium text-ink">{t.collect.inboxLocation}</p>
+            <div className="flex items-center gap-1.5 text-micro text-ink-4">
+              <span className="truncate">{inbox?.path ?? '…'}</span>
+              {inbox && !inbox.exists && (
+                <>
+                  <span>·</span>
+                  <span className="flex-shrink-0">{t.collect.inboxNotCreated}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleChangeInbox}
+            className="flex-shrink-0 h-6 px-2 rounded-md bg-fill-hover hover:bg-fill-active text-ink-2 hover:text-ink text-caption transition-colors"
+          >
+            {t.collect.change}
+          </button>
+          <button
+            onClick={() => { void window.api.collect.openInbox() }}
+            className="flex-shrink-0 h-6 px-2 rounded-md bg-fill-hover hover:bg-fill-active text-ink-2 hover:text-ink text-caption transition-colors"
+          >
+            {revealLabel}
+          </button>
+        </div>
+        <p className="mt-1.5 px-0.5 text-micro text-ink-4">{t.collect.inboxNote}</p>
+      </div>
+
       <div className="p-5">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -77,7 +118,7 @@ export function FolderSettings(): JSX.Element {
                 </svg>
                 <div className="flex-1 min-w-0">
                   <p className="text-callout font-medium text-ink truncate">
-                    {getFolderName(folder.path)}
+                    {folder.isInbox ? `${getFolderName(folder.path)} · ${t.collect.inbox}` : getFolderName(folder.path)}
                   </p>
                   <div className="flex items-center gap-1.5 text-micro text-ink-4">
                     <span className="truncate">{folder.path}</span>

@@ -1548,10 +1548,10 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       return stmts.getFolder.get(id) as WatchedFolder | undefined
     },
     getFolders: (): WatchedFolder[] => {
-      return stmts.getFolders.all() as WatchedFolder[]
+      return (stmts.getFolders.all() as Array<WatchedFolder & { is_inbox?: number }>).map((r) => ({ ...r, isInbox: !!r.is_inbox }))
     },
     getFoldersWithStats: (): WatchedFolder[] => {
-      return stmts.getFoldersWithStats.all() as WatchedFolder[]
+      return (stmts.getFoldersWithStats.all() as Array<WatchedFolder & { is_inbox?: number }>).map((r) => ({ ...r, isInbox: !!r.is_inbox }))
     },
     updateFolderScanTime: (id: number): void => {
       stmts.updateFolderScanTime.run(id)
