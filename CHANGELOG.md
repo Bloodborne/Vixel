@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
 ### Added
 - **Favorites**: press F (or use the heart in the inspector / context menu) to favorite; a Favorites
   view in the sidebar. Stored per content hash in Vixel's database — originals are never touched.
