@@ -1,5 +1,23 @@
 # 调试与性能诊断
 
+## 快速搜索面板（全局快捷键）
+
+全局快捷键（默认 macOS ⇧⌘Space / Windows Alt+Shift+Space）没法在自动化里按出来，
+截图巡检用的是同一个 show/hide 钩子：`VIXEL_CAPTURE` 跑到 `quick-panel` 步骤时直接调
+`quickPanel.show()`，往 `input[data-qp-input]` 注入查询、合成 ↑↓ / ↩ / ⌘C / Esc 键事件，
+并把验证结果打进日志：
+
+- `quick-panel clipboard formats: …` —— ⌘C 后剪贴板的格式列表，macOS 应含
+  `NSFilenamesPboardType`（文件引用，访达可直接 ⌘V 粘贴），Windows 应含 `FileNameW`；
+  只剩 `text/plain` 说明退化成了路径文字。
+- `quick-panel hidden after Enter/Esc: true` —— ↩ / Esc 之后面板应当隐藏。
+
+截图：`<theme>-quick-panel.png`（结果列表，面板窗口自身的 `capturePage`）、
+`<theme>-quick-panel-opened.png`（↩ 后主窗口的详情）、`<theme>-quick-panel-empty.png`（诚实空状态）。
+
+快捷键注册状态存 `meta_state`（`quickpanel.enabled` / `quickpanel.shortcut`），
+被其他应用占用时 `globalShortcut.register` 返回 false，设置 › 通用 里会如实显示。
+
 ## 一键体检 / 基准（不开界面）
 
 ```bash

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ThemeMode } from '../../../../shared/types'
 import { t, type LocaleSetting } from '../../../../shared/i18n'
+import { defaultShortcut, eventToAccelerator, formatShortcut, type QuickPanelSettings } from '../../../../shared/quickpanel'
+import { IS_MAC } from '../../lib/platform'
 import { AutoTagSettings } from './AutoTagSettings'
 import { CollectSettings } from './CollectSettings'
 
@@ -108,6 +110,8 @@ export function GeneralSettings(): JSX.Element {
         </div>
       </section>
 
+      <QuickSearchSettings />
+
       <section className="flex gap-6" data-power-settings>
         <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.indexingSection}</h3>
         <div className="flex flex-col gap-2 min-w-0">
@@ -128,6 +132,99 @@ export function GeneralSettings(): JSX.Element {
 
       <CollectSettings />
     </div>
+  )
+}
+
+/**
+ * 设置 › 通用 › 快速搜索：全局快捷键开关 + 快捷键录制器。
+ * 录制：点击后按下组合键，主进程真的注册一次验证（被其他应用占用时如实报错，不落库）。
+ */
+function QuickSearchSettings(): JSX.Element {
+  const [qp, setQp] = useState<QuickPanelSettings | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [error, setError] = useState<'in-use' | 'invalid' | null>(null)
+
+  useEffect(() => {
+    window.api.quickpanel.getSettings().then(setQp).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!recording) return
+    const onKey = (e: KeyboardEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.key === 'Escape' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        setRecording(false)
+        return
+      }
+      // 只按修饰键时继续等；按下实键才判定
+      if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return
+      const acc = eventToAccelerator(e, IS_MAC)
+      if (!acc) {
+        setError('invalid')
+        setRecording(false)
+        return
+      }
+      setRecording(false)
+      window.api.quickpanel.setShortcut(acc).then((res) => {
+        setQp(res.settings)
+        setError(res.ok ? null : res.reason ?? 'invalid')
+      }).catch(() => {})
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [recording])
+
+  if (!qp) return <></>
+
+  const toggle = (): void => {
+    window.api.quickpanel.setEnabled(!qp.enabled).then((s) => { setQp(s); setError(null) }).catch(() => {})
+  }
+  const reset = (): void => {
+    const def = defaultShortcut(IS_MAC ? 'darwin' : 'win32')
+    window.api.quickpanel.setShortcut(def).then((res) => {
+      setQp(res.settings)
+      setError(res.ok ? null : res.reason ?? 'invalid')
+    }).catch(() => {})
+  }
+
+  const shown = formatShortcut(qp.shortcut, IS_MAC)
+  const conflict = qp.enabled && !qp.registered
+
+  return (
+    <section className="flex gap-6" data-quickpanel-settings>
+      <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.quickpanel.sectionTitle}</h3>
+      <div className="flex flex-col gap-2 min-w-0">
+        <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">
+          <input type="checkbox" checked={qp.enabled} onChange={toggle} className="accent-[var(--accent)]" data-quickpanel-toggle />
+          {t.quickpanel.enable}
+        </label>
+        <div className="flex items-center gap-2">
+          <span className="text-callout text-ink-2">{t.quickpanel.shortcutLabel}</span>
+          <button
+            onClick={() => { setError(null); setRecording((r) => !r) }}
+            title={t.quickpanel.recordHint}
+            data-quickpanel-shortcut
+            className={`h-7 min-w-[110px] px-3 rounded-md border text-callout tabular-nums transition-colors duration-fast ${
+              recording ? 'border-accent text-accent bg-accent-fill' : 'border-line bg-fill text-ink hover:border-line-strong'
+            }`}
+          >
+            {recording ? t.quickpanel.recording : shown}
+          </button>
+          <button onClick={reset} className="h-7 px-2 rounded-md text-caption text-ink-3 hover:text-ink hover:bg-fill transition-colors duration-fast">
+            {t.quickpanel.resetDefault}
+          </button>
+        </div>
+        {(conflict || error === 'in-use') && (
+          <p className="text-caption text-warn" data-quickpanel-conflict>{t.quickpanel.shortcutInUse}</p>
+        )}
+        {error === 'invalid' && <p className="text-caption text-warn">{t.quickpanel.shortcutInvalid}</p>}
+        <p className="text-caption text-ink-4">
+          {t.quickpanel.enableNote(shown)}
+          {!IS_MAC && ` ${t.quickpanel.trayNoteWin}`}
+        </p>
+      </div>
+    </section>
   )
 }
 

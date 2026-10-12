@@ -12,7 +12,11 @@ const revealLabel = (): string => (process.platform === 'darwin' ? t.common.reve
  */
 export function installAppMenu(
   getWindow: () => BrowserWindow | null,
-  { openSettings }: { openSettings: () => void }
+  { openSettings, quickPanel }: {
+    openSettings: () => void
+    /** 快速搜索：accelerator 只做展示（真正的键是 globalShortcut），禁用时传 null */
+    quickPanel?: { accelerator: string | null; toggle: () => void }
+  }
 ): void {
   // 命令只发给主窗口；设置窗口在前台时（⌘A、⌘1 之类）不去动主窗口
   const send = (cmd: MenuCommand) => (): void => {
@@ -50,6 +54,13 @@ export function installAppMenu(
       label: t.menu.file,
       submenu: [
         item(t.menu.addFolder, 'CmdOrCtrl+O', 'add-folder'),
+        // 全局快捷键由 globalShortcut 注册，这里只负责菜单里能找到 + 显示当前键
+        ...(quickPanel ? [{
+          label: t.quickpanel.menuLabel,
+          ...(quickPanel.accelerator ? { accelerator: quickPanel.accelerator } : {}),
+          registerAccelerator: false,
+          click: () => quickPanel.toggle(),
+        } satisfies MenuItemConstructorOptions] : []),
         { type: 'separator' },
         hint(t.menu.open, 'Enter', 'open-item'),
         hint(t.menu.quickLook, 'Space', 'quick-look'),

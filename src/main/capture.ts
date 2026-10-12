@@ -5,7 +5,7 @@
  *   VIXEL_CAPTURE=/tmp/shots npx electron . --user-data-dir=<库目录>
  */
 
-import { app, type BrowserWindow, nativeTheme } from 'electron'
+import { app, clipboard, type BrowserWindow, nativeTheme } from 'electron'
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { IPC_CHANNELS, type MenuCommand } from '../shared/types'
@@ -19,6 +19,8 @@ export interface CaptureHooks {
   simulatePowerWait?: (on: boolean) => void
   /** on=true：造一条"跳过的数据集目录"记录（设置 › 文件夹 的列表）；false 清掉 */
   seedSkippedFolder?: (on: boolean) => void
+  /** 快速搜索面板：全局快捷键没法自动化，直接调同一个 show / hide */
+  quickPanel?: { show: () => BrowserWindow; hide: () => void }
 }
 
 interface Step { name: string; run: (win: BrowserWindow) => Promise<void> | void; wait?: number; after?: (win: BrowserWindow) => Promise<void> | void }
@@ -198,6 +200,49 @@ export async function runCaptureTour(win: BrowserWindow, outDir: string, openSet
       console.log(`[capture] ${theme}-power-wait.png`)
       hooks.simulatePowerWait(false)
       await sleep(600)
+    }
+    // 快速搜索面板：show → 输入查询 → ↓ 选中第二条 → 截面板窗口本身；
+    // 顺带验证 ⌘C（剪贴板是文件引用）、↩（主窗口打开详情）、Esc（隐藏），结果打进日志
+    if (hooks.quickPanel) {
+      const panel = hooks.quickPanel.show()
+      await sleep(1500)
+      const pjs = (code: string): Promise<void> => panel.webContents.executeJavaScript(`try { ${code} } catch (e) {}`).then(() => {})
+      const typePanel = (q: string): Promise<void> => pjs(`
+        const el = document.querySelector('input[data-qp-input]');
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        set.call(el, ${JSON.stringify(q)}); el.dispatchEvent(new Event('input', { bubbles: true }));`)
+      const pkey = (key: string, mods = ''): Promise<void> =>
+        pjs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, ${mods} bubbles: true }))`)
+      await typePanel(QUERIES[0])
+      await sleep(2500)
+      await pkey('ArrowDown')
+      await sleep(600)
+      await writeFile(join(outDir, `${theme}-quick-panel.png`), (await panel.webContents.capturePage()).toPNG())
+      console.log(`[capture] ${theme}-quick-panel.png`)
+      // ⌘C / Ctrl+C：剪贴板应是文件引用（NSFilenamesPboardType / FileNameW），不是路径文字
+      await pkey('c', process.platform === 'darwin' ? 'metaKey: true,' : 'ctrlKey: true,')
+      await sleep(600)
+      console.log(`[capture] quick-panel clipboard formats: ${clipboard.availableFormats().join(', ') || '(none)'}`)
+      // ↩：主窗口打开详情（视频 / 音频会落到命中片段）
+      await pkey('Enter')
+      await sleep(2000)
+      console.log(`[capture] quick-panel hidden after Enter: ${!panel.isVisible()}`)
+      await writeFile(join(outDir, `${theme}-quick-panel-opened.png`), (await win.webContents.capturePage()).toPNG())
+      console.log(`[capture] ${theme}-quick-panel-opened.png`)
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)(win)
+      await sleep(600)
+      // 诚实的空状态（库里没有的东西）
+      hooks.quickPanel.show()
+      await sleep(600)
+      await typePanel(QUERIES[2])
+      await sleep(2500)
+      await writeFile(join(outDir, `${theme}-quick-panel-empty.png`), (await panel.webContents.capturePage()).toPNG())
+      console.log(`[capture] ${theme}-quick-panel-empty.png`)
+      // Esc：面板隐藏
+      await pkey('Escape')
+      await sleep(500)
+      console.log(`[capture] quick-panel hidden after Esc: ${!panel.isVisible()}`)
+      hooks.quickPanel.hide()
     }
     // 设置窗口（通用页：外观、语言、索引电源开关）
     const settings = openSettings()

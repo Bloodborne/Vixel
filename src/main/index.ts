@@ -21,6 +21,7 @@ import { parsePaletteJson } from '../core/color/palette'
 import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
 import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
 import { installAppMenu, popupItemMenu, popupSmartAlbumMenu } from './menu'
+import { initQuickPanel, type QuickPanelController } from './quickPanel'
 import { searchByImage } from './imageSearch'
 import { initPowerPolicy, getPowerController } from './power'
 import { detectScreenshot } from '../core/screenshot'
@@ -72,6 +73,7 @@ let searchEngine: SearchEngine
 let inference: InferenceProcess | null = null
 let mainWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
+let quickPanel: QuickPanelController | null = null
 let bundledModelsDir: string = ''
 
 /** 窗口底色：首帧渲染前露出来的颜色，要和当前外观的内容区一致，否则切换 / 打开时闪一下 */
@@ -170,6 +172,11 @@ function createWindow(): void {
           else db.raw.prepare(`DELETE FROM skipped_folders WHERE path = ?`).run(demoPath)
           broadcastLibraryChanged()
         },
+        // 快速搜索面板：同一个 show / hide（全局快捷键没法自动化，用钩子驱动）
+        quickPanel: {
+          show: () => quickPanel!.show(),
+          hide: () => quickPanel!.hide(),
+        },
       })
     }
     if (process.env.VIXEL_RECORD) void runRecording(win, process.env.VIXEL_RECORD)
@@ -177,8 +184,31 @@ function createWindow(): void {
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
     releasePdfWindowIfLast()
+    maybeBackgroundOrQuit()
   })
   loadRenderer(win)
+}
+
+/** 面板里 ↩ / ⌘O 的落点：主窗口不存在（macOS 全关、Windows 托盘驻留）就重建一个 */
+function ensureMainWindow(): BrowserWindow {
+  if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+  const win = mainWindow!
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+  return win
+}
+
+/**
+ * Windows / Linux：最后一个"真窗口"（主窗口 / 设置）关掉后，若启用了快速搜索快捷键，
+ * 留在后台并挂一个托盘图标（打开 Vixel / 快速搜索 / 退出），否则按老行为退出。
+ * 常驻的隐藏面板窗口会让 window-all-closed 不再触发，所以在这里显式判断。
+ */
+function maybeBackgroundOrQuit(): void {
+  if (process.platform === 'darwin') return
+  if (mainWindow || settingsWindow) return
+  if (quickPanel?.keepAliveOnWindows()) quickPanel.ensureTray()
+  else app.quit()
 }
 
 /** 设置窗口（⌘,）：独立窗口、单例，再次打开只是拉到前面 */
@@ -207,6 +237,7 @@ function openSettingsWindow(): BrowserWindow {
   win.on('closed', () => {
     if (settingsWindow === win) settingsWindow = null
     releasePdfWindowIfLast()
+    maybeBackgroundOrQuit()
   })
   loadRenderer(win, 'settings')
   return win
@@ -220,6 +251,16 @@ function broadcastSmartAlbumsChanged(): void {
 
 function broadcastLibraryChanged(): void {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send(IPC_CHANNELS.LIBRARY_CHANGED)
+}
+
+/** 应用菜单：语言 / 快速搜索快捷键变化时重建（菜单里显示当前快捷键） */
+function rebuildMenu(): void {
+  installAppMenu(() => mainWindow, {
+    openSettings: openSettingsWindow,
+    quickPanel: quickPanel
+      ? { accelerator: quickPanel.settings().enabled ? quickPanel.settings().shortcut : null, toggle: () => quickPanel!.toggle() }
+      : undefined,
+  })
 }
 
 async function initServices(): Promise<void> {
@@ -553,7 +594,7 @@ function registerIpcHandlers(): void {
     const next: LocaleSetting = setting === 'zh-CN' || setting === 'en' ? setting : 'system'
     db.setMetaState(META_KEY_LOCALE, next)
     applyLocale(next)
-    installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
+    rebuildMenu()
     for (const w of BrowserWindow.getAllWindows()) w.webContents.reload()
     return next
   })
@@ -1004,7 +1045,26 @@ app.whenReady().then(async () => {
   setTimeout(() => {
     backfillScreenshotFlags(autoTags).catch((e) => console.warn('[screenshot] backfill failed:', e))
   }, 5000)
-  installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
+  // 快速搜索面板（全局快捷键）：服务就绪后注册，设置存 meta_state
+  quickPanel = initQuickPanel({
+    getMeta: (k) => db.getMetaState(k),
+    setMeta: (k, v) => db.setMetaState(k, v),
+    getMainWindow: () => mainWindow,
+    ensureMainWindow,
+    loadRenderer,
+    webPreferences: WEB_PREFERENCES,
+    windowBackground,
+    resolveFilePath: (photoId, videoId) => {
+      if (videoId != null) {
+        const v = db.getVideoById(videoId)
+        return v && existsSync(v.filePath) ? v.filePath : null
+      }
+      const p = db.getPhoto(photoId)
+      return p && existsSync(p.filePath) ? p.filePath : null
+    },
+    onSettingsChanged: rebuildMenu,
+  })
+  rebuildMenu()
   createWindow()
 
   // 只剩设置窗口时点 Dock 图标也要把主窗口找回来
@@ -1014,12 +1074,15 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // 启用了快速搜索时 Windows 留在后台（托盘在窗口 closed 回调里建）；此外维持原行为
+  if (process.platform !== 'darwin' && !quickPanel?.keepAliveOnWindows()) {
     app.quit()
   }
 })
 
 app.on('before-quit', () => {
+  // 全局快捷键 / 托盘：退出前注销
+  quickPanel?.dispose()
   // VIXEL_PROFILE=1：退出时打印本次会话最慢的操作（p50 / p95 / max）
   if (PROFILE) console.table(perfSnapshot().slice(0, 25).map((r) => ({ ...r, p50: +r.p50.toFixed(1), p95: +r.p95.toFixed(1), max: +r.max.toFixed(1) })))
   watcher?.stopAll()

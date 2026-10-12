@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **System-wide Quick Search panel** (like Spotlight / Raycast). A global shortcut — default
+  **⇧⌘Space** on macOS, **Alt+Shift+Space** on Windows — opens a frameless, always-on-top
+  search panel on the screen the cursor is on (macOS: NSPanel with `hud` vibrancy that takes
+  keys without activating the app, visible over fullscreen apps; Windows: solid frameless
+  window). Type to search the whole library (same debounce, weaker-match folding and honest
+  empty / low-confidence states as the main grid); results show thumbnail, file name, kind +
+  duration or hit segment ("0:32–0:45"), folder and match chips (标签 / 图中文字 / 文件名),
+  with a compact-grid toggle. Keyboard: ↑↓ select, **↩** opens the result in the main window
+  (video/audio jump to the hit segment; the window is recreated if it was closed), **⌥↩**
+  opens the file in the system default app, **Space** Quick Look (native `previewFile` on
+  macOS, Vixel's built-in viewer on Windows), **⌘C** copies the *file* to the clipboard
+  (macOS `NSFilenamesPboardType`, Windows `CF_FILENAMEW`; falls back to path text and says
+  so), **⌘↩** reveals in Finder/Explorer, **⌘O** carries the query into the main window,
+  **Esc**/blur hides. ⌘V with an image searches by image; rows drag out as native files
+  (straight into an editor's timeline). *Settings → General → Quick Search* has an on/off
+  toggle and a shortcut recorder that really registers the combo to validate it ("快捷键已被
+  其他应用占用 / Shortcut is in use by another app" when taken). The panel window shares the
+  sandbox/contextIsolation web preferences and the offline network policy. On Windows,
+  closing the main window while the shortcut is enabled keeps Vixel in the system tray
+  (Open Vixel / Quick Search / Quit) so the shortcut keeps working; with the shortcut
+  disabled the app quits as before. File menu gains "快速搜索 / Quick Search" showing the
+  current shortcut. Pure logic (shortcut recording/validation/formatting, selection
+  movement, file-clipboard payloads) is unit-tested.
 - **Power-aware indexing (like DigUp's).** The big backfill — first index of a large folder,
   startup catch-up, OCR/face/color/auto-tag sweeps — now waits while the machine is on battery
   (if the new *Settings → General → "Index on battery"* toggle is off; default stays on), in

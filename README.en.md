@@ -23,6 +23,7 @@ Local AI search for photos, videos and audio. Fully offline, no account, nothing
 - **People.** Face detection and clustering, with a quality gate so only confident matches are grouped automatically; merge, rename, hide.
 - **Honest results.** Semantic, OCR and filename hits are fused with RRF, and a relevance gate decides whether anything really matches. If nothing does, Vixel says so instead of padding the page.
 - **Favorites, filters and smart albums.** Press F to favorite; filter by orientation, resolution, duration or person on top of any search; save a search + filters as a smart album that stays up to date.
+- **Quick Search (global shortcut).** Press **⇧⌘Space** (Windows: Alt+Shift+Space) in any app for a Spotlight-style panel over your whole library: ↩ opens in Vixel (videos jump to the hit segment), Space for Quick Look, ⌘C copies the file itself, and results drag straight into an editor. Change the shortcut in Settings → General.
 - **Clean up similar photos.** Finds burst shots, re-exports and lightly edited copies, suggests which one to keep, and hides the rest in Vixel or moves them to the Trash after you confirm.
 - **Offline map, similar photos, de-duplication, HEIC / RAW, quick look, dark mode.**
 - **CLI for scripts and agents:** `vixel search "sunset at the beach" --json`.

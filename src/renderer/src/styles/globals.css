@@ -130,6 +130,12 @@ body {
   color: var(--ink);
 }
 
+/* 快速搜索面板：macOS 窗口自带 vibrancy 毛玻璃，这里只铺一层半透明底色保证文字对比度；
+   Windows 窗口是实色底（acrylic 在 Win10 退化成全透明，不冒险），同一层叠上去无感 */
+.qp-surface {
+  background: color-mix(in srgb, var(--canvas) 72%, transparent);
+}
+
 /* 键盘焦点：统一的强调色描边（仅 :focus-visible，鼠标点击不出现） */
 :focus-visible {
   outline: 2px solid rgb(var(--accent) / 0.9);

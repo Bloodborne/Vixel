@@ -13,6 +13,7 @@ import { Toolbar } from './components/shell/Toolbar'
 import { StatusBar, THUMB_MIN, THUMB_MAX } from './components/shell/StatusBar'
 import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
+import { sourcePathOf } from './lib/resultActions'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
 import { t } from '../../shared/i18n'
 import { FilterBar, hasExtraFilters, countExtraFilters, describeExtraFilters, useTags, type ExtraFilters } from './components/shell/FilterBar'
@@ -51,14 +52,6 @@ function isTextInput(el: EventTarget | null): boolean {
 /** 标签视图的标签并进筛选栏已选的标签（AND） */
 function withTag(ids: number[] | undefined, id: number): number[] {
   return [...new Set([...(ids ?? []), id])]
-}
-
-/** 源文件路径：音视频的 photo 行是代表图，真实路径要从 MediaDetail 取 */
-async function sourcePathOf(r: SearchResult): Promise<string | null> {
-  if (mediaKindOf(r.photo) !== 'image' && r.photo.videoId != null) {
-    return (await window.api.getMediaDetail(r.photo.videoId))?.filePath ?? null
-  }
-  return r.photo.filePath
 }
 
 // 外壳偏好只存本机，读写失败（隐私模式 / 被清空）时回落默认值
@@ -459,6 +452,23 @@ function App(): JSX.Element {
     }
     runSearch()
   }, [runSearch])
+
+  // 快速搜索面板 → 主窗口：↩ 打开结果（视频 / 音频落到命中片段的详情）、⌘O 带查询过来。
+  // 主窗口可能是面板刚建出来的：挂载后再拉一次暂存的动作
+  useEffect(() => {
+    const openResult = (r: SearchResult): void => {
+      setQuickLookId(null)
+      setSelected(r)
+    }
+    const unsubResult = window.api.quickpanel.onShowResult(openResult)
+    const unsubSearch = window.api.quickpanel.onRunSearch(handleSearch)
+    window.api.quickpanel.getPending().then((p) => {
+      if (!p) return
+      if (p.type === 'result') openResult(p.result)
+      else handleSearch(p.query)
+    }).catch(() => {})
+    return () => { unsubResult(); unsubSearch() }
+  }, [handleSearch])
 
   // 搜索历史：查询停稳 1.5 秒且有结果才记为"最近"，边打字边出的中间结果不算；以图搜图不记
   const history = useSearchHistory()

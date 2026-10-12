@@ -5,6 +5,10 @@ import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type Hidden
 import { COLLECT_CHANNELS, type CollectResult, type CollectServerStatus, type InboxInfo, type ItemSource } from '../shared/collect'
 import { TAG_CHANNELS, type Tag, type TagMenuAction, type TagsForSelection } from '../shared/tags'
 import { AUTOTAG_CHANNELS, type AutoTagStatus } from '../shared/autotags'
+import { QUICKPANEL_CHANNELS, type QuickPanelSettings } from '../shared/quickpanel'
+
+/** 面板 ↩ / ⌘O 时主窗口还没加载完的暂存动作（App 挂载后拉取） */
+export type QuickPanelPendingAction = { type: 'result'; result: SearchResult } | { type: 'query'; query: string }
 
 const api = {
   // 搜索
@@ -257,6 +261,55 @@ const api = {
     const handler = (): void => callback()
     ipcRenderer.on(IPC_CHANNELS.PEOPLE_CHANGED, handler)
     return () => { ipcRenderer.removeListener(IPC_CHANNELS.PEOPLE_CHANGED, handler) }
+  },
+
+  // 快速搜索面板（全局快捷键呼出；设置页也用这里的 getSettings / setShortcut）
+  quickpanel: {
+    getSettings: (): Promise<QuickPanelSettings> => ipcRenderer.invoke(QUICKPANEL_CHANNELS.GET_SETTINGS),
+    setEnabled: (on: boolean): Promise<QuickPanelSettings> => ipcRenderer.invoke(QUICKPANEL_CHANNELS.SET_ENABLED, on),
+    /** 换快捷键：主进程真的注册一次验证；被占用 / 无效时不落库 */
+    setShortcut: (acc: string): Promise<{ ok: boolean; reason?: 'invalid' | 'in-use'; settings: QuickPanelSettings }> =>
+      ipcRenderer.invoke(QUICKPANEL_CHANNELS.SET_SHORTCUT, acc),
+    hide: (): Promise<void> => ipcRenderer.invoke(QUICKPANEL_CHANNELS.HIDE),
+    /** 面板窗口高度跟随内容（顶边不动） */
+    resize: (height: number): Promise<void> => ipcRenderer.invoke(QUICKPANEL_CHANNELS.RESIZE, height),
+    /** ↩：在主窗口打开这条结果（视频 / 音频会落到命中片段的详情） */
+    openResult: (result: SearchResult): Promise<void> => ipcRenderer.invoke(QUICKPANEL_CHANNELS.OPEN_RESULT, result),
+    /** ⌘O：把当前查询带去主窗口 */
+    openQuery: (query: string): Promise<void> => ipcRenderer.invoke(QUICKPANEL_CHANNELS.OPEN_QUERY, query),
+    /** ⌥↩：系统默认应用打开（主进程按 id 查库取路径，不信渲染端的路径） */
+    openExternal: (photoId: number, videoId?: number | null): Promise<boolean> =>
+      ipcRenderer.invoke(QUICKPANEL_CHANNELS.OPEN_EXTERNAL, photoId, videoId),
+    /** ⌘C：文件引用进剪贴板；返回实际写入的形态（file = 可粘贴成文件，path = 退回路径文字） */
+    copyFiles: (items: Array<{ photoId: number; videoId?: number | null }>): Promise<'file' | 'path' | null> =>
+      ipcRenderer.invoke(QUICKPANEL_CHANNELS.COPY_FILES, items),
+    /** Space：macOS 原生 Quick Look；返回 false 表示本平台没有（渲染端用内置 QuickLook） */
+    previewFile: (photoId: number, videoId: number | null | undefined, displayName?: string): Promise<boolean> =>
+      ipcRenderer.invoke(QUICKPANEL_CHANNELS.PREVIEW_FILE, photoId, videoId, displayName),
+    /** 拖出面板：原生文件拖放（dragstart 里同步 send，不能用 invoke） */
+    startDrag: (photoId: number, videoId?: number | null): void => {
+      ipcRenderer.send(QUICKPANEL_CHANNELS.START_DRAG, photoId, videoId)
+    },
+    /** 主窗口挂载后拉取暂存动作（↩ 时主窗口可能是刚建的） */
+    getPending: (): Promise<QuickPanelPendingAction | null> => ipcRenderer.invoke(QUICKPANEL_CHANNELS.GET_PENDING),
+    /** 面板每次显示（聚焦输入框、全选上次查询） */
+    onShown: (callback: () => void): (() => void) => {
+      const handler = (): void => callback()
+      ipcRenderer.on(QUICKPANEL_CHANNELS.SHOWN, handler)
+      return () => { ipcRenderer.removeListener(QUICKPANEL_CHANNELS.SHOWN, handler) }
+    },
+    /** 主窗口：面板 ↩ 送来的结果 */
+    onShowResult: (callback: (r: SearchResult) => void): (() => void) => {
+      const handler = (_: unknown, r: SearchResult): void => callback(r)
+      ipcRenderer.on(QUICKPANEL_CHANNELS.SHOW_RESULT, handler)
+      return () => { ipcRenderer.removeListener(QUICKPANEL_CHANNELS.SHOW_RESULT, handler) }
+    },
+    /** 主窗口：面板 ⌘O 送来的查询 */
+    onRunSearch: (callback: (q: string) => void): (() => void) => {
+      const handler = (_: unknown, q: string): void => callback(q)
+      ipcRenderer.on(QUICKPANEL_CHANNELS.RUN_SEARCH, handler)
+      return () => { ipcRenderer.removeListener(QUICKPANEL_CHANNELS.RUN_SEARCH, handler) }
+    },
   },
 
   // 收集箱：拖入 / 粘贴 / 浏览器扩展
