@@ -20,15 +20,21 @@ Local AI search for photos, videos and audio. Fully offline, no account, nothing
 - **Natural-language search across photos, video and audio.** One model, EmbeddingGemma 2, puts text, images, video segments and audio into the same multilingual vector space. "Dog barking on the beach" matches what is *seen* and what is *heard*.
 - **Jump to the moment in a video.** Videos are split into 32-second segments (frames + audio encoded together); opening a result seeks to the matching segment and highlights it on the timeline.
 - **Search text inside images and video frames.** Local PaddleOCR v5 reads screenshots, receipts, signs, whiteboards. Strong on Chinese and English.
+- **Search by image.** Drop or paste an image to find visually similar photos *and* the video moments it appears in; add words next to the image to narrow it down.
+- **Offline auto tags.** Up to three tags per photo or video from a built-in ~150-label vocabulary (English + Chinese), matched against the embeddings Vixel already has — no extra model, no network. Auto tags are marked ✦; keep or remove each with one click.
 - **People.** Face detection and clustering, with a quality gate so only confident matches are grouped automatically; merge, rename, hide.
 - **Honest results.** Semantic, OCR and filename hits are fused with RRF, and a relevance gate decides whether anything really matches. If nothing does, Vixel says so instead of padding the page.
-- **Favorites, filters and smart albums.** Press F to favorite; filter by orientation, resolution, duration or person on top of any search; save a search + filters as a smart album that stays up to date.
+- **Favorites, filters and smart albums.** Press F to favorite; filter by orientation, resolution, duration, person or color on top of any search; save a search + filters as a smart album that stays up to date.
 - **Quick Search (global shortcut).** Press **⇧⌘Space** (Windows: Alt+Shift+Space) in any app for a Spotlight-style panel over your whole library: ↩ opens in Vixel (videos jump to the hit segment), Space for Quick Look, ⌘C copies the file itself, and results drag straight into an editor. Change the shortcut in Settings → General.
 - **Clean up similar photos.** Finds burst shots, re-exports and lightly edited copies, suggests which one to keep, and hides the rest in Vixel or moves them to the Trash after you confirm.
 - **Offline map, similar photos, de-duplication, HEIC / RAW, quick look, dark mode.**
 - **CLI for scripts and agents:** `vixel search "sunset at the beach" --json`.
 
 <img src="docs/media/video.jpg" width="860" alt="Video segment search" />
+
+<img src="docs/media/quickpanel.jpg" width="860" alt="Quick Search panel" />
+
+<img src="docs/media/autotags.jpg" width="860" alt="Offline auto tags" />
 
 ## Supported formats
 
