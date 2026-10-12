@@ -104,6 +104,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (thumbnails / extracted frames). `npm run eval` now also reports the strong count per query
   and flags any expected answer folded below the weaker-matches line.
 
+### Fixed
+- **Windows: quitting really quits.** Explicit quit (menu, tray, `app.quit()`) could leave the
+  process alive: during the quit sequence the main window's close callback re-read settings from
+  the already-closed database (to decide tray parking) and the uncaught error stalled the quit.
+  Quit callbacks now short-circuit while quitting, and the quick-search panel caches its enabled
+  flag in memory. Closing the main window with the shortcut enabled still parks Vixel in the tray.
+- **Windows: ⌘C/Ctrl+C in Quick Search now puts a real file on the clipboard.** The previous
+  `FileNameW` write landed in Chromium's private format registry, so Explorer paste did nothing.
+  Vixel now writes a standard `CF_HDROP` (DROPFILES) via Win32 — Ctrl+V in Explorer pastes the
+  file(s); multiple files are supported. (Verify with PowerShell `Get-Clipboard -Format
+  FileDropList`; the payload builder is unit-tested, CJK and long paths included.)
+- **Quick Search panel no longer steals keys from the IME.** While composing pinyin, Enter and
+  arrow keys belong to the input method; previously Enter mid-composition opened a result and
+  hid the panel.
+
 ### Changed
 - **Indexing queue knows task origins.** Tasks are tagged `live` (watcher events after the
   initial scan, Inbox collects) or `backfill`; the power policy only ever delays backfill.
