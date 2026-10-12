@@ -28,11 +28,19 @@ export function GeneralSettings(): JSX.Element {
   const [theme, setTheme] = useState<ThemeMode | null>(null)
 
   const [language, setLanguage] = useState<LocaleSetting | null>(null)
+  const [indexOnBattery, setIndexOnBattery] = useState<boolean | null>(null)
 
   useEffect(() => {
     window.api.getTheme().then(setTheme)
     window.api.getLocaleSetting().then(setLanguage)
+    window.api.getIndexOnBattery().then(setIndexOnBattery).catch(() => {})
   }, [])
+
+  const toggleIndexOnBattery = (): void => {
+    const next = !(indexOnBattery ?? true)
+    setIndexOnBattery(next)
+    window.api.setIndexOnBattery(next).then(setIndexOnBattery).catch(() => {})
+  }
 
   // 主进程保存后会 reload 所有窗口
   const chooseLanguage = (value: LocaleSetting): void => {
@@ -97,6 +105,22 @@ export function GeneralSettings(): JSX.Element {
             ))}
           </div>
           <p className="text-caption text-ink-4">{t.settings.languageNote}</p>
+        </div>
+      </section>
+
+      <section className="flex gap-6" data-power-settings>
+        <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.indexingSection}</h3>
+        <div className="flex flex-col gap-2 min-w-0">
+          <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={indexOnBattery ?? true}
+              onChange={toggleIndexOnBattery}
+              className="accent-[var(--accent)]"
+            />
+            {t.settings.indexOnBattery}
+          </label>
+          <p className="text-caption text-ink-4">{t.settings.indexOnBatteryNote}</p>
         </div>
       </section>
 

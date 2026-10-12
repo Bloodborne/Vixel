@@ -122,6 +122,13 @@ export function TaskDrawer({ open, onClose, progress }: TaskDrawerProps): JSX.El
           <h2 className="text-body font-medium text-ink">{t.tasks.title}</h2>
           {paused ? (
             <span className="text-caption text-warn/70">{t.tasks.paused}</span>
+          ) : progress?.waitReason ? (
+            // 电源策略在等（电池 / 低电量 / 过热）；少量新文件仍即时索引
+            <span className="text-caption text-warn/70">
+              {progress.waitReason === 'battery' ? t.shell.waitPower
+                : progress.waitReason === 'thermal' ? t.shell.waitThermal
+                : t.shell.waitLowPower}
+            </span>
           ) : progress?.stage !== 'idle' && progress?.stage ? (
             <span className="text-caption text-accent/70">{t.tasks.running}</span>
           ) : (

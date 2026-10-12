@@ -5,6 +5,23 @@
 /** 'image' 是普通照片；'video' / 'audio' 的 Photo 是该媒体的代表图（首帧 / 封面 / 波形） */
 export type MediaKind = 'image' | 'video' | 'audio'
 
+/** 索引任务来源：'live'（watcher 实时事件 / 收集箱）在电源策略挡住回填时仍然放行 */
+export type TaskOrigin = 'live' | 'backfill'
+
+/** 回填等待的原因（电源策略，见 core/powerPolicy.ts）；和手动暂停分开展示 */
+export type PowerWaitReason = 'battery' | 'low-power' | 'thermal'
+
+/** 被跳过的"疑似数据集"目录（core/skipRules.ts；设置 › 文件夹 可"仍然索引"） */
+export interface SkippedFolder {
+  path: string
+  folderId: number
+  reason: string
+  fileCount: number
+  /** 用户点过"仍然索引" */
+  override: boolean
+  createdAt: string
+}
+
 /** 原生菜单发给渲染进程的命令；每个快捷键都挂在菜单上，渲染进程不自己监听 ⌘ 组合键 */
 export type MenuCommand =
   | 'source:all' | 'source:image' | 'source:video' | 'source:audio' | 'source:map' | 'source:people'
@@ -41,6 +58,8 @@ export interface MediaFilters {
   tagIds?: number[]
   /** 色板里以足够占比出现该色桶（见 shared/colors.ts 的桶名与阈值） */
   color?: string
+  /** 只看截图（photos.is_screenshot = 1，见 core/screenshot.ts） */
+  screenshot?: boolean
 }
 
 /** 智能相册：保存下来的"查询 + 筛选"，打开时重新搜索，所以内容总是最新的 */
@@ -85,6 +104,8 @@ export interface Photo {
   frameTimeMs?: number | null
   /** 设计格式（PDF / AI）：页数（解析得到时才有） */
   pages?: number | null
+  /** 截图标记：1 = 截图，0 = 判过不是，null = 还没判（见 core/screenshot.ts） */
+  isScreenshot?: number | null
   /** 媒体类型（LEFT JOIN videos 得出；部分旧查询不带此字段时按 image 处理） */
   mediaKind?: MediaKind
   /** 视频/音频时长（毫秒） */
@@ -231,6 +252,9 @@ export interface IndexProgress {
   ocrPhotos?: number
   // 用户手动暂停了后台索引
   paused?: boolean
+  // 电源策略在等（电池 / 低电量模式 / 温度）：回填暂缓，少量新文件仍即时索引。
+  // 只在确有待办任务时带上；与 paused 互斥展示（手动暂停优先）
+  waitReason?: PowerWaitReason
   // 正在处理的任务（音视频按片段推进）
   current?: CurrentTask
   // 队列概况
@@ -314,6 +338,14 @@ export const IPC_CHANNELS = {
   RETRY_FAILED_TASKS: 'retry-failed-tasks',
   CLEAR_FAILED_TASKS: 'clear-failed-tasks',
   GET_MEDIA_DETAIL: 'get-media-detail',
+
+  // 电源策略（设置 › 通用："电池供电时也索引"）
+  GET_INDEX_ON_BATTERY: 'get-index-on-battery',
+  SET_INDEX_ON_BATTERY: 'set-index-on-battery',
+
+  // 跳过的数据集目录（设置 › 文件夹）
+  GET_SKIPPED_FOLDERS: 'get-skipped-folders',
+  SET_SKIPPED_FOLDER_OVERRIDE: 'set-skipped-folder-override',
 
   // 外观
   GET_THEME: 'get-theme',

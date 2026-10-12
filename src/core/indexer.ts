@@ -6,7 +6,8 @@ import sharp from 'sharp'
 import exifr from 'exifr'
 import xxhash from 'xxhash-wasm'
 import type { DatabaseInstance } from './db'
-import type { CurrentTask, IndexProgress, TaskType } from '../shared/types'
+import type { CurrentTask, IndexProgress, PowerWaitReason, TaskOrigin, TaskType } from '../shared/types'
+import { LIVE_TASK_BURST_MAX } from './powerPolicy'
 import { getEmbeddingService } from './embedding'
 import { initFaceService, isFaceServiceReady, processPhotoFaces, assignFaceToPerson } from './face'
 import { initOcrService, isOcrReady, processPhotoOcr, OCR_PIPELINE_VERSION } from './ocr'
@@ -51,6 +52,13 @@ const PROGRESS_MIN_INTERVAL_MS = 250
 /** 模型未就绪导致的失败以此开头；requeueMissingEmbeddings 只自动重排这类，坏文件留给任务面板 */
 export const MODEL_NOT_READY_PREFIX = 'Embedding model not ready'
 
+/** 电源策略在视频片段断点打断了回填任务：任务放回队列，不算失败 */
+class BackfillInterrupt extends Error {
+  constructor() {
+    super('backfill interrupted by power policy')
+  }
+}
+
 export class Indexer extends EventEmitter {
   private db: DatabaseInstance
   private userDataPath: string
@@ -61,6 +69,11 @@ export class Indexer extends EventEmitter {
   // 暂停：不再取新任务；正在跑的视频在片段之间停住，继续后从断点接着跑
   private paused: boolean
   private resumeWaiters: Array<() => void> = []
+  // 电源策略（main/power.ts 喂进来）：非空时回填任务等待，少量 live 任务照常跑。
+  // 手动暂停仍然压过一切（paused 先判）。
+  private powerBlock: PowerWaitReason | null = null
+  // 当前正在跑的任务的来源：电源阻塞时 'backfill' 的视频在片段之间也停住
+  private currentOrigin: TaskOrigin = 'backfill'
   // 正在处理的任务，随 progress 事件推给任务面板
   private current: CurrentTask | null = null
   // 新脸先即时归属（只认很确定的），剩下的攒批聚类；人物有变动时发 'people-changed'
@@ -92,18 +105,50 @@ export class Indexer extends EventEmitter {
     this.paused = paused
     this.db.setMetaState(PAUSED_KEY, paused ? '1' : '0')
     if (!paused) {
-      const waiters = this.resumeWaiters
-      this.resumeWaiters = []
-      for (const resume of waiters) resume()
+      this.wakeWaiters()
       this.processNext()
     }
     this.emitProgress(this.isProcessing ? 'indexing' : 'idle')
   }
 
-  private waitIfPaused(): Promise<void> {
-    if (!this.paused) return Promise.resolve()
-    this.emitProgress('idle')
-    return new Promise((resolve) => this.resumeWaiters.push(resolve))
+  /**
+   * 电源策略的结果（main/power.ts 在 powerMonitor 事件里喂）：
+   * 非空时不再取回填任务（排队中的 live 任务 ≤ LIVE_TASK_BURST_MAX 仍放行），
+   * 正在跑的回填视频在片段间停住；解除后从断点继续。
+   */
+  setPowerBlock(reason: PowerWaitReason | null): void {
+    if (this.powerBlock === reason) return
+    this.powerBlock = reason
+    if (!reason) {
+      this.wakeWaiters()
+      this.processNext()
+    }
+    this.emitProgress(this.isProcessing ? 'indexing' : 'idle')
+  }
+
+  getPowerBlock(): PowerWaitReason | null {
+    return this.powerBlock
+  }
+
+  private wakeWaiters(): void {
+    const waiters = this.resumeWaiters
+    this.resumeWaiters = []
+    for (const resume of waiters) resume()
+  }
+
+  /**
+   * 片段之间的断点：手动暂停原地等（继续后从断点接着跑）；电源阻塞时不能占着
+   * 单任务通道干等（live 任务会被饿死），抛 BackfillInterrupt 让 processNext 把
+   * 任务放回队列 —— 解除后重跑该视频（片段会重做，代价可接受）。
+   */
+  private async waitIfPaused(): Promise<void> {
+    while (this.paused) {
+      this.emitProgress('idle')
+      await new Promise<void>((resolve) => this.resumeWaiters.push(resolve))
+    }
+    if (this.powerBlock !== null && this.currentOrigin === 'backfill') {
+      throw new BackfillInterrupt()
+    }
   }
 
   private ocrModelsPresent: boolean | null = null
@@ -293,12 +338,12 @@ export class Indexer extends EventEmitter {
         buffer.byteLength, Date.now(), frameHash,
         { videoId, frameTimeMs: 0 }
       )
-      this.db.addToQueue(photoId, 'thumbnail', 20)
+      this.db.addToQueue(photoId, 'thumbnail', 20, this.currentOrigin)
       if (kind === 'audio') return
       if (this.db.hasContentForHash(frameHash).hasEmbedding) {
         this.db.updateEmbedStatusByHash(frameHash)
       } else {
-        this.db.addToQueue(photoId, 'embed', 10)
+        this.db.addToQueue(photoId, 'embed', 10, this.currentOrigin)
       }
     }
 
@@ -548,7 +593,11 @@ export class Indexer extends EventEmitter {
   async processNext(): Promise<void> {
     if (this.isProcessing || this.paused) return
 
-    const task = this.db.getNextTask()
+    // 电源策略在等：只放行少量 live 任务（watcher 实时事件），回填留在队列里
+    const liveOnly = this.powerBlock !== null
+    const task = liveOnly
+      ? (this.db.countLivePendingTasks() <= LIVE_TASK_BURST_MAX ? this.db.getNextTask(true) : undefined)
+      : this.db.getNextTask()
     if (!task) {
       this.current = null
       this.emitProgress('idle')
@@ -556,6 +605,7 @@ export class Indexer extends EventEmitter {
     }
 
     this.isProcessing = true
+    this.currentOrigin = task.origin === 'live' ? 'live' : 'backfill'
 
     try {
       // extract_frames 的 task.photoId 是 videos.id 而非 photos.id —— 单独处理
@@ -578,12 +628,12 @@ export class Indexer extends EventEmitter {
         } else if (task.taskType === 'embed') {
           await this.processEmbedding(photo.fileHash, photo.filePath, task.photoId)
           this.emit('embedded', photo.fileHash)
-          // 向量好了再排人脸 / OCR（优先级低于 embed，先让新内容可搜）
+          // 向量好了再排人脸 / OCR（优先级低于 embed，先让新内容可搜）；来源跟着当前任务走
           if (photo.faceStatus !== 'done' && this.isFaceAutoEnabled() && !this.db.hasOpenTask(task.photoId, 'face')) {
-            this.db.addToQueue(task.photoId, 'face', 8)
+            this.db.addToQueue(task.photoId, 'face', 8, this.currentOrigin)
           }
           if ((await this.ocrAvailable()) && !this.db.hasContentForHash(photo.fileHash).hasOcr && !this.db.hasOpenTask(task.photoId, 'ocr')) {
-            this.db.addToQueue(task.photoId, 'ocr', 4)
+            this.db.addToQueue(task.photoId, 'ocr', 4, this.currentOrigin)
           }
         } else if (task.taskType === 'face') {
           await this.processFace(photo)
@@ -593,8 +643,13 @@ export class Indexer extends EventEmitter {
         this.db.completeTask(task.id)
       }
     } catch (error) {
-      console.error(`Error processing task ${task.id}:`, error)
-      this.db.failTask(task.id, error instanceof Error ? error.message : String(error))
+      if (error instanceof BackfillInterrupt) {
+        // 电源阻塞打断的回填任务：放回队列（不算失败），解除后重跑
+        this.db.resetTask(task.id)
+      } else {
+        console.error(`Error processing task ${task.id}:`, error)
+        this.db.failTask(task.id, error instanceof Error ? error.message : String(error))
+      }
     }
 
     this.isProcessing = false
@@ -746,6 +801,7 @@ export class Indexer extends EventEmitter {
     this.lastProgressAt = Date.now()
     const photoStats = this.db.getPhotoStats()
     const queue = this.db.getQueueStats()
+    const pendingCount = queue.pending + queue.processing
     const progress: IndexProgress = {
       totalPhotos: photoStats.uniqueTotal,
       thumbnailedPhotos: photoStats.thumbnailed,
@@ -754,8 +810,10 @@ export class Indexer extends EventEmitter {
       stage: pending.stage,
       currentFile: pending.currentFile,
       paused: this.paused,
+      // 只在确有待办时报告电源等待：队列空时"在等"没有意义
+      waitReason: this.powerBlock && pendingCount > 0 ? this.powerBlock : undefined,
       current: this.current ?? undefined,
-      queue: { pending: queue.pending + queue.processing, error: queue.error },
+      queue: { pending: pendingCount, error: queue.error },
       aiModelReady: getEmbeddingService().isReady(),
     }
     this.emit('progress', progress)

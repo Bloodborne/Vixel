@@ -21,6 +21,13 @@ interface StatusBarProps {
   onToggleDensity?: () => void
 }
 
+/** 电源策略等待原因 → 文案（core/powerPolicy.ts；与手动暂停分开展示） */
+function waitReasonText(reason: NonNullable<IndexProgress['waitReason']>): string {
+  return reason === 'battery' ? t.shell.waitPower
+    : reason === 'thermal' ? t.shell.waitThermal
+    : t.shell.waitLowPower
+}
+
 /** 当前活动的一句话描述 + 进度（0–1，未知为 null） */
 function describeActivity(p: IndexProgress | null): { text: string; detail?: string; ratio: number | null } | null {
   if (!p) return null
@@ -93,6 +100,9 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
       >
         {paused ? (
           <span className="text-warn/80">{t.shell.indexPaused}</span>
+        ) : progress?.waitReason ? (
+          // 电源策略在等（电池 / 低电量 / 过热）：和手动暂停区分开；少量新文件仍即时索引
+          <span className="text-warn/80">{waitReasonText(progress.waitReason)}</span>
         ) : activity ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />
@@ -131,7 +141,7 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
         </button>
       )}
 
-      {(activity || paused) && (
+      {(activity || paused || progress?.waitReason) && (
         <button
           onClick={togglePause}
           className="flex-shrink-0 px-1.5 rounded text-ink-2 hover:text-ink hover:bg-fill-hover transition-colors duration-fast"

@@ -22,6 +22,9 @@ import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
 import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
 import { installAppMenu, popupItemMenu, popupSmartAlbumMenu } from './menu'
 import { searchByImage } from './imageSearch'
+import { initPowerPolicy, getPowerController } from './power'
+import { detectScreenshot } from '../core/screenshot'
+import type { AutoTagService } from './autotags'
 import { locale, resolveLocale, setLocale, t, type LocaleSetting } from '../shared/i18n'
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
@@ -54,6 +57,10 @@ const BACKUP_KEEP_COUNT = 3
 const META_KEY_LAST_BACKUP = 'last_backup_at'
 const META_KEY_THEME = 'ui.theme'
 const META_KEY_LOCALE = 'ui.locale'
+/** 设置："电池供电时也索引"（默认开）。关掉后电池供电时回填等待，少量新文件仍即时索引 */
+const META_KEY_INDEX_ON_BATTERY = 'power.index_on_battery'
+/** 截图标记回填完成的标记（老库一次性补 photos.is_screenshot） */
+const META_KEY_SCREENSHOT_BACKFILL = 'screenshot.backfill'
 let backupTimer: NodeJS.Timeout | null = null
 let backupInFlight = false
 
@@ -140,7 +147,31 @@ function createWindow(): void {
   win.on('ready-to-show', () => {
     win.show()
     // VIXEL_CAPTURE=<目录>：自动巡检各视图并截图（见 capture.ts）
-    if (process.env.VIXEL_CAPTURE) void runCaptureTour(win, process.env.VIXEL_CAPTURE, openSettingsWindow)
+    if (process.env.VIXEL_CAPTURE) {
+      void runCaptureTour(win, process.env.VIXEL_CAPTURE, openSettingsWindow, {
+        // 状态栏的电源等待原因：模拟过热 + 排一个回填任务（截完撤掉，库不留痕）
+        simulatePowerWait: (on) => {
+          if (on) {
+            const photo = db.raw.prepare(`SELECT id FROM photos WHERE deleted_at IS NULL LIMIT 1`).get() as { id: number } | undefined
+            if (photo) db.raw.prepare(`INSERT INTO index_queue (photo_id, task_type, priority, origin, status) VALUES (?, 'thumbnail', 0, 'backfill', 'pending')`).run(photo.id)
+            getPowerController()?.simulate({ thermalState: 'serious' })
+          } else {
+            getPowerController()?.simulate(null)
+            db.raw.prepare(`DELETE FROM index_queue WHERE status = 'pending' AND priority = 0 AND task_type = 'thumbnail' AND origin = 'backfill'`).run()
+          }
+          indexer.emitProgressPublic()
+        },
+        // 设置 › 文件夹 的"跳过的数据集目录"列表：造一条演示记录
+        seedSkippedFolder: (on) => {
+          const folder = db.getFolders()[0]
+          if (!folder) return
+          const demoPath = join(folder.path, 'frames-export')
+          if (on) db.addSkippedFolder(folder.id, demoPath, 250)
+          else db.raw.prepare(`DELETE FROM skipped_folders WHERE path = ?`).run(demoPath)
+          broadcastLibraryChanged()
+        },
+      })
+    }
     if (process.env.VIXEL_RECORD) void runRecording(win, process.env.VIXEL_RECORD)
   })
   win.on('closed', () => {
@@ -230,6 +261,13 @@ async function initServices(): Promise<void> {
 
   watcher = new FileWatcher(db, indexer)
   searchEngine = new SearchEngine(db)
+
+  // 电源策略（powerMonitor 事件驱动，无轮询）：电池 / 低电量模式 / 过热时回填等待，
+  // watcher 实时事件（新文件、收集箱）照常索引。决策纯函数见 core/powerPolicy.ts
+  initPowerPolicy({
+    allowOnBattery: () => db.getMetaState(META_KEY_INDEX_ON_BATTERY) !== '0',
+    onChange: (reason) => indexer.setPowerBlock(reason),
+  })
 
   const folders = db.getFolders()
   for (const folder of folders) {
@@ -338,6 +376,32 @@ async function runBackup(): Promise<{ path: string; sizeBytes: number }> {
   } finally {
     backupInFlight = false
   }
+}
+
+/**
+ * 老库的截图标记回填：photos.is_screenshot 为 NULL 的存量图片补判一遍
+ * （macOS xattr ~7 µs / 文件 + 文件名模式，5 万张约 1–2 s 的系统调用，分批让出事件循环）。
+ * 新打上标记的 hash 通知自动标签重新判定（截图标签从标记来，见 main/autotags.ts）。
+ * 完成后写 meta 标记，下次启动一个查询就跳过。
+ */
+async function backfillScreenshotFlags(autoTags: AutoTagService): Promise<void> {
+  if (db.getMetaState(META_KEY_SCREENSHOT_BACKFILL) === '1') return
+  let done = 0
+  const flagged: string[] = []
+  for (;;) {
+    const batch = db.photosMissingScreenshotFlag(200)
+    if (batch.length === 0) break
+    for (const p of batch) {
+      const flag = detectScreenshot(p.filePath, p.fileName)
+      db.setPhotoScreenshot(p.id, flag)
+      if (flag === 1 && p.fileHash) flagged.push(p.fileHash)
+      done++
+    }
+    await new Promise((r) => setTimeout(r, 25))
+  }
+  db.setMetaState(META_KEY_SCREENSHOT_BACKFILL, '1')
+  if (done > 0) console.log(`[screenshot] backfilled flags for ${done} photos (${flagged.length} screenshots)`)
+  autoTags.screenshotFlagged([...new Set(flagged)])
 }
 
 /**
@@ -501,6 +565,31 @@ function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.SET_INDEX_PAUSED, async (_event, paused: boolean) => {
     indexer.setPaused(paused)
     return indexer.isPaused()
+  })
+
+  // 电源策略设置："电池供电时也索引"（默认开）
+  handle(IPC_CHANNELS.GET_INDEX_ON_BATTERY, async () => {
+    return db.getMetaState(META_KEY_INDEX_ON_BATTERY) !== '0'
+  })
+
+  handle(IPC_CHANNELS.SET_INDEX_ON_BATTERY, async (_event, on: boolean) => {
+    db.setMetaState(META_KEY_INDEX_ON_BATTERY, on ? '1' : '0')
+    getPowerController()?.refresh()
+    return db.getMetaState(META_KEY_INDEX_ON_BATTERY) !== '0'
+  })
+
+  // 跳过的数据集目录（设置 › 文件夹）
+  handle(IPC_CHANNELS.GET_SKIPPED_FOLDERS, async (_event, folderId?: number) => {
+    return db.listSkippedFolders(typeof folderId === 'number' ? folderId : undefined)
+  })
+
+  handle(IPC_CHANNELS.SET_SKIPPED_FOLDER_OVERRIDE, async (_event, path: string, override: boolean) => {
+    const row = db.listSkippedFolders().find((r) => r.path === path)
+    if (!row) return false
+    db.setSkippedFolderOverride(path, !!override)
+    // "仍然索引"：整夹重扫把该目录补进索引（未变化的文件对账开销很小）
+    if (override) watcher.rescanAfterOverride(row.folderId)
+    return true
   })
 
   handle(IPC_CHANNELS.GET_TASK_OVERVIEW, async () => {
@@ -911,6 +1000,10 @@ app.whenReady().then(async () => {
   const autoTags = registerAutoTags(db, broadcastTagsChanged)
   indexer.on('embedded', () => autoTags.kick())
   indexer.on('video-indexed', (videoId: number) => autoTags.videoUpdated(videoId))
+  // 老库的截图标记回填（xattr + 文件名模式，分批；新库入库时就打好）
+  setTimeout(() => {
+    backfillScreenshotFlags(autoTags).catch((e) => console.warn('[screenshot] backfill failed:', e))
+  }, 5000)
   installAppMenu(() => mainWindow, { openSettings: openSettingsWindow })
   createWindow()
 

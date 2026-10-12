@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace, type ImageQueryInput, type ImageSearchResponse } from '../shared/types'
+import { IPC_CHANNELS, type MediaFilters, type SmartAlbum, type SmartAlbumMenuAction, type SearchResult, type WatchedFolder, type PhotoDetail, type PhotoLocation, type IndexProgress, type ModelStatus, type EmbeddingConfig, type Person, type FaceRecord, type BackupStatus, type MediaKind, type TaskOverview, type MediaDetail, type LibraryCounts, type MenuCommand, type ItemMenuAction, type ThemeMode, type PersonSuggestion, type PersonFace, type ImageQueryInput, type ImageSearchResponse, type SkippedFolder } from '../shared/types'
 import type { Locale, LocaleSetting } from '../shared/i18n'
 import { CLEANUP_CHANNELS, type DupScanResult, type DupScanProgress, type HiddenItem, type TrashResult } from '../shared/cleanup'
 import { COLLECT_CHANNELS, type CollectResult, type CollectServerStatus, type InboxInfo, type ItemSource } from '../shared/collect'
@@ -147,6 +147,21 @@ const api = {
   },
   setIndexPaused: (paused: boolean): Promise<boolean> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SET_INDEX_PAUSED, paused)
+  },
+  /** 设置："电池供电时也索引"（默认开；关掉后电池供电时大批量索引等待，少量新文件照常） */
+  getIndexOnBattery: (): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_INDEX_ON_BATTERY)
+  },
+  setIndexOnBattery: (on: boolean): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SET_INDEX_ON_BATTERY, on)
+  },
+  /** 被跳过的"疑似数据集"目录（设置 › 文件夹）；传 folderId 只取该文件夹下的 */
+  getSkippedFolders: (folderId?: number): Promise<SkippedFolder[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_SKIPPED_FOLDERS, folderId)
+  },
+  /** "仍然索引"某个被跳过的目录（override=true 会触发整夹重扫） */
+  setSkippedFolderOverride: (path: string, override: boolean): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SET_SKIPPED_FOLDER_OVERRIDE, path, override)
   },
   getTaskOverview: (): Promise<TaskOverview> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_TASK_OVERVIEW)
