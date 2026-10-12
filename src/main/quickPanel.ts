@@ -307,7 +307,7 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
    * Windows 经 Win32 直写 CF_HDROP（资源管理器 Ctrl+V 认的就是它；Electron 的
    * writeBuffer 写不了无名标准格式）。失败回退路径文字并如实返回。
    */
-  ipcMain.handle(QP.COPY_FILES, async (_e, items: Array<{ photoId: number; videoId?: number | null }>) => {
+  ipcMain.handle(QP.COPY_FILES, async (event, items: Array<{ photoId: number; videoId?: number | null }>) => {
     const paths = (Array.isArray(items) ? items : [])
       .map((it) => deps.resolveFilePath(Number(it?.photoId), it?.videoId))
       .filter((p): p is string => !!p)
@@ -318,7 +318,11 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
         return 'file'
       }
       if (process.platform === 'win32') {
-        writeClipboardHdrop(paths)
+        // OpenClipboard 挂在发起窗口的 HWND 上（getNativeWindowHandle 是平台字节序的指针值）
+        const win = BrowserWindow.fromWebContents(event.sender)
+        const handle = win && !win.isDestroyed() ? win.getNativeWindowHandle() : null
+        const hwnd = handle ? (handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0))) : 0n
+        writeClipboardHdrop(paths, hwnd)
         return 'file'
       }
     } catch (e) {

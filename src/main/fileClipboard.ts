@@ -50,10 +50,11 @@ export function dropFilesBuffer(paths: string[]): Buffer {
 }
 
 interface Win32ClipboardApi {
-  OpenClipboard: (hwnd: null) => boolean
+  OpenClipboard: (hwnd: number | bigint) => boolean
   EmptyClipboard: () => boolean
   SetClipboardData: (format: number, mem: unknown) => unknown
   CloseClipboard: () => boolean
+  GetLastError: () => number
   GlobalAlloc: (flags: number, size: number) => unknown
   GlobalLock: (mem: unknown) => unknown
   GlobalUnlock: (mem: unknown) => boolean
@@ -73,10 +74,12 @@ function loadWin32Clipboard(): Win32ClipboardApi | null {
       const user32 = koffi.load('user32.dll')
       const kernel32 = koffi.load('kernel32.dll')
       winApi = {
-        OpenClipboard: user32.func('bool __stdcall OpenClipboard(void* hwnd)') as Win32ClipboardApi['OpenClipboard'],
+        // HWND 按指针宽度整数传（0 = NULL；来自 BrowserWindow.getNativeWindowHandle）
+        OpenClipboard: user32.func('bool __stdcall OpenClipboard(uintptr_t hwnd)') as Win32ClipboardApi['OpenClipboard'],
         EmptyClipboard: user32.func('bool __stdcall EmptyClipboard()') as Win32ClipboardApi['EmptyClipboard'],
         SetClipboardData: user32.func('void* __stdcall SetClipboardData(uint32 format, void* mem)') as Win32ClipboardApi['SetClipboardData'],
         CloseClipboard: user32.func('bool __stdcall CloseClipboard()') as Win32ClipboardApi['CloseClipboard'],
+        GetLastError: kernel32.func('uint32 __stdcall GetLastError()') as Win32ClipboardApi['GetLastError'],
         GlobalAlloc: kernel32.func('void* __stdcall GlobalAlloc(uint32 flags, size_t size)') as Win32ClipboardApi['GlobalAlloc'],
         GlobalLock: kernel32.func('void* __stdcall GlobalLock(void* mem)') as Win32ClipboardApi['GlobalLock'],
         GlobalUnlock: kernel32.func('bool __stdcall GlobalUnlock(void* mem)') as Win32ClipboardApi['GlobalUnlock'],
@@ -99,21 +102,26 @@ function sleepSync(ms: number): void {
 
 /**
  * Windows：把文件列表以 CF_HDROP 写进剪贴板（资源管理器 Ctrl+V 粘贴成文件副本）。
+ * hwnd 传发起窗口的句柄（BrowserWindow.getNativeWindowHandle 的小端指针值；0 = NULL）：
+ * OpenClipboard 和所有权挂在真实窗口上更可靠（Chromium 自己也这么做），剪贴板监视类
+ * 工具（剪贴板历史、Eagle 等）短暂占用时按指数退避重试。
  * 失败抛错，调用方回退为复制路径文字。注意 Electron 的 clipboard.availableFormats()
  * 看不到 CF_HDROP（Chromium 只映射它认识的格式），验证要用
  * PowerShell `Get-Clipboard -Format FileDropList`。
  */
-export function writeClipboardHdrop(paths: string[]): void {
+export function writeClipboardHdrop(paths: string[], hwnd: bigint | number = 0): void {
   const api = loadWin32Clipboard()
   if (!api) throw new Error('win32 clipboard API unavailable')
   const payload = dropFilesBuffer(paths)
-  // 剪贴板是全局互斥资源：别的进程（剪贴板历史、同步工具）可能短暂占着，重试几次
+  // 剪贴板是全局互斥资源：别的进程（剪贴板历史、同步工具）可能短暂占着，退避重试
   let opened = false
-  for (let i = 0; i < 10; i++) {
-    if (api.OpenClipboard(null)) { opened = true; break }
-    sleepSync(15)
+  let lastErr = 0
+  for (let i = 0; i < 12; i++) {
+    if (api.OpenClipboard(hwnd)) { opened = true; break }
+    lastErr = api.GetLastError()
+    sleepSync(10 + i * 10)
   }
-  if (!opened) throw new Error('OpenClipboard failed (clipboard busy)')
+  if (!opened) throw new Error(`OpenClipboard failed (clipboard busy, GetLastError=${lastErr})`)
   try {
     if (!api.EmptyClipboard()) throw new Error('EmptyClipboard failed')
     const h = api.GlobalAlloc(GMEM_MOVEABLE, payload.length)
