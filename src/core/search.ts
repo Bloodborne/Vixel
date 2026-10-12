@@ -15,6 +15,7 @@ import { maskForColor } from '../shared/colors'
 import { TagStore } from './tagStore'
 import { getEmbeddingService } from './embedding'
 import { rrfFuse } from './fusion'
+import { analyzeQuery } from './queryAnalysis'
 import { BASELINE_MIN, l2ToCosine, relevanceTest } from './relevance'
 import { channelStats, cutAndMerge, IMAGE_GATE, MIXED_GATE, type Gate, type ImageHit, type SegmentHit } from './imageQuery'
 
@@ -53,6 +54,21 @@ const FALLBACK_LIMIT = 12
 
 type VecKind = 'image' | 'segment'
 
+/**
+ * 类型词的软加权（analyzeQuery 识别出「……的视频」「photo of …」时）：
+ * 融合后给类型相符的结果乘上去。是加权不是过滤 —— 类型词有歧义（「截图」也可能真是画面内容），
+ * 而且用户要的内容如果只存在于另一类媒体里，也应该还能找到。
+ * 1.25 的量级：RRF 相邻名次比约 1.016，×1.25 能把类型相符的结果从十几名内提到不相符者前面，
+ * 但压不过"两路通道都命中"（分数 ×2）的强证据。
+ */
+const KIND_BOOST = 1.25
+/**
+ * 查号式查询（IMG_2682 / N49，见 queryAnalysis.isLookup）：证据在精确文本通道里，
+ * 向量通道对编号基本是噪声 —— 文本通道加倍、向量通道减半。
+ */
+const LOOKUP_TEXT_WEIGHT = 2
+const LOOKUP_VEC_WEIGHT = 0.5
+
 export type SearchOptions = MediaFilters
 
 export class SearchEngine {
@@ -81,9 +97,21 @@ export class SearchEngine {
     }
 
     try {
+      // 查询分析（纯文本）：类型词剥掉再编向量（否则向量被"的视频 / video of"稀释，
+      // 实测真命中掉到第二名还被标 lowConfidence）；类型意图下面做软加权
+      const analysis = analyzeQuery(trimmedQuery)
+
+      // 查询只有类型词（「视频」「screenshots」）：没有内容可搜，按类型浏览
+      if (analysis.kindOnly) {
+        const photos = this.db.getRepresentativePhotosFiltered(limit, 0, { ...filters, kind: kind ?? analysis.kinds[0] })
+        return photos.map((photo) => ({ photo, score: 1.0 }))
+      }
+
+      const searchText = analysis.strippedText || trimmedQuery
+
       // 查询向量只编码一次，图片通道和视频片段通道共用。
       // 这是唯一的异步步骤，之后四路检索都是同步的 SQLite 查询。
-      const queryVec = await this.encodeQuery(trimmedQuery)
+      const queryVec = await this.encodeQuery(searchText)
 
       // 四路召回（caption 通道已删除）：图片 vec / 片段 vec / ocr BM25 / 文件名 LIKE。
       // 按类型过滤时跳过用不上的通道：片段只属于音视频；图片向量和 OCR 只对图片 + 视频首帧有意义
@@ -91,10 +119,10 @@ export class SearchEngine {
       const wantImageChannels = kind !== 'audio'
       const rawImageVec = wantImageChannels ? this.searchByVector(queryVec, limit * 2) : []
       const rawSegments = wantSegments ? this.searchVideoSegments(queryVec, limit * 2) : []
-      const ocrResults = wantImageChannels ? this.searchByOcr(trimmedQuery, limit * 2) : []
-      const fileNameResults = this.db.searchByFileName(trimmedQuery, limit * 2)
+      const ocrResults = wantImageChannels ? this.searchByOcr(searchText, limit * 2) : []
+      const fileNameResults = this.db.searchByFileName(searchText, limit * 2)
       // 用户打的标签：和文字、文件名一样算"明确命中"
-      const tagResults = this.searchByTags(trimmedQuery, limit * 2)
+      const tagResults = this.searchByTags(searchText, limit * 2)
 
       // 相关性门槛：向量通道只留明显高于该查询基线的命中（见 RELEVANCE_MIN_Z）
       const relevant = <T extends { distance: number }>(rows: T[], kind: VecKind): T[] => {
@@ -132,17 +160,40 @@ export class SearchEngine {
       // 否则 RRF 会把同一视频累加两次，视频几乎霸占所有查询的前排
       const imageOnlyResults = imageVecResults.filter((r) => !segmentHashes.has(r.fileHash))
 
-      // RRF 融合（各通道先按相关性排序好，再交给 fusion）
+      // RRF 融合（各通道先按相关性排序好，再交给 fusion）。
+      // 查号式查询（IMG_2682）：精确文本通道加倍、向量通道减半（证据在 OCR / 文件名 / 标签里）
+      const vecWeight = analysis.isLookup ? LOOKUP_VEC_WEIGHT : 1
+      const textWeight = analysis.isLookup ? LOOKUP_TEXT_WEIGHT : 1
       const mergedResults = rrfFuse(
         [
-          [...imageOnlyResults].sort((a, b) => a.distance - b.distance),
-          [...videoSegmentAsFileHash].sort((a, b) => a.distance - b.distance),
-          [...ocrResults].sort((a, b) => b.score - a.score),
-          fileNameResults,
-          tagResults,
+          { items: [...imageOnlyResults].sort((a, b) => a.distance - b.distance), weight: vecWeight },
+          { items: [...videoSegmentAsFileHash].sort((a, b) => a.distance - b.distance), weight: vecWeight },
+          { items: [...ocrResults].sort((a, b) => b.score - a.score), weight: textWeight },
+          { items: fileNameResults, weight: textWeight },
+          { items: tagResults, weight: textWeight },
         ],
         60
       )
+
+      // 代表 photo 每个 hash 只查一次（软加权要先看类型，随后组装结果还要用）
+      const photoCache = new Map<string, Photo | null>()
+      const getPhoto = (hash: string): Photo | null => {
+        let p = photoCache.get(hash)
+        if (p === undefined) {
+          p = this.db.getRepresentativeByHash(hash) ?? null
+          photoCache.set(hash, p)
+        }
+        return p
+      }
+
+      // 类型词的软加权：类型相符的结果乘 KIND_BOOST 再重排（不是过滤，见常量注释）
+      if (analysis.kinds.length > 0) {
+        for (const r of mergedResults) {
+          const photo = getPhoto(r.fileHash)
+          if (photo && analysis.kinds.includes(photo.mediaKind ?? 'image')) r.score *= KIND_BOOST
+        }
+        mergedResults.sort((a, b) => b.score - a.score)
+      }
 
       const maxScore = mergedResults.length > 0 ? mergedResults[0].score : 1
       for (const r of mergedResults) {
@@ -171,7 +222,7 @@ export class SearchEngine {
         seenHashes.add(fileHash)
         if (hidden.has(fileHash)) continue
 
-        const photo = this.db.getRepresentativeByHash(fileHash)
+        const photo = getPhoto(fileHash)
         if (photo && !photo.deletedAt) {
           if (!matchesFilters(photo, filters, sets)) continue
           // 视频去重：同一视频的多个帧只保留首个（已按 score 降序，所以是最佳帧）
