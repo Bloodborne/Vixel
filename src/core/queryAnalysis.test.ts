@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { analyzeQuery } from './queryAnalysis'
+import { analyzeQuery, exactTextMatch } from './queryAnalysis'
 
 describe('analyzeQuery — 类型词（中文）', () => {
   it('「火车的视频」剥出「火车」，类型 video', () => {
@@ -141,5 +141,36 @@ describe('analyzeQuery — 查号式查询', () => {
     expect(a.strippedText).toBe('IMG_2682')
     expect(a.isLookup).toBe(true)
     expect(a.kinds).toEqual(['image'])
+  })
+})
+
+describe('exactTextMatch', () => {
+  it('整词命中（大小写不敏感）', () => {
+    expect(exactTextMatch('STARBUCKS', 'Starbucks Coffee · Zürich Polybahn')).toBe(true)
+    expect(exactTextMatch('user story', 'TODO: write a user story for onboarding')).toBe(true)
+  })
+
+  it('不被更长的词满足："prey" ≠ "osprey"', () => {
+    expect(exactTextMatch('prey', 'an osprey in flight')).toBe(false)
+    expect(exactTextMatch('story', 'multistory building')).toBe(false)
+  })
+
+  it('OR 分词的噪声不算：查询里的虚词命中不代表整句命中', () => {
+    expect(exactTextMatch('a bird of prey in flight', 'a note about the story of user flows in testing')).toBe(false)
+  })
+
+  it('CJK 按子串：「取报店」出现在招牌 OCR 原文里', () => {
+    expect(exactTextMatch('取报店', '新聞雜誌 取报店 営業中')).toBe(true)
+    expect(exactTextMatch('取报店', '取扱店')).toBe(false)
+  })
+
+  it('编号整词命中（分隔符不破坏边界）', () => {
+    expect(exactTextMatch('IMG_2682', 'shot img_2682.heic on pixel')).toBe(true)
+    expect(exactTextMatch('2682', 'IMG_26820.jpg')).toBe(false)
+  })
+
+  it('空 / 无 token 的查询不命中', () => {
+    expect(exactTextMatch('', 'anything')).toBe(false)
+    expect(exactTextMatch('!!!', 'anything')).toBe(false)
   })
 })

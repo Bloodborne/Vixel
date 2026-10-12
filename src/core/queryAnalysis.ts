@@ -142,3 +142,28 @@ export function analyzeQuery(raw: string): QueryAnalysis {
     isLookup: terms.length > 0 && terms.every(looksLikeCode),
   }
 }
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * 查询是否「确实」出现在一段文本里（大小写不敏感）：
+ * ASCII 词必须整词出现（"prey" 不被 "osprey" 满足），CJK 连串按子串出现（CJK 无词边界）。
+ * 两类 token 必须全部命中。
+ *
+ * 用途：OCR / 标签这类文本通道是 OR 分词召回，"a bird of prey in flight" 会因为便签里
+ * 恰好有 "a / of / in" 而召回一条 BM25 高分 —— 只有过了这个检查的命中才配拿精确加权。
+ */
+export function exactTextMatch(query: string, text: string): boolean {
+  const q = query.toLowerCase()
+  const t = text.toLowerCase()
+  const asciiTokens = q.match(/[a-z0-9]+/g) ?? []
+  const cjkRuns = q.match(/[぀-ヿㇰ-ㇿ㐀-䶿一-鿿豈-﫿]+/g) ?? []
+  if (asciiTokens.length + cjkRuns.length === 0) return false
+  for (const tok of asciiTokens) {
+    if (!new RegExp(`(?<![a-z0-9])${escapeRegExp(tok)}(?![a-z0-9])`).test(t)) return false
+  }
+  for (const run of cjkRuns) {
+    if (!t.includes(run)) return false
+  }
+  return true
+}

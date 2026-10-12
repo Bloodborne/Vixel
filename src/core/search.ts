@@ -15,7 +15,7 @@ import { maskForColor } from '../shared/colors'
 import { TagStore } from './tagStore'
 import { getEmbeddingService } from './embedding'
 import { rrfFuse } from './fusion'
-import { analyzeQuery } from './queryAnalysis'
+import { analyzeQuery, exactTextMatch } from './queryAnalysis'
 import { BASELINE_MIN, l2ToCosine, relevanceTest } from './relevance'
 import { channelStats, cutAndMerge, IMAGE_GATE, MIXED_GATE, type Gate, type ImageHit, type SegmentHit } from './imageQuery'
 
@@ -68,6 +68,13 @@ const KIND_BOOST = 1.25
  */
 const LOOKUP_TEXT_WEIGHT = 2
 const LOOKUP_VEC_WEIGHT = 0.5
+/**
+ * 精确命中的平手破除加权：查询原文整词出现在 OCR 文本 / 文件名 / 标签里（exactTextMatch）时，
+ * 该结果的融合分 ×1.01 —— 比"长得像"更确定，所以同名次时赢过向量命中
+ * （OCR "STARBUCKS"、文件名 "denali"）；但 1.01 < 61/60，压不过向量通道里名次更高的命中，
+ * 语义查询的排序不受影响。
+ */
+const EXACT_TEXT_WEIGHT = 1.01
 
 export type SearchOptions = MediaFilters
 
@@ -175,7 +182,7 @@ export class SearchEngine {
         60
       )
 
-      // 代表 photo 每个 hash 只查一次（软加权要先看类型，随后组装结果还要用）
+      // 代表 photo 每个 hash 只查一次（下面的加权要看类型 / 文件名，组装结果还要用）
       const photoCache = new Map<string, Photo | null>()
       const getPhoto = (hash: string): Photo | null => {
         let p = photoCache.get(hash)
@@ -186,11 +193,38 @@ export class SearchEngine {
         return p
       }
 
-      // 类型词的软加权：类型相符的结果乘 KIND_BOOST 再重排（不是过滤，见常量注释）
-      if (analysis.kinds.length > 0) {
+      // 精确命中的平手破除：查询原文确实出现在该文件的 OCR 文本 / 文件名 / 标签里时 ×1.01，
+      // 赢过同名次的"长得像"（向量）命中。为什么不直接给文本通道加权：OCR / 标签是 OR 分词召回，
+      // "a bird of prey in flight" 会因为便签 OCR 里恰好有 "a / of / in" 而混进一条 BM25 第 1 名 ——
+      // 只有整词级的精确匹配（exactTextMatch）才配加权
+      const ocrHashes = new Set(ocrResults.map((r) => r.fileHash))
+      const fileNameHashes = new Set(fileNameResults.map((r) => r.fileHash))
+      const tagHashes = new Set(tagResults.map((r) => r.fileHash))
+      const isExactHit = (hash: string): boolean => {
+        if (fileNameHashes.has(hash)) {
+          // LIKE 连路径一起匹配；只有命中出现在文件名本身（音视频用源文件名）才算精确
+          const photo = getPhoto(hash)
+          const name = (photo?.videoId != null ? this.db.getVideoById(photo.videoId)?.fileName : undefined) ?? photo?.fileName
+          if (name && name.toLowerCase().includes(searchText.toLowerCase())) return true
+        }
+        if (ocrHashes.has(hash)) {
+          const text = this.db.getOcrText(hash)
+          if (text && exactTextMatch(searchText, text)) return true
+        }
+        // 标签是用户亲手打的名字，TagStore.search 本身就按整词匹配
+        if (tagHashes.has(hash)) return true
+        return false
+      }
+
+      // 两类加权都是乘在融合分上，加完一起重排
+      if (mergedResults.length > 0) {
         for (const r of mergedResults) {
-          const photo = getPhoto(r.fileHash)
-          if (photo && analysis.kinds.includes(photo.mediaKind ?? 'image')) r.score *= KIND_BOOST
+          if (isExactHit(r.fileHash)) r.score *= EXACT_TEXT_WEIGHT
+          if (analysis.kinds.length > 0) {
+            // 类型词的软加权：类型相符的结果乘 KIND_BOOST（不是过滤，见常量注释）
+            const photo = getPhoto(r.fileHash)
+            if (photo && analysis.kinds.includes(photo.mediaKind ?? 'image')) r.score *= KIND_BOOST
+          }
         }
         mergedResults.sort((a, b) => b.score - a.score)
       }
@@ -204,9 +238,9 @@ export class SearchEngine {
       const channelSets: Array<[MatchChannel, Set<string>]> = [
         ['visual', new Set(imageOnlyResults.map((r) => r.fileHash))],
         ['segment', segmentHashes],
-        ['text', new Set(ocrResults.map((r) => r.fileHash))],
-        ['filename', new Set(fileNameResults.map((r) => r.fileHash))],
-        ['tag', new Set(tagResults.map((r) => r.fileHash))],
+        ['text', ocrHashes],
+        ['filename', fileNameHashes],
+        ['tag', tagHashes],
       ]
       const matchedBy = (hash: string): MatchChannel[] =>
         channelSets.filter(([, set]) => set.has(hash)).map(([ch]) => ch)
