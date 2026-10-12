@@ -83,6 +83,15 @@ const EXACT_TEXT_WEIGHT = 1.01
  * 低 0.0196；再大就会越过片段门槛之间的真实差距（相关 vs 无关片段的余弦差普遍 > 0.03）。
  */
 const SEGMENT_EARLIER_MARGIN = 0.025
+/**
+ * "较弱的匹配"分界：融合分 < 第一名 × 0.45 标 weak，界面把它们折到"较弱的匹配 (N)"下。
+ * RRF 里这条线意味着：第一名若只是单通道命中，其它单通道命中都在线上（1/62 ≈ 0.98 × 1/61）；
+ * 第一名是双通道命中时，单通道命中的前几名（≈ 前 6）还在线上，更深的折走。
+ * DigUp 用 0.5（他们的数据上 ~26 条折到 ~6 条）；在我们的标注集上 0.5 会把 "NASA" 的
+ * 第二条期望命中（jason3：单通道，≈ 0.49 × 双通道的第一名）折掉，0.45 则两个集的
+ * 全部期望命中都在线上（eval 的 folded-expected 检查专门盯这个）。
+ */
+const WEAK_SCORE_RATIO = 0.45
 
 export type SearchOptions = MediaFilters
 
@@ -210,10 +219,11 @@ export class SearchEngine {
       const tagHashes = new Set(tagResults.map((r) => r.fileHash))
       const isExactHit = (hash: string): boolean => {
         if (fileNameHashes.has(hash)) {
-          // LIKE 连路径一起匹配；只有命中出现在文件名本身（音视频用源文件名）才算精确
+          // LIKE 连路径一起匹配；只有命中出现在文件名本身（音视频用源文件名）才算精确。
+          // 子串或整词皆可："anemone" ⊂ wood_anemones.jpg，"wood anemones" 按整词命中它
           const photo = getPhoto(hash)
           const name = (photo?.videoId != null ? this.db.getVideoById(photo.videoId)?.fileName : undefined) ?? photo?.fileName
-          if (name && name.toLowerCase().includes(searchText.toLowerCase())) return true
+          if (name && (name.toLowerCase().includes(searchText.toLowerCase()) || exactTextMatch(searchText, name))) return true
         }
         if (ocrHashes.has(hash)) {
           const text = this.db.getOcrText(hash)
@@ -277,6 +287,14 @@ export class SearchEngine {
           const extra = lowConfidence ? { lowConfidence: true } : {}
           results.push(segment ? { photo, score, segment, matchedBy: by, ...extra } : { photo, score, matchedBy: by, ...extra })
           if (results.length >= limit) break
+        }
+      }
+
+      // 较弱的匹配：融合分不到第一名一半的标 weak（lowConfidence 整组已经另有说明，不再标）
+      if (!lowConfidence && results.length > 0) {
+        const cut = results[0].score * WEAK_SCORE_RATIO
+        for (const r of results) {
+          if (r.score < cut) r.weak = true
         }
       }
 

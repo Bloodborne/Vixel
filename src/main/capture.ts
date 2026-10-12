@@ -77,6 +77,10 @@ const STEPS: Step[] = [
   },
   { name: 'search-text', run: (w) => { command('source:all')(w); js(typeSearch(QUERIES[1]))(w) }, wait: 3000 },
   { name: 'search-nomatch', run: js(typeSearch(QUERIES[2])), wait: 3000 },
+  // 较弱的匹配：有突出命中（多通道）时，融合分不到第一名一半的结果折到分隔线下。
+  // 查询可用 VIXEL_CAPTURE_QUERIES 第 5 项覆盖；演示库里 wood_anemones.jpg 打过 "anemones" 标签，
+  // "wood anemones" 同时命中画面 + 文件名 + 标签，其余"长得像"的花折进去
+  { name: 'search-weak', run: js(typeSearch(QUERIES[4] ?? 'wood anemones')), wait: 3000, after: js(typeSearch('')) },
   // 设计格式：打开 fixtures 文件夹（侧栏文件夹按钮的 title 是完整路径），选中 PSD → 网格角标 + 检查器"格式"
   {
     name: 'design',

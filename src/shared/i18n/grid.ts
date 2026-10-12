@@ -9,6 +9,8 @@ const zh = {
   playerHint: 'Space 播放/暂停 · J / L 后退/前进 10 秒 · M 静音',
   segments: (n: number) => `片段 ${n}`,
   hit: (range: string) => ` · 命中 ${range}`,
+  weakerMatches: (n: number) => `较弱的匹配 (${n})`,
+  weakerMatchesHide: '收起较弱的匹配',
   quickLookLabel: (name: string) => `快速查看 ${name}`,
   quickLookHint: 'Space 关闭 · ↩ 打开 · 方向键切换',
 }
@@ -23,6 +25,8 @@ const en: typeof zh = {
   playerHint: 'Space play/pause · J / L back/forward 10 s · M mute',
   segments: (n) => `${n} ${n === 1 ? 'segment' : 'segments'}`,
   hit: (range) => ` · match ${range}`,
+  weakerMatches: (n) => `Weaker matches (${n})`,
+  weakerMatchesHide: 'Hide weaker matches',
   quickLookLabel: (name) => `Quick Look ${name}`,
   quickLookHint: 'Space close · ↩ open · arrow keys to browse',
 }

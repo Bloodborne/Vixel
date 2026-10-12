@@ -83,6 +83,23 @@ function savePref(key: string, value: string): void {
 
 function App(): JSX.Element {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  // 较弱的匹配折叠：searchResults 是当前展示的切片，完整结果（含 weak）在 ref 里。
+  // 展示切片和交互（选中 / 键盘 / 快速查看都按 index）天然一致，展开只是换一份切片。
+  const fullResults = useRef<SearchResult[]>([])
+  const [weakFold, setWeakFold] = useState<{ count: number; expanded: boolean }>({ count: 0, expanded: false })
+  const applyResults = useCallback((rs: SearchResult[]) => {
+    fullResults.current = rs
+    const strong = rs.filter((r) => !r.weak)
+    setWeakFold({ count: rs.length - strong.length, expanded: false })
+    setSearchResults(strong)
+  }, [])
+  const toggleWeakFold = useCallback(() => {
+    setWeakFold((w) => {
+      const expanded = !w.expanded
+      setSearchResults(expanded ? fullResults.current : fullResults.current.filter((r) => !r.weak))
+      return { ...w, expanded }
+    })
+  }, [])
   const [selected, setSelected] = useState<SearchResult | null>(null)
   const [indexProgress, setIndexProgress] = useState<IndexProgressType | null>(null)
   const [isSearching, setIsSearching] = useState(false)
@@ -183,13 +200,13 @@ function App(): JSX.Element {
   const runSearch = useCallback(async () => {
     setIsSearching(true)
     try {
-      setSearchResults(await doSearch())
+      applyResults(await doSearch())
     } catch (error) {
       console.error('Search error:', error)
     } finally {
       setIsSearching(false)
     }
-  }, [doSearch])
+  }, [doSearch, applyResults])
 
   const refreshLibrary = useCallback(async () => {
     const [c, f] = await Promise.all([window.api.getLibraryCounts(), window.api.getFolders()])
@@ -220,7 +237,7 @@ function App(): JSX.Element {
       refreshLibrary()
       // 以图搜图不自动重跑：路径 / 字节查询每次都要过一遍模型，索引期间 5s 一次太贵
       if (!filters.current.query.trim() && !filters.current.image && filters.current.source.type !== 'map' && filters.current.source.type !== 'people' && filters.current.source.type !== 'cleanup') {
-        doSearch().then(setSearchResults).catch(() => {})
+        doSearch().then(applyResults).catch(() => {})
       }
     }
     let modelReady = false
@@ -228,7 +245,7 @@ function App(): JSX.Element {
       setIndexProgress(progress)
       // 模型加载完成前发出的查询只有文件名 / OCR 命中（以图搜图则整个失败）；就绪时重跑一次补上
       if (!modelReady && progress.aiModelReady && (filters.current.query.trim() || filters.current.image)) {
-        doSearch().then(setSearchResults).catch(() => {})
+        doSearch().then(applyResults).catch(() => {})
       }
       modelReady = progress.aiModelReady
       const sig = `${progress.totalPhotos}/${progress.thumbnailedPhotos}/${progress.indexedPhotos}/${progress.ocrPhotos || 0}`
@@ -241,7 +258,7 @@ function App(): JSX.Element {
       unsubscribe()
       if (timer) clearTimeout(timer)
     }
-  }, [doSearch, refreshLibrary])
+  }, [doSearch, refreshLibrary, applyResults])
 
   /** 打开智能相册：整套换成相册保存的查询 + 日期 + 筛选条件，再重新搜索（所以内容总是最新的） */
   const openAlbum = useCallback((album: SmartAlbum) => {
@@ -811,7 +828,10 @@ function App(): JSX.Element {
     const patch = (r: SearchResult): SearchResult =>
       hashes.has(r.photo.fileHash) ? { ...r, photo: { ...r.photo, favorite: on } } : r
     if (!on && filters.current.source.type === 'favorites') runSearch()
-    else setSearchResults((rs) => rs.map(patch))
+    else {
+      fullResults.current = fullResults.current.map(patch)
+      setSearchResults((rs) => rs.map(patch))
+    }
     setSelected((s) => (s ? patch(s) : s))
     refreshLibrary()
   }, [runSearch, refreshLibrary])
@@ -1202,6 +1222,28 @@ function App(): JSX.Element {
               onUserScroll={handleUserScroll}
             />
             </div>
+            {/* 较弱的匹配（融合分不到第一名一半）：默认折叠，点开才展示；只有文字查询会标 weak */}
+            {(hasSearchQuery || hasImageQuery) && weakFold.count > 0 && (
+              <button
+                type="button"
+                data-weak-toggle
+                aria-expanded={weakFold.expanded}
+                onClick={toggleWeakFold}
+                className="flex items-center gap-3 mx-3 py-2 text-callout text-ink-3 hover:text-ink transition-colors duration-fast"
+              >
+                <span className="flex-1 border-t border-line" aria-hidden="true" />
+                <span className="flex items-center gap-1.5">
+                  <svg
+                    className={`w-3 h-3 transition-transform duration-fast ${weakFold.expanded ? 'rotate-90' : ''}`}
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  {weakFold.expanded ? t.grid.weakerMatchesHide : t.grid.weakerMatches(weakFold.count)}
+                </span>
+                <span className="flex-1 border-t border-line" aria-hidden="true" />
+              </button>
+            )}
             </div>
           ) : imageNotice?.error ? (
             <EmptyState

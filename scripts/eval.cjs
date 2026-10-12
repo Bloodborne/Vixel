@@ -149,6 +149,9 @@ function aggregate(rows) {
     map: mean(pos.map((r) => r.ap)),
     negOk: neg.length ? neg.filter((r) => r.negOk).length : null,
     avgResults: mean(rows.map((r) => r.nResults)),
+    /** 折叠线（weak）之上的平均条数；foldedExpected > 0 说明有期望命中被折到线下 */
+    avgStrong: mean(rows.map((r) => r.nStrong ?? r.nResults)),
+    foldedExpected: pos.reduce((a, r) => a + (r.foldedExpected || 0), 0),
   }
 }
 
@@ -175,8 +178,11 @@ async function runSet(name, cfg, tmpBase) {
       segment: r.segment ?? null,
       matchedBy: r.matchedBy ?? [],
       lowConfidence: !!r.lowConfidence,
+      weak: !!r.weak,
       score: r.score,
     }))
+    // 折叠线（weak）检查：强结果条数 + 期望命中有没有掉到线下
+    const nStrong = resView.filter((r) => !r.weak && !r.lowConfidence).length
     const expects = q.expect.map(parseExpect)
     const first = resView[0]
       ? {
@@ -191,7 +197,7 @@ async function runSet(name, cfg, tmpBase) {
       rows.push({
         q: q.q, tag: q.tag, kind: 'neg',
         negOk: confident.length === 0,
-        nResults: resView.length, nConfident: confident.length,
+        nResults: resView.length, nConfident: confident.length, nStrong,
         first,
       })
     } else {
@@ -200,6 +206,8 @@ async function runSet(name, cfg, tmpBase) {
         expect: q.expect,
         ...scorePositive(resView, expects),
         nResults: resView.length,
+        nStrong,
+        foldedExpected: resView.filter((r) => r.weak && expects.some((e) => matches(r, e))).length,
         lowConfidence: resView.length > 0 && resView[0].lowConfidence,
         first,
       })
@@ -218,15 +226,22 @@ async function runSet(name, cfg, tmpBase) {
 const fmt = (x, d = 2) => (x == null ? '    -' : x.toFixed(d).padStart(5))
 function printSet(r) {
   out(`\n== ${r.set} — ${r.overall.n} queries ==`)
-  out('tag           n  top1   MRR   R@5   mAP  neg-ok  avgN')
+  out('tag           n  top1   MRR   R@5   mAP  neg-ok  avgN strong')
   const line = (label, a) =>
     out(
       `${label.padEnd(12)}${String(a.n).padStart(3)} ${fmt(a.top1)} ${fmt(a.mrr)} ${fmt(a.recall5)} ${fmt(a.map)}  ${
         a.negOk == null ? '    -' : `${a.negOk}/${a.nNeg}`.padStart(5)
-      } ${fmt(a.avgResults, 1)}`
+      } ${fmt(a.avgResults, 1)} ${fmt(a.avgStrong, 1)}`
     )
   for (const [tag, agg] of Object.entries(r.perTag)) line(tag, agg)
   line('ALL', r.overall)
+
+  // 折叠线检查：期望命中绝不能掉到"较弱的匹配"线下
+  const folded = r.queries.filter((q) => q.kind === 'pos' && q.foldedExpected > 0)
+  if (folded.length) {
+    out(`-- FOLDED EXPECTED (${folded.length}) — 期望命中掉到折叠线下:`)
+    for (const f of folded) out(`  [${f.tag}] "${f.q}"  ${f.foldedExpected} 条期望命中被标 weak`)
+  }
 
   const failures = r.queries.filter((q) => (q.kind === 'pos' ? q.rank !== 1 : !q.negOk))
   if (failures.length) {

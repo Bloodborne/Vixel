@@ -143,6 +143,8 @@ export interface SearchResult {
   matchedBy?: MatchChannel[]
   /** 没有任何结果明显相关时给出的"最接近"结果：界面据此提示"没有明确匹配" */
   lowConfidence?: boolean
+  /** 较弱的匹配：融合分不到最高分的一半。界面折叠到"较弱的匹配"下（lowConfidence 时不标，整组已说明） */
+  weak?: boolean
   thumbnailPath?: string
 }
 
