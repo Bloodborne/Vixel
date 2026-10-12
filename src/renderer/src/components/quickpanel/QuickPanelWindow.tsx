@@ -241,6 +241,9 @@ export function QuickPanelWindow(): JSX.Element {
   // ---------- 键盘（挂一次，读 live ref） ----------
   const keyHandler = useRef<(e: KeyboardEvent) => void>(() => {})
   keyHandler.current = (e) => {
+    // 输入法组合中（拼音候选等）：↑↓ 在选候选词、Enter 是上屏 —— 全部留给输入法，
+    // 否则敲拼音按回车会直接打开结果并藏起面板
+    if (e.isComposing) return
     const { query: q, results: rs, sel: s, navActive: nav, layout: lo, inlinePreview: preview, imageChip: img } = live.current
     if (preview) {
       // 内置快速查看自己在捕获阶段接管了 Space / Esc / 方向键 / ↩
