@@ -64,6 +64,13 @@ const META_KEY_INDEX_ON_BATTERY = 'power.index_on_battery'
 const META_KEY_SCREENSHOT_BACKFILL = 'screenshot.backfill'
 let backupTimer: NodeJS.Timeout | null = null
 let backupInFlight = false
+/**
+ * 显式退出已开始（before-quit 已发出）。退出流程里窗口逐个 close，各自的 closed 回调
+ * （maybeBackgroundOrQuit）和 window-all-closed 会在 db.close() 之后触发 —— 这时再去读
+ * meta_state（quickPanel.keepAliveOnWindows → getMetaState）会在已关闭的库上抛异常，
+ * 主进程弹未捕获异常框、退出流程卡死（Windows 上进程退不掉）。置位后这些回调直接返回。
+ */
+let isQuitting = false
 
 // 全局服务实例
 let db: ReturnType<typeof initDatabase>
@@ -205,6 +212,7 @@ function ensureMainWindow(): BrowserWindow {
  * 常驻的隐藏面板窗口会让 window-all-closed 不再触发，所以在这里显式判断。
  */
 function maybeBackgroundOrQuit(): void {
+  if (isQuitting) return // 显式退出中：别建托盘，也别碰已关闭的 db
   if (process.platform === 'darwin') return
   if (mainWindow || settingsWindow) return
   if (quickPanel?.keepAliveOnWindows()) quickPanel.ensureTray()
@@ -1074,6 +1082,8 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  // 显式退出中：Electron 自己会继续走 will-quit → quit，这里不要再读 db（已关闭）
+  if (isQuitting) return
   // 启用了快速搜索时 Windows 留在后台（托盘在窗口 closed 回调里建）；此外维持原行为
   if (process.platform !== 'darwin' && !quickPanel?.keepAliveOnWindows()) {
     app.quit()
@@ -1081,7 +1091,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  // 全局快捷键 / 托盘：退出前注销
+  isQuitting = true
+  // 全局快捷键 / 托盘 / 常驻面板窗口：退出前注销并销毁
   quickPanel?.dispose()
   // VIXEL_PROFILE=1：退出时打印本次会话最慢的操作（p50 / p95 / max）
   if (PROFILE) console.table(perfSnapshot().slice(0, 25).map((r) => ({ ...r, p50: +r.p50.toFixed(1), p95: +r.p95.toFixed(1), max: +r.max.toFixed(1) })))

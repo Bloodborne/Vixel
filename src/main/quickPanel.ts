@@ -21,7 +21,7 @@ import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, Menu, nativeIma
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { QUICKPANEL_CHANNELS as QP, defaultShortcut, isValidShortcut, type QuickPanelPending, type QuickPanelSettings } from '../shared/quickpanel'
-import { filenamesPlist, fileNameWBuffer } from './fileClipboard'
+import { filenamesPlist, writeClipboardHdrop } from './fileClipboard'
 import { t } from '../shared/i18n'
 
 const META_KEY_SHORTCUT = 'quickpanel.shortcut'
@@ -70,7 +70,11 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
   /** 主窗口尚未加载完时暂存 ↩ / ⌘O 的动作，渲染端挂载后拉取 */
   let pending: QuickPanelPending | null = null
 
-  const enabled = (): boolean => deps.getMeta(META_KEY_ENABLED) !== '0'
+  // 开关状态缓存在内存里（写入走 SET_ENABLED，和 meta_state 同步更新）：
+  // keepAliveOnWindows() 在窗口 closed / window-all-closed 回调里被调用，
+  // 退出流程中 db 可能已经关闭，这里绝不能再去查库
+  let enabledState = deps.getMeta(META_KEY_ENABLED) !== '0'
+  const enabled = (): boolean => enabledState
   const shortcut = (): string => {
     const v = deps.getMeta(META_KEY_SHORTCUT)
     return v && isValidShortcut(v, isMac) ? v : defaultShortcut(process.platform)
@@ -233,6 +237,7 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
   ipcMain.handle(QP.GET_SETTINGS, async () => settings())
 
   ipcMain.handle(QP.SET_ENABLED, async (_e, on: boolean) => {
+    enabledState = !!on
     deps.setMeta(META_KEY_ENABLED, on ? '1' : '0')
     applyShortcut()
     if (!on) destroyTray()
@@ -297,7 +302,8 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
   /**
    * ⌘C / Ctrl+C：把文件本身写进剪贴板（不是路径文字）。
    * macOS 写 NSFilenamesPboardType plist（访达 ⌘V 可粘贴成文件副本）；
-   * Windows 写 CF_FILENAMEW（资源管理器识别为单个文件）。失败回退路径文字并如实返回。
+   * Windows 经 Win32 直写 CF_HDROP（资源管理器 Ctrl+V 认的就是它；Electron 的
+   * writeBuffer 写不了无名标准格式）。失败回退路径文字并如实返回。
    */
   ipcMain.handle(QP.COPY_FILES, async (_e, items: Array<{ photoId: number; videoId?: number | null }>) => {
     const paths = (Array.isArray(items) ? items : [])
@@ -310,7 +316,7 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
         return 'file'
       }
       if (process.platform === 'win32') {
-        clipboard.writeBuffer('FileNameW', fileNameWBuffer(paths[0]))
+        writeClipboardHdrop(paths)
         return 'file'
       }
     } catch (e) {
@@ -369,6 +375,9 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
         registeredAcc = null
       }
       destroyTray()
+      // 常驻的隐藏面板窗口也一并销毁：退出流程不依赖它被动关闭的时序
+      if (panel && !panel.isDestroyed()) panel.destroy()
+      panel = null
     },
   }
 }
