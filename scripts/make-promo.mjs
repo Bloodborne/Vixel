@@ -42,18 +42,23 @@ const card = async (lines, file, withIcon) => {
   if (icon) img = img.composite([{ input: icon, left: (W - 260) / 2, top: 200 }])
   await img.png().toFile(file)
 }
-// 片头 / 片尾文案：默认是照片版；video 是面向剪辑师的视频素材版
+// 片头 / 片尾文案：默认是照片版；video 是面向剪辑师的视频素材版；PROMO_LANG=en 用英文
+const EN = process.env.PROMO_LANG === 'en'
 const COPY = process.env.PROMO_PRESET === 'video'
   ? {
-      intro: '一句话，找到视频素材里的那一秒',
+      intro: EN ? 'Find the exact second in your footage' : '一句话，找到视频素材里的那一秒',
       // 详情页底部是片段时间轴（命中高亮），字幕放高一点别挡住它
       captionBottom: 270,
-      outro: ['完全离线 · 免费开源', '模型在你的电脑上运行，素材不上传、不需要账号', 'macOS · Windows · github.com/RGB-loop/Vixel'],
+      outro: EN
+        ? ['Fully offline · Free & open source', 'Models run on your machine — nothing uploads, no account', 'macOS · Windows · github.com/RGB-loop/Vixel']
+        : ['完全离线 · 免费开源', '模型在你的电脑上运行，素材不上传、不需要账号', 'macOS · Windows · github.com/RGB-loop/Vixel'],
     }
   : {
-      intro: '用一句话，找到照片和视频里的那一刻',
+      intro: EN ? 'Find the moment, in one sentence' : '用一句话，找到照片和视频里的那一刻',
       captionBottom: 150,
-      outro: ['完全离线 · 数据不出设备', '模型在你的 Mac 上运行，不上传、不需要账号', '开源 · github.com/RGB-loop/Vixel'],
+      outro: EN
+        ? ['Fully offline · Your data stays put', 'Models run on your machine — no uploads, no account', 'Open source · github.com/RGB-loop/Vixel']
+        : ['完全离线 · 数据不出设备', '模型在你的 Mac 上运行，不上传、不需要账号', '开源 · github.com/RGB-loop/Vixel'],
     }
 await card([
   { text: 'Vixel', size: 120, weight: 600 },

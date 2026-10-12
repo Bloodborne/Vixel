@@ -186,7 +186,12 @@ function createWindow(): void {
         },
       })
     }
-    if (process.env.VIXEL_RECORD) void runRecording(win, process.env.VIXEL_RECORD)
+    if (process.env.VIXEL_RECORD) {
+      void runRecording(win, process.env.VIXEL_RECORD, {
+        // VIXEL_PROMO=panel：录快速搜索面板（合成到中性壁纸上，见 capture.ts）
+        quickPanel: { show: () => quickPanel!.show(), hide: () => quickPanel!.hide() },
+      })
+    }
   })
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
