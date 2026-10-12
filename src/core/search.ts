@@ -75,6 +75,14 @@ const LOOKUP_VEC_WEIGHT = 0.5
  * 语义查询的排序不受影响。
  */
 const EXACT_TEXT_WEIGHT = 1.01
+/**
+ * 同一视频多个片段都命中时的"偏早"余量（余弦）：最佳片段和更早片段差距 ≤ 这个数就跳到更早那段
+ * （排序仍按最佳片段的距离）。动作的开头（火车进站、火箭点火）通常在前面的片段里，
+ * 后面的段往往只是同一场景的延续，但 8 帧 + 音轨的片段向量偶尔会偏爱它们零点零几。
+ * 0.025 的标定：实测"train arriving at a station"真命中（0-32s 进站）比 32-45s（车厢驶过）
+ * 低 0.0196；再大就会越过片段门槛之间的真实差距（相关 vs 无关片段的余弦差普遍 > 0.03）。
+ */
+const SEGMENT_EARLIER_MARGIN = 0.025
 
 export type SearchOptions = MediaFilters
 
@@ -443,15 +451,28 @@ export class SearchEngine {
     if (!queryVec) return []
     try {
       const rawResults = this.db.searchVideoSegmentsByVec(queryVec, limit)
-      // 按 videoId 去重，保留每个视频的最佳片段
-      const bestPerVideo = new Map<number, VideoSegmentSearchResult>()
+      // 按 videoId 去重：排序用最佳片段的距离；展示 / 跳转的区间在差距很小时偏向更早的片段
+      const byVideo = new Map<number, VideoSegmentSearchResult[]>()
       for (const seg of rawResults) {
-        const existing = bestPerVideo.get(seg.videoId)
-        if (!existing || seg.distance < existing.distance) {
-          bestPerVideo.set(seg.videoId, seg)
-        }
+        const list = byVideo.get(seg.videoId)
+        if (list) list.push(seg)
+        else byVideo.set(seg.videoId, [seg])
       }
-      return Array.from(bestPerVideo.values())
+      const out: VideoSegmentSearchResult[] = []
+      for (const segs of byVideo.values()) {
+        const best = segs.reduce((a, b) => (b.distance < a.distance ? b : a))
+        // 同一视频里几段都差不多像时，取最早的那段：动作的开头（进站、点火）通常在前，
+        // 后面的段只是"更多同类画面"，跳到开头才是用户要的。
+        // 实测（素材库）："train arriving at a station" 的 32-45s（车厢驶过）只比
+        // 0-32s（车头进站）高 0.0196 余弦；"rocket lifting off" 两段差 0.0036（本来就是第一段最佳）。
+        const bestCos = l2ToCosine(best.distance)
+        let chosen = best
+        for (const s of segs) {
+          if (s.startMs < chosen.startMs && bestCos - l2ToCosine(s.distance) <= SEGMENT_EARLIER_MARGIN) chosen = s
+        }
+        out.push({ videoId: best.videoId, startMs: chosen.startMs, endMs: chosen.endMs, distance: best.distance })
+      }
+      return out
     } catch (error) {
       console.error('Video segment search failed:', error)
       return []
