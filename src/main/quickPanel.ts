@@ -347,6 +347,12 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
 
   // 服务就绪后注册（index.ts 在 initServices 之后调用 initQuickPanel）
   applyShortcut()
+  // 预热：启用时提前把隐藏面板建好（渲染器加载要几百毫秒），第一次按快捷键也能立刻弹出
+  if (enabled()) {
+    setTimeout(() => {
+      try { ensurePanel() } catch (e) { console.warn('[quickpanel] prewarm failed:', e) }
+    }, 2500)
+  }
 
   return {
     show,
