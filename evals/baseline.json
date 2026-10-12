@@ -1,31 +1,35 @@
 {
- "generatedAt": "2026-10-12T10:40:16.391Z",
+ "generatedAt": "2026-10-12T11:23:44.522Z",
  "limit": 10,
  "sets": [
   {
    "set": "demo",
    "overall": {
-    "n": 37,
-    "nPos": 33,
-    "nNeg": 4,
-    "top1": 0.8787878787878788,
-    "mrr": 0.9393939393939394,
+    "n": 43,
+    "nPos": 38,
+    "nNeg": 5,
+    "top1": 1,
+    "mrr": 1,
     "recall5": 1,
-    "map": 0.9343434343434344,
-    "negOk": 4,
-    "avgResults": 2.5675675675675675
+    "map": 0.9956140350877194,
+    "negOk": 5,
+    "avgResults": 2.5813953488372094,
+    "avgStrong": 1.186046511627907,
+    "foldedExpected": 0
    },
    "perTag": {
     "filename": {
      "n": 3,
      "nPos": 3,
      "nNeg": 0,
-     "top1": 0.3333333333333333,
-     "mrr": 0.6666666666666666,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "map": 0.6666666666666666,
+     "map": 1,
      "negOk": null,
-     "avgResults": 2.3333333333333335
+     "avgResults": 2.3333333333333335,
+     "avgStrong": 2.3333333333333335,
+     "foldedExpected": 0
     },
     "image": {
      "n": 13,
@@ -36,29 +40,35 @@
      "recall5": 1,
      "map": 0.9871794871794872,
      "negOk": null,
-     "avgResults": 2.1538461538461537
+     "avgResults": 2.1538461538461537,
+     "avgStrong": 1.3846153846153846,
+     "foldedExpected": 0
     },
     "kind": {
-     "n": 3,
-     "nPos": 3,
-     "nNeg": 0,
-     "top1": 0.6666666666666666,
-     "mrr": 0.8333333333333334,
-     "recall5": 1,
-     "map": 0.8333333333333334,
-     "negOk": null,
-     "avgResults": 1.3333333333333333
-    },
-    "lookup": {
-     "n": 4,
-     "nPos": 4,
+     "n": 6,
+     "nPos": 6,
      "nNeg": 0,
      "top1": 1,
      "mrr": 1,
      "recall5": 1,
      "map": 1,
      "negOk": null,
-     "avgResults": 1
+     "avgResults": 1.3333333333333333,
+     "avgStrong": 1.3333333333333333,
+     "foldedExpected": 0
+    },
+    "lookup": {
+     "n": 6,
+     "nPos": 6,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 1,
+     "avgStrong": 1,
+     "foldedExpected": 0
     },
     "multilingual": {
      "n": 2,
@@ -69,29 +79,35 @@
      "recall5": 1,
      "map": 1,
      "negOk": null,
-     "avgResults": 1.5
+     "avgResults": 1.5,
+     "avgStrong": 1.5,
+     "foldedExpected": 0
     },
     "negative": {
-     "n": 4,
+     "n": 5,
      "nPos": 0,
-     "nNeg": 4,
+     "nNeg": 5,
      "top1": null,
      "mrr": null,
      "recall5": null,
      "map": null,
-     "negOk": 4,
-     "avgResults": 10
+     "negOk": 5,
+     "avgResults": 10,
+     "avgStrong": 0,
+     "foldedExpected": 0
     },
     "ocr": {
      "n": 5,
      "nPos": 5,
      "nNeg": 0,
-     "top1": 0.8,
-     "mrr": 0.9,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "map": 0.9,
+     "map": 1,
      "negOk": null,
-     "avgResults": 1.2
+     "avgResults": 1.2,
+     "avgStrong": 1.2,
+     "foldedExpected": 0
     },
     "video": {
      "n": 3,
@@ -102,7 +118,9 @@
      "recall5": 1,
      "map": 1,
      "negOk": null,
-     "avgResults": 1
+     "avgResults": 1,
+     "avgStrong": 1,
+     "foldedExpected": 0
     }
    },
    "queries": [
@@ -119,6 +137,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "自然/cyclamen_persicum.jpg",
@@ -142,6 +162,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "自然/notocactus_minimus.jpg",
@@ -166,6 +188,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "自然/orychophragmus_violaceus.jpg",
@@ -189,6 +213,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 3,
+     "nStrong": 3,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "自然/prairie_falcon.jpg",
@@ -212,6 +238,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "人像/mongolels.jpg",
@@ -236,6 +264,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "其他格式/denali.webp",
@@ -259,6 +289,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "相机RAW/glarus.nef",
@@ -282,6 +314,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "相机RAW/philadelphia.nef",
@@ -305,6 +339,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "相机RAW/PowerShot_G12.CR2",
@@ -329,6 +365,8 @@
      "recall5": 1,
      "ap": 0.8333333333333333,
      "nResults": 10,
+     "nStrong": 0,
+     "foldedExpected": 0,
      "lowConfidence": true,
      "first": {
       "path": "相机RAW/14bit-uncompressed-(3_2).arw",
@@ -352,6 +390,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "其他格式/pixel-8a.jpg",
@@ -376,6 +416,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "人像/portrait-orientation-6.jpg",
@@ -399,6 +441,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "自然/wood_anemones.jpg",
@@ -422,6 +466,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "文字/japanese-shop.jpg",
@@ -445,6 +491,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "自然/notocactus_minimus.jpg",
@@ -462,18 +510,20 @@
      "expect": [
       "视频/train.mov"
      ],
-     "rank": 2,
-     "top1": 0,
-     "mrr": 0.5,
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "ap": 0.5,
+     "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
-      "path": "其他格式/pixel-8a.jpg",
+      "path": "视频/train.mov",
       "segment": null,
       "matchedBy": [
-       "visual"
+       "text"
       ],
       "lowConfidence": false
      }
@@ -491,6 +541,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "文字/craft-beer.jpg",
@@ -514,6 +566,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "文字/japanese-shop.jpg",
@@ -538,6 +592,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "文字/book-beside-flowers.jpg",
@@ -562,6 +618,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "文字/handwritten-notes.jpg",
@@ -580,18 +638,20 @@
      "expect": [
       "其他格式/denali.webp"
      ],
-     "rank": 2,
-     "top1": 0,
-     "mrr": 0.5,
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "ap": 0.5,
+     "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
-      "path": "相机RAW/EOS_70D.CR2",
+      "path": "其他格式/denali.webp",
       "segment": null,
       "matchedBy": [
-       "visual"
+       "filename"
       ],
       "lowConfidence": false
      }
@@ -609,6 +669,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "相机RAW/glarus.nef",
@@ -626,18 +688,20 @@
      "expect": [
       "自然/wood_anemones.jpg"
      ],
-     "rank": 2,
-     "top1": 0,
-     "mrr": 0.5,
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "ap": 0.5,
+     "ap": 1,
      "nResults": 4,
+     "nStrong": 4,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
-      "path": "自然/polemonium_reptans.jpg",
+      "path": "自然/wood_anemones.jpg",
       "segment": null,
       "matchedBy": [
-       "visual"
+       "filename"
       ],
       "lowConfidence": false
      }
@@ -655,6 +719,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "其他格式/IMG_2682.heic",
@@ -678,6 +744,33 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "其他格式/IMG_2682.heic",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "IMG 2682",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "其他格式/IMG_2682.heic"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "其他格式/IMG_2682.heic",
@@ -701,9 +794,36 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "相机RAW/PowerShot_G12.CR2",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "GR3",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/Ricoh_GR3-450.DNG"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/Ricoh_GR3-450.DNG",
       "segment": null,
       "matchedBy": [
        "filename"
@@ -724,6 +844,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "相机RAW/Ricoh_GR3-450.DNG",
@@ -747,15 +869,14 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "视频/train.mov",
-      "segment": [
-       0,
-       21.74
-      ],
+      "segment": null,
       "matchedBy": [
-       "segment"
+       "visual"
       ],
       "lowConfidence": false
      }
@@ -773,6 +894,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "视频/waterfall.mp4",
@@ -781,7 +904,8 @@
        10.36
       ],
       "matchedBy": [
-       "segment"
+       "segment",
+       "filename"
       ],
       "lowConfidence": false
      }
@@ -793,19 +917,99 @@
      "expect": [
       "视频/eiffel-tower.mp4"
      ],
-     "rank": 2,
-     "top1": 0,
-     "mrr": 0.5,
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "ap": 0.5,
-     "nResults": 2,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
-      "path": "视频/train.mov",
+      "path": "视频/eiffel-tower.mp4",
+      "segment": [
+       0,
+       22.62
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "仙人掌的照片",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "自然/notocactus_minimus.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/notocactus_minimus.jpg",
       "segment": null,
       "matchedBy": [
        "visual"
       ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "photo of a fountain",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/philadelphia.nef"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/philadelphia.nef",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "视频",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "视频/train.mov",
+      "视频/waterfall.mp4",
+      "视频/eiffel-tower.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 3,
+     "nStrong": 3,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "视频/eiffel-tower.mp4",
+      "segment": null,
+      "matchedBy": [],
       "lowConfidence": false
      }
     },
@@ -822,6 +1026,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "视频/train.mov",
@@ -848,6 +1054,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "视频/waterfall.mp4",
@@ -874,6 +1082,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "视频/eiffel-tower.mp4",
@@ -894,6 +1104,7 @@
      "negOk": true,
      "nResults": 10,
      "nConfident": 0,
+     "nStrong": 0,
      "first": {
       "path": "其他格式/thompson-springs.jpg",
       "segment": null,
@@ -910,6 +1121,7 @@
      "negOk": true,
      "nResults": 10,
      "nConfident": 0,
+     "nStrong": 0,
      "first": {
       "path": "相机RAW/EOS_70D.CR2",
       "segment": null,
@@ -926,6 +1138,7 @@
      "negOk": true,
      "nResults": 10,
      "nConfident": 0,
+     "nStrong": 0,
      "first": {
       "path": "其他格式/pixel-8a.jpg",
       "segment": null,
@@ -942,11 +1155,32 @@
      "negOk": true,
      "nResults": 10,
      "nConfident": 0,
+     "nStrong": 0,
      "first": {
-      "path": "自然/orychophragmus_violaceus.jpg",
+      "path": "自然/polemonium_reptans.jpg",
       "segment": null,
       "matchedBy": [
        "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "大象的视频",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "nStrong": 0,
+     "first": {
+      "path": "视频/eiffel-tower.mp4",
+      "segment": [
+       0,
+       22.62
+      ],
+      "matchedBy": [
+       "segment"
       ],
       "lowConfidence": true
      }
@@ -956,15 +1190,17 @@
   {
    "set": "footage",
    "overall": {
-    "n": 35,
-    "nPos": 31,
-    "nNeg": 4,
-    "top1": 0.8387096774193549,
-    "mrr": 0.8790322580645161,
-    "recall5": 0.9032258064516129,
-    "map": 0.8467741935483871,
-    "negOk": 3,
-    "avgResults": 2.742857142857143
+    "n": 39,
+    "nPos": 34,
+    "nNeg": 5,
+    "top1": 0.9411764705882353,
+    "mrr": 0.9485294117647058,
+    "recall5": 0.9411764705882353,
+    "map": 0.9191176470588235,
+    "negOk": 4,
+    "avgResults": 2.3846153846153846,
+    "avgStrong": 1.0769230769230769,
+    "foldedExpected": 0
    },
    "perTag": {
     "filename": {
@@ -976,29 +1212,35 @@
      "recall5": 1,
      "map": 1,
      "negOk": null,
-     "avgResults": 1
+     "avgResults": 1,
+     "avgStrong": 1,
+     "foldedExpected": 0
     },
     "kind": {
-     "n": 3,
-     "nPos": 3,
+     "n": 5,
+     "nPos": 5,
      "nNeg": 0,
-     "top1": 0.3333333333333333,
-     "mrr": 0.6666666666666666,
-     "recall5": 0.8333333333333334,
-     "map": 0.5,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 0.9,
+     "map": 0.9,
      "negOk": null,
-     "avgResults": 7
+     "avgResults": 1.2,
+     "avgStrong": 1.2,
+     "foldedExpected": 0
     },
     "lookup": {
-     "n": 3,
-     "nPos": 3,
+     "n": 4,
+     "nPos": 4,
      "nNeg": 0,
      "top1": 1,
      "mrr": 1,
      "recall5": 1,
      "map": 1,
      "negOk": null,
-     "avgResults": 1
+     "avgResults": 1.25,
+     "avgStrong": 1,
+     "foldedExpected": 0
     },
     "multilingual": {
      "n": 2,
@@ -1009,18 +1251,22 @@
      "recall5": 1,
      "map": 1,
      "negOk": null,
-     "avgResults": 2
+     "avgResults": 2,
+     "avgStrong": 2,
+     "foldedExpected": 0
     },
     "negative": {
-     "n": 4,
+     "n": 5,
      "nPos": 0,
-     "nNeg": 4,
+     "nNeg": 5,
      "top1": null,
      "mrr": null,
      "recall5": null,
      "map": null,
-     "negOk": 3,
-     "avgResults": 7.75
+     "negOk": 4,
+     "avgResults": 8.2,
+     "avgStrong": 0.2,
+     "foldedExpected": 0
     },
     "ocr": {
      "n": 3,
@@ -1031,18 +1277,22 @@
      "recall5": 1,
      "map": 1,
      "negOk": null,
-     "avgResults": 1.6666666666666667
+     "avgResults": 1.6666666666666667,
+     "avgStrong": 1.6666666666666667,
+     "foldedExpected": 0
     },
     "video": {
      "n": 17,
      "nPos": 17,
      "nNeg": 0,
-     "top1": 0.8235294117647058,
-     "mrr": 0.8382352941176471,
-     "recall5": 0.8529411764705882,
-     "map": 0.8088235294117647,
+     "top1": 0.8823529411764706,
+     "mrr": 0.8970588235294118,
+     "recall5": 0.9117647058823529,
+     "map": 0.8676470588235294,
      "negOk": null,
-     "avgResults": 1.7058823529411764
+     "avgResults": 1.7058823529411764,
+     "avgStrong": 1.1176470588235294,
+     "foldedExpected": 0
     }
    },
    "queries": [
@@ -1059,12 +1309,14 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "seagull-chicks.mp4",
       "segment": [
-       32,
-       45.01
+       0,
+       32
       ],
       "matchedBy": [
        "segment"
@@ -1086,12 +1338,14 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "rocket-falcon9.mp4",
       "segment": [
-       32,
-       45
+       0,
+       32
       ],
       "matchedBy": [
        "segment"
@@ -1112,6 +1366,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "rocket-falcon9.mp4",
@@ -1132,18 +1388,20 @@
      "expect": [
       "train-zagreb.mp4@0-32"
      ],
-     "rank": null,
-     "top1": 0,
-     "mrr": 0,
-     "recall5": 0,
-     "ap": 0,
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "train-zagreb.mp4",
       "segment": [
-       32,
-       45
+       0,
+       32
       ],
       "matchedBy": [
        "segment"
@@ -1164,6 +1422,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "fireworks-kamakura.mp4",
@@ -1190,6 +1450,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "cat-puddle.mp4",
@@ -1216,6 +1478,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "horse-grazing.mp4",
@@ -1242,6 +1506,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "snow-falling.mp4",
@@ -1269,6 +1535,8 @@
      "recall5": 0.5,
      "ap": 0.5,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "rain-window-night.mp4",
@@ -1296,6 +1564,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "waterfall-watagataki.mp4",
@@ -1322,6 +1592,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "beach-sunset-timelapse.mp4",
@@ -1348,6 +1620,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "wild-horses.mp4",
@@ -1374,6 +1648,8 @@
      "recall5": 0,
      "ap": 0,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "wild-dogs.mp4",
@@ -1397,6 +1673,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "cooking-alioli.mp4",
@@ -1420,6 +1698,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "ocean-waves-irminger.mp4",
@@ -1446,6 +1726,8 @@
      "recall5": 1,
      "ap": 0.25,
      "nResults": 10,
+     "nStrong": 0,
+     "foldedExpected": 0,
      "lowConfidence": true,
      "first": {
       "path": "waterfall-watagataki.mp4",
@@ -1469,6 +1751,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "earth-night-lights.mp4",
@@ -1495,6 +1779,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "fireworks-kamakura.mp4",
@@ -1522,6 +1808,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "waterfall-delaneys.mp4",
@@ -1548,6 +1836,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "horse-wagons.mp4",
@@ -1576,6 +1866,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 3,
+     "nStrong": 3,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "rocket-falcon9.mp4",
@@ -1600,6 +1892,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "rain-window-night.mp4",
@@ -1623,6 +1917,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "dogs-hurdles-1899.mp4",
@@ -1646,6 +1942,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "rocket-jason3.mp4",
@@ -1669,6 +1967,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "horse-wagons.mp4",
@@ -1676,6 +1976,35 @@
       "matchedBy": [
        "visual",
        "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "falcon9",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "rocket-falcon9.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "rocket-falcon9.mp4",
+      "segment": [
+       0,
+       32
+      ],
+      "matchedBy": [
+       "segment",
+       "filename"
       ],
       "lowConfidence": false
      }
@@ -1693,6 +2022,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "ocean-waves-irminger.mp4",
@@ -1716,6 +2047,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "fireworks-kamakura.mp4",
@@ -1739,6 +2072,8 @@
      "recall5": 1,
      "ap": 1,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "train-zagreb.mp4",
@@ -1763,6 +2098,8 @@
      "recall5": 0.5,
      "ap": 0.5,
      "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
      "lowConfidence": false,
      "first": {
       "path": "cat-puddle.mp4",
@@ -1783,20 +2120,26 @@
      "expect": [
       "fireworks-kamakura.mp4"
      ],
-     "rank": 2,
-     "top1": 0,
-     "mrr": 0.5,
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "ap": 0.5,
-     "nResults": 10,
-     "lowConfidence": true,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
      "first": {
-      "path": "rain-sonoma.mp4",
-      "segment": null,
-      "matchedBy": [
-       "visual"
+      "path": "fireworks-kamakura.mp4",
+      "segment": [
+       0,
+       24.44
       ],
-      "lowConfidence": true
+      "matchedBy": [
+       "segment",
+       "filename"
+      ],
+      "lowConfidence": false
      }
     },
     {
@@ -1806,20 +2149,82 @@
      "expect": [
       "snow-falling.mp4"
      ],
-     "rank": 2,
-     "top1": 0,
-     "mrr": 0.5,
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
      "recall5": 1,
-     "ap": 0.5,
-     "nResults": 10,
-     "lowConfidence": true,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
      "first": {
-      "path": "seagull-chicks.mp4",
-      "segment": null,
-      "matchedBy": [
-       "visual"
+      "path": "snow-falling.mp4",
+      "segment": [
+       0,
+       15.05
       ],
-      "lowConfidence": true
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "烟花的视频",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "fireworks-kamakura.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "nStrong": 1,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "fireworks-kamakura.mp4",
+      "segment": [
+       0,
+       24.44
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "video of a rocket launch",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "rocket-falcon9.mp4",
+      "rocket-jason3.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "nStrong": 2,
+     "foldedExpected": 0,
+     "lowConfidence": false,
+     "first": {
+      "path": "rocket-falcon9.mp4",
+      "segment": [
+       0,
+       32
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
      }
     },
     {
@@ -1829,6 +2234,7 @@
      "negOk": true,
      "nResults": 10,
      "nConfident": 0,
+     "nStrong": 0,
      "first": {
       "path": "dogs-hurdles-1899.mp4",
       "segment": null,
@@ -1845,6 +2251,7 @@
      "negOk": true,
      "nResults": 10,
      "nConfident": 0,
+     "nStrong": 0,
      "first": {
       "path": "rocket-falcon9.mp4",
       "segment": null,
@@ -1861,6 +2268,7 @@
      "negOk": true,
      "nResults": 10,
      "nConfident": 0,
+     "nStrong": 0,
      "first": {
       "path": "wild-dogs.mp4",
       "segment": null,
@@ -1877,6 +2285,7 @@
      "negOk": false,
      "nResults": 1,
      "nConfident": 1,
+     "nStrong": 1,
      "first": {
       "path": "cat-curious.mp4",
       "segment": [
@@ -1887,6 +2296,23 @@
        "segment"
       ],
       "lowConfidence": false
+     }
+    },
+    {
+     "q": "video of an elephant",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "nStrong": 0,
+     "first": {
+      "path": "waterfall-watagataki.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
      }
     }
    ]

@@ -27,17 +27,23 @@
     { "q": "anemone", "expect": ["自然/wood_anemones.jpg"], "tag": "filename", "note": "文件名子串" },
     { "q": "IMG_2682", "expect": ["其他格式/IMG_2682.heic"], "tag": "lookup", "note": "相机编号式文件名" },
     { "q": "2682", "expect": ["其他格式/IMG_2682.heic"], "tag": "lookup", "note": "只给数字" },
+    { "q": "IMG 2682", "expect": ["其他格式/IMG_2682.heic"], "tag": "lookup", "note": "空格形式：空白匹配文件名里的任意分隔符" },
     { "q": "G12", "expect": ["相机RAW/PowerShot_G12.CR2"], "tag": "lookup" },
+    { "q": "GR3", "expect": ["相机RAW/Ricoh_GR3-450.DNG"], "tag": "lookup", "note": "型号缩写；库内唯一含 GR3 的文件名，OCR 无碰撞" },
     { "q": "450", "expect": ["相机RAW/Ricoh_GR3-450.DNG"], "tag": "lookup", "note": "文件名里的数字" },
     { "q": "火车的视频", "expect": ["视频/train.mov"], "tag": "kind", "note": "带类型词；实际内容是苏黎世 Polybahn 缆索铁路" },
     { "q": "video of a waterfall", "expect": ["视频/waterfall.mp4"], "tag": "kind" },
     { "q": "埃菲尔铁塔的视频", "expect": ["视频/eiffel-tower.mp4"], "tag": "kind" },
+    { "q": "仙人掌的照片", "expect": ["自然/notocactus_minimus.jpg"], "tag": "kind", "note": "类型词指向图片；库里唯一的仙人掌（缩略图核对过）" },
+    { "q": "photo of a fountain", "expect": ["相机RAW/philadelphia.nef"], "tag": "kind", "note": "英文类型词 + RAW；Swann 喷泉（NEF 转图核对过）" },
+    { "q": "视频", "expect": ["视频/train.mov", "视频/waterfall.mp4", "视频/eiffel-tower.mp4"], "tag": "kind", "note": "只有类型词 → 按类型浏览，库里全部 3 段视频" },
     { "q": "红色的缆车", "expect": ["视频/train.mov"], "tag": "video", "note": "19s 处红色 POLYBAHN 车厢驶过" },
     { "q": "秋天山崖上的瀑布", "expect": ["视频/waterfall.mp4"], "tag": "video" },
     { "q": "night tower with sparkling lights", "expect": ["视频/eiffel-tower.mp4"], "tag": "video", "note": "黄昏亮灯闪烁的铁塔" },
     { "q": "大象", "expect": [], "tag": "negative" },
     { "q": "滑雪的人", "expect": [], "tag": "negative", "note": "有雪景但没有滑雪" },
     { "q": "birthday cake", "expect": [], "tag": "negative" },
-    { "q": "手机截图", "expect": [], "tag": "negative", "note": "库里没有截图（samsung-one-ui-6.jpg 是一面墙的照片）" }
+    { "q": "手机截图", "expect": [], "tag": "negative", "note": "库里没有截图（samsung-one-ui-6.jpg 是一面墙的照片）" },
+    { "q": "大象的视频", "expect": [], "tag": "negative", "note": "类型词剥掉后（大象）仍是负例，类型软加权不该把视频硬顶成明确命中" }
   ]
 }

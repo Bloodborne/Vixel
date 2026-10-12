@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Weaker matches fold away.** When a search has a clear standout (hits on several channels at
+  once — picture + filename + tag, say), results whose fused score is under 0.45× the top hit are
+  tucked behind a collapsed "Weaker matches (N)" divider under the grid, expandable with one
+  click. Browsing and the honest "no confident match" notice are untouched. The cut line is
+  verified by the eval harness: a new `strong` column and a folded-expected check assert that no
+  labeled answer ever falls below it (DigUp's 0.5 line did fold one true answer on our sets,
+  so Vixel ships 0.45).
+- **Media-kind words in queries.** "火车的视频", "video of a waterfall", "仙人掌的照片" and the
+  like: the kind word (视频/照片/截图/clip/photo/screenshot/…, zh + en) no longer dilutes the
+  query vector — it is stripped before embedding and applied as a *soft* ranking boost for
+  matching media kinds (never a filter). A query that is only a kind word ("视频") browses that
+  kind. Previously these queries dropped the true hit to rank 2 with a low-confidence banner.
+- **Lookup queries.** When every term looks like a code or ID ("IMG_2682", "N49", "2024-03"),
+  the exact text channels (OCR / filename / tags) get double weight in fusion and the vector
+  channels half — the evidence for such queries lives in text, not in "looks like".
+- **More eval coverage.** evals/demo.json and evals/footage.json grew kind-word, lookup and
+  negative queries (43 + 39 total), every expected answer verified against the actual pixels
+  (thumbnails / extracted frames). `npm run eval` now also reports the strong count per query
+  and flags any expected answer folded below the weaker-matches line.
+
+### Changed
+- **Search ranking.** Measured on the eval harness, old baseline → new:
+  demo top-1 0.88 → 1.00, MRR 0.94 → 1.00, mAP 0.93 → 1.00, negatives 4/4 (now 5/5 of an
+  extended set); footage top-1 0.84 → 0.94, MRR 0.88 → 0.95, mAP 0.85 → 0.92, negatives 3/4
+  (now 4/5 of an extended set). No query regressed. The pieces:
+  - Exact whole-token hits (OCR text, filename, user tags) now win ties against a lone visual
+    match ("STARBUCKS" → the video whose frame says STARBUCKS; "denali" / "anemone" → the file
+    so named). Partial/stop-word text hits deliberately get no such boost.
+  - When several segments of the same video match about equally (within 0.025 cosine), the
+    earlier one is shown — "train arriving at a station" now jumps to the train pulling in,
+    not the carriages rolling past.
+  - Multi-word queries reach filenames across separators: "wood anemones" finds
+    wood_anemones.jpg, "IMG 2682" finds IMG_2682.heic.
+- **Refactor.** search.ts split into small, unit-tested modules: queryAnalysis.ts (kind words,
+  lookup detection, exact-token matching), relevance.ts (the adaptive z-score gate), fusion.ts
+  (RRF, now with optional per-channel weights). Known remaining misses are documented in the
+  eval output: "狗跨栏" (the 1899 B/W film), "马拉着篷车" (rank 4, low-confidence), and the
+  footage "手机截图" negative still returns one vertical phone video.
+
 ## [0.4.0] - 2026-10-12
 
 ### Added

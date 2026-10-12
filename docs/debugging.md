@@ -83,8 +83,8 @@ npm run eval -- --compare evals/baseline.json  # 与基线对比：各指标增�
 npm run eval -- --json --out evals/baseline.json   # 排序有意改变时重建基线
 ```
 
-- 查询集在 `evals/demo.json` / `evals/footage.json`（约 35 条 / 集，按 image / video / ocr / filename / multilingual / kind / lookup / negative 分类），期望路径相对库根目录，`file@a-b` 表示要求命中片段与 `[a,b]` 秒有重叠。基线结果在 `evals/baseline.json`。
-- 指标：top-1 命中率、MRR、Recall@5、mAP、负例正确率（无结果或全部 lowConfidence 才算对）、平均返回条数。**不统计耗时**（速度看 bench，不对外发布）。
+- 查询集在 `evals/demo.json` / `evals/footage.json`（约 40 条 / 集，按 image / video / ocr / filename / multilingual / kind / lookup / negative 分类），期望路径相对库根目录，`file@a-b` 表示要求命中片段与 `[a,b]` 秒有重叠。基线结果在 `evals/baseline.json`。
+- 指标：top-1 命中率、MRR、Recall@5、mAP、负例正确率（无结果或全部 lowConfidence 才算对）、平均返回条数、`strong`（"较弱的匹配"折叠线上的平均条数）。期望命中若被折到线下会单独点名（`FOLDED EXPECTED`，应始终为 0）。**不统计耗时**（速度看 bench，不对外发布）。
 - 走的是真实代码路径：`SearchEngine` + LiteRT 向量 + FTS5/jieba OCR + 文件名 / 标签通道；每次把 `library.db` 拷到临时目录**只读**打开，原库不动。
 - **评测库不在仓库里**。默认指向本机的 `~/workspace/dancer/vixel-demo/{data,library,footage-data,footage}`；别的机器用环境变量或旗标指定：`VIXEL_EVAL_DEMO_DATA` / `VIXEL_EVAL_DEMO_LIB` / `VIXEL_EVAL_FOOTAGE_DATA` / `VIXEL_EVAL_FOOTAGE_LIB`（`--demo-data` 等旗标同义），`*_DATA` 是含 `library.db` 的数据目录，`*_LIB` 是媒体文件根目录（期望路径的基准）。模型用 `VIXEL_MODELS_DIR`（默认 `resources/models`）。
 

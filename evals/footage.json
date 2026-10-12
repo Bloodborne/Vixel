@@ -27,15 +27,19 @@
     { "q": "1899", "expect": ["dogs-hurdles-1899.mp4"], "tag": "lookup", "note": "文件名里的年份" },
     { "q": "N49", "expect": ["rocket-jason3.mp4"], "tag": "lookup", "note": "OCR 识别出的代号（NASA 台标误识）" },
     { "q": "SEPTEMBER 6, 2015", "expect": ["horse-wagons.mp4"], "tag": "lookup", "note": "OCR 里的日期" },
+    { "q": "falcon9", "expect": ["rocket-falcon9.mp4"], "tag": "lookup", "note": "文件名里的代号；库内唯一，OCR 无碰撞" },
     { "q": "irminger", "expect": ["ocean-waves-irminger.mp4"], "tag": "filename" },
     { "q": "kamakura", "expect": ["fireworks-kamakura.mp4"], "tag": "filename" },
     { "q": "zagreb", "expect": ["train-zagreb.mp4"], "tag": "filename" },
     { "q": "猫的视频", "expect": ["cat-curious.mp4", "cat-puddle.mp4"], "tag": "kind" },
     { "q": "video of fireworks", "expect": ["fireworks-kamakura.mp4"], "tag": "kind" },
     { "q": "下雪的视频", "expect": ["snow-falling.mp4"], "tag": "kind" },
+    { "q": "烟花的视频", "expect": ["fireworks-kamakura.mp4"], "tag": "kind", "note": "中文类型词；库里唯一的烟花（抽帧核对过）" },
+    { "q": "video of a rocket launch", "expect": ["rocket-falcon9.mp4", "rocket-jason3.mp4"], "tag": "kind", "note": "英文类型词 + 多期望（两条发射视频都抽帧核对过）" },
     { "q": "滑雪的人", "expect": [], "tag": "negative", "note": "有雪没有滑雪者" },
     { "q": "生日蛋糕", "expect": [], "tag": "negative" },
     { "q": "sunflower field", "expect": [], "tag": "negative" },
-    { "q": "手机截图", "expect": [], "tag": "negative" }
+    { "q": "手机截图", "expect": [], "tag": "negative" },
+    { "q": "video of an elephant", "expect": [], "tag": "negative", "note": "英文类型词剥掉后（an elephant）仍是负例" }
   ]
 }
