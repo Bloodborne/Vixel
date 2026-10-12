@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-12
+
 ### Added
 - **PDF / AI previews on Windows and Linux.** PDF and PDF-compatible AI files are now indexed on
   every platform. On Windows/Linux (and as a macOS fallback) the first page is rendered by the
