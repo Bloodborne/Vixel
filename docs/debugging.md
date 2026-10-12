@@ -8,8 +8,10 @@
 并把验证结果打进日志：
 
 - `quick-panel clipboard formats: …` —— ⌘C 后剪贴板的格式列表，macOS 应含
-  `NSFilenamesPboardType`（文件引用，访达可直接 ⌘V 粘贴），Windows 应含 `FileNameW`；
-  只剩 `text/plain` 说明退化成了路径文字。
+  `NSFilenamesPboardType`（文件引用，访达可直接 ⌘V 粘贴）；只剩 `text/plain` 说明退化成了
+  路径文字。Windows 写的是标准格式 CF_HDROP（Win32 直写），Chromium 的
+  `availableFormats()` 看不到它 —— 用 PowerShell `Get-Clipboard -Format FileDropList`
+  验证（应打印文件路径）。
 - `quick-panel hidden after Enter/Esc: true` —— ↩ / Esc 之后面板应当隐藏。
 
 截图：`<theme>-quick-panel.png`（结果列表，面板窗口自身的 `capturePage`）、
