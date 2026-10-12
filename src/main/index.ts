@@ -1006,6 +1006,41 @@ function registerVixelProtocol(): void {
   }))
 }
 
+/**
+ * VIXEL_DEBUG_CONTROL=<端口>：仅回环地址的调试控制端点（E2E 验证托盘驻留 / 退出路径用；
+ * 不设环境变量时完全不监听，发布构建不受影响）。
+ *   GET /state       窗口数 / 主窗口在不在 / 托盘在不在 / 是否正在退出
+ *   GET /close-main  关闭主窗口（等同点窗口的 ×；Windows 上启用快捷键时应转入托盘驻留）
+ *   GET /quit        显式退出（等同菜单 / 托盘的退出）
+ */
+function startDebugControl(): void {
+  const port = Number(process.env.VIXEL_DEBUG_CONTROL)
+  if (!Number.isInteger(port) || port <= 0) return
+  void import('http').then(({ createServer }) => {
+    createServer((req, res) => {
+      res.setHeader('content-type', 'application/json')
+      if (req.url === '/close-main') {
+        mainWindow?.close()
+        res.end('{"ok":true}')
+      } else if (req.url === '/quit') {
+        res.end('{"ok":true}')
+        setImmediate(() => app.quit())
+      } else if (req.url === '/state') {
+        res.end(JSON.stringify({
+          windows: BrowserWindow.getAllWindows().length,
+          mainWindow: !!mainWindow,
+          tray: !!quickPanel?.hasTray(),
+          quitting: isQuitting,
+        }))
+      } else {
+        res.statusCode = 404
+        res.end('{"ok":false}')
+      }
+    }).listen(port, '127.0.0.1')
+    console.log(`[debug] control endpoint on 127.0.0.1:${port}`)
+  })
+}
+
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.vixel.app')
   // 开发期 Dock 图标兜底；名字 / ⌘Tab 图标靠 predev 的 scripts/dev-bundle.mjs 改 Electron.app
@@ -1074,6 +1109,7 @@ app.whenReady().then(async () => {
   })
   rebuildMenu()
   createWindow()
+  startDebugControl()
 
   // 只剩设置窗口时点 Dock 图标也要把主窗口找回来
   app.on('activate', () => {

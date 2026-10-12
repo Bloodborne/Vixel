@@ -56,6 +56,8 @@ export interface QuickPanelController {
   /** Windows：主窗口关闭后是否应留在后台（启用了快捷键）；留下时建托盘 */
   keepAliveOnWindows(): boolean
   ensureTray(): void
+  /** 诊断（调试控制端点用）：托盘当前是否存在 */
+  hasTray(): boolean
   dispose(): void
 }
 
@@ -369,6 +371,7 @@ export function initQuickPanel(deps: QuickPanelDeps): QuickPanelController {
     isEnabled: enabled,
     keepAliveOnWindows: () => process.platform !== 'darwin' && enabled(),
     ensureTray,
+    hasTray: () => tray != null,
     dispose: () => {
       if (registeredAcc) {
         try { globalShortcut.unregister(registeredAcc) } catch { /* ignore */ }
