@@ -58,3 +58,40 @@ describe('rrfFuse', () => {
     expect(out[0].fileHash).toBe('a')
   })
 })
+
+describe('rrfFuse — channel weights', () => {
+  it('plain arrays behave exactly like weight 1', () => {
+    const plain = rrfFuse([[{ fileHash: 'a' }, { fileHash: 'b' }]])
+    const weighted = rrfFuse([{ items: [{ fileHash: 'a' }, { fileHash: 'b' }], weight: 1 }])
+    expect(weighted).toEqual(plain)
+  })
+
+  it('a slightly heavier channel wins rank-1 ties (1.01 的文本通道压过同名次的向量通道)', () => {
+    const out = rrfFuse([
+      { items: [{ fileHash: 'visual' }], weight: 1 },
+      { items: [{ fileHash: 'exactText' }], weight: 1.01 },
+    ])
+    expect(out[0].fileHash).toBe('exactText')
+  })
+
+  it('a 1.01 channel does NOT lift its rank 2 above another channel rank 1', () => {
+    const out = rrfFuse([
+      { items: [{ fileHash: 'visual' }], weight: 1 },
+      { items: [{ fileHash: 't1' }, { fileHash: 't2' }], weight: 1.01 },
+    ])
+    const visualRank = out.findIndex((r) => r.fileHash === 'visual')
+    const t2Rank = out.findIndex((r) => r.fileHash === 't2')
+    expect(out[0].fileHash).toBe('t1') // 同名次（都是各自通道第 1）时文本赢
+    expect(visualRank).toBeLessThan(t2Rank) // 但压不过高一名次的向量命中
+  })
+
+  it('weights scale contributions (×2 与 ×0.5)', () => {
+    const out = rrfFuse([
+      { items: [{ fileHash: 'a' }], weight: 2 },
+      { items: [{ fileHash: 'b' }], weight: 0.5 },
+    ])
+    expect(out[0].fileHash).toBe('a')
+    expect(out[0].score).toBeCloseTo(2 / 61, 10)
+    expect(out[1].score).toBeCloseTo(0.5 / 61, 10)
+  })
+})
