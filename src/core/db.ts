@@ -2028,8 +2028,11 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       }
     },
     searchByFileName: (query, limit) => {
-      // 转义 LIKE 通配符：查询里的 % / _ 按字面匹配（"IMG_2024" 不该匹配 "IMGx2024"）
-      const pattern = `%${query.replace(/[!%_]/g, '!$&')}%`
+      // 转义 LIKE 通配符：查询里的 % / _ 按字面匹配（"IMG_2024" 不该匹配 "IMGx2024"）。
+      // 查询里的空白当通配符：文件名里的分隔习惯和打字习惯不一致（"wood anemones" 该召回
+      // wood_anemones.jpg，"IMG 2682" 该召回 IMG_2682.heic）；词序仍须一致，精确与否由
+      // search.ts 的整词检查决定，这里只管召回
+      const pattern = `%${query.trim().split(/\s+/).map((t) => t.replace(/[!%_]/g, '!$&')).join('%')}%`
       const results = stmts.searchByFileName.all(pattern, pattern, limit) as Array<{ file_hash: string }>
       return results.map((r) => ({ fileHash: r.file_hash }))
     },
