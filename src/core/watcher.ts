@@ -1,12 +1,15 @@
 import chokidar, { type FSWatcher } from 'chokidar'
-import { basename, extname } from 'path'
-import { stat, readFile, access, rm, unlink, open } from 'fs/promises'
+import { basename, dirname, extname } from 'path'
+import { stat, readFile, readdir, access, rm, unlink, open } from 'fs/promises'
 import { existsSync } from 'fs'
 import xxhash from 'xxhash-wasm'
 import type { DatabaseInstance } from './db'
 import type { Indexer } from './indexer'
-import type { MediaKind } from '../shared/types'
+import type { MediaKind, TaskOrigin } from '../shared/types'
 import { supportedDesignExts } from './image/design'
+import { detectDataset, shouldIgnorePath } from './skipRules'
+import { isCloudStub } from './cloudFiles'
+import { detectScreenshot } from './screenshot'
 
 // xxHash 实例（懒初始化）
 let hashFn: ((input: Uint8Array) => string) | null = null
@@ -96,6 +99,10 @@ export class FileWatcher {
   private watchers: Map<number, FSWatcher> = new Map()
   private db: DatabaseInstance
   private indexer: Indexer
+  /** 启动对账（chokidar 初扫）已完成的文件夹：之后的事件算 'live'（电源策略等待时仍放行） */
+  private readyFolders = new Set<number>()
+  /** 数据集判定缓存：目录路径 → 是否跳过（判定规则见 skipRules.detectDataset） */
+  private datasetDecisions = new Map<string, Promise<boolean>>()
 
   constructor(db: DatabaseInstance, indexer: Indexer) {
     this.db = db
@@ -126,7 +133,9 @@ export class FileWatcher {
     console.log(`Starting to watch folder: ${folderPath}`)
 
     const watcher = chokidar.watch(folderPath, {
-      ignored: [/(^|[\/\\])\./, /node_modules/, /\.git/],
+      // 跳过规则（core/skipRules.ts）：隐藏目录、node_modules/.git、应用与图库包
+      // （.app / .photoslibrary …）、密钥 / 凭据文件、iCloud 占位。根目录本身永不忽略。
+      ignored: (path: string) => shouldIgnorePath(folderPath, path),
       persistent: true,
       ignoreInitial: false,
       awaitWriteFinish: { stabilityThreshold: 2000, pollInterval: 100 },
@@ -134,10 +143,11 @@ export class FileWatcher {
     })
 
     watcher
-      .on('add', (filePath) => this.handleAdd(folderId, filePath))
+      .on('add', (filePath) => this.handleAdd(folderId, folderPath, filePath))
       .on('change', (filePath) => this.handleChange(filePath))
       .on('unlink', (filePath) => this.handleRemove(filePath))
       .on('ready', () => {
+        this.readyFolders.add(folderId)
         this.db.updateFolderScanTime(folderId)
         // 清理离线期间被删除的文件
         void this.cleanupStale(folderId)
@@ -154,7 +164,20 @@ export class FileWatcher {
     if (watcher) {
       watcher.close()
       this.watchers.delete(folderId)
+      this.readyFolders.delete(folderId)
     }
+  }
+
+  /**
+   * 用户对某个被跳过的数据集目录点了"仍然索引"：清掉判定缓存并整夹重扫
+   * （chokidar 对未变化的文件触发的 add 会被启动对账跳过，代价很小）。
+   */
+  rescanAfterOverride(folderId: number): void {
+    this.datasetDecisions.clear()
+    const folder = this.db.getFolder(folderId)
+    if (!folder) return
+    this.unwatchFolder(folderId)
+    this.watchFolder(folderId, folder.path)
   }
 
   stopAll(): void {
@@ -182,17 +205,62 @@ export class FileWatcher {
     }
   }
 
-  private async handleAdd(folderId: number, filePath: string): Promise<void> {
+  /** 任务来源：初扫（启动对账 / 新加文件夹）= 回填，之后的事件 = live（电源等待时仍放行） */
+  private originFor(folderId: number): TaskOrigin {
+    return this.readyFolders.has(folderId) ? 'live' : 'backfill'
+  }
+
+  /**
+   * 数据集目录判定（skipRules.detectDataset）：文件的直接父目录里同类媒体 ≥ 200
+   * 且名字大多是机器生成（frame_0042 / UUID；相机命名豁免）→ 整目录跳过并记进
+   * skipped_folders（设置 › 文件夹 里可"仍然索引"）。根目录本身永不判定。
+   * 每个目录只 readdir 一次，结果进程内缓存。
+   */
+  private isSkippedDataset(folderId: number, rootPath: string, filePath: string): Promise<boolean> {
+    const dir = dirname(filePath)
+    if (dir === rootPath) return Promise.resolve(false)
+    // 缓存的是判定的 Promise：一个目录的几百个 add 事件同时到达时共用一次 readdir，
+    // 只判定、只记录一次（缓存结果值的话，第一次 await 返回前其余事件都会各判一遍）
+    let decision = this.datasetDecisions.get(dir)
+    if (!decision) {
+      decision = this.decideDataset(folderId, dir)
+      this.datasetDecisions.set(dir, decision)
+    }
+    return decision
+  }
+
+  private async decideDataset(folderId: number, dir: string): Promise<boolean> {
+    const persisted = this.db.listSkippedFolders(folderId).find((r) => r.path === dir)
+    if (persisted) return !persisted.override
+    try {
+      const names = await this.ioLimit(() => readdir(dir))
+      const verdict = detectDataset(names.map((name) => ({ name, kind: classifyMedia(name) })))
+      if (!verdict.isDataset) return false
+      this.db.addSkippedFolder(folderId, dir, verdict.fileCount)
+      console.log(`[skip] dataset-like folder (${verdict.fileCount} files, ${Math.round(verdict.machineRatio * 100)}% machine-named): ${dir}`)
+      return true
+    } catch {
+      // readdir 失败（目录中途被删）：不跳过，后续 stat 自会失败
+      return false
+    }
+  }
+
+  private async handleAdd(folderId: number, rootPath: string, filePath: string): Promise<void> {
     const kind = classifyMedia(filePath)
     if (kind === null) return
+    if (await this.isSkippedDataset(folderId, rootPath, filePath)) return
+    const origin = this.originFor(folderId)
 
     if (kind !== 'image') {
-      await this.handleAddVideo(folderId, filePath, kind)
+      await this.handleAddVideo(folderId, filePath, kind, origin)
       return
     }
 
     try {
       const stats = await stat(filePath)
+      // 云端占位（iCloud dataless / OneDrive 按需文件）：读取会触发下载，跳过。
+      // 文件真正落盘时会再来一次事件（内容变化 → size/mtime 变）
+      if (isCloudStub(filePath, stats)) return
       const fileName = basename(filePath)
 
       // 启动时 chokidar 会对已有文件逐个触发 add。大小 / mtime 没变、缩略图也在 → 什么都不用做；
@@ -204,6 +272,10 @@ export class FileWatcher {
         existing.fileSize === stats.size && existing.fileMtime === stats.mtimeMs && existing.fileHash &&
         (existsSync(this.indexer.getThumbnailPath(existing.fileHash)) || this.db.hasOpenOrFailedTask(existing.id, 'thumbnail'))
       ) {
+        // 老库还没判过截图标记的顺手补上（xattr 读取 ~7 µs，名字模式免费）
+        if (existing.isScreenshot == null) {
+          this.db.setPhotoScreenshot(existing.id, detectScreenshot(filePath, fileName))
+        }
         return
       }
 
@@ -213,6 +285,7 @@ export class FileWatcher {
       const fileHash = hash(new Uint8Array(fileBuffer.buffer, fileBuffer.byteOffset, fileBuffer.byteLength))
 
       const photoId = this.db.addPhoto(folderId, filePath, fileName, stats.size, stats.mtimeMs, fileHash)
+      this.db.setPhotoScreenshot(photoId, detectScreenshot(filePath, fileName))
 
       // 流水线：thumbnail → embed
       const { hasEmbedding } = this.db.hasContentForHash(fileHash)
@@ -220,11 +293,11 @@ export class FileWatcher {
       if (hasEmbedding) {
         // 同内容已有 embedding，仅补缩略图（如缺）
         this.db.updateEmbedStatusByHash(fileHash)
-        this.db.addToQueue(photoId, 'thumbnail', 20)
+        this.db.addToQueue(photoId, 'thumbnail', 20, origin)
         this.indexer.processNext()
       } else {
-        this.db.addToQueue(photoId, 'thumbnail', 20)
-        this.db.addToQueue(photoId, 'embed', 10)
+        this.db.addToQueue(photoId, 'thumbnail', 20, origin)
+        this.db.addToQueue(photoId, 'embed', 10, origin)
         this.indexer.processNext()
       }
     } catch (error) {
@@ -237,9 +310,11 @@ export class FileWatcher {
    * 而是先登记到 videos 表 + queue 一个 'extract_frames' 任务；
    * indexer 切 32s 片段编码进 video_segments，并把首帧落成代表 photo。
    */
-  private async handleAddVideo(folderId: number, filePath: string, kind: 'video' | 'audio'): Promise<void> {
+  private async handleAddVideo(folderId: number, filePath: string, kind: 'video' | 'audio', origin: TaskOrigin): Promise<void> {
     try {
       const stats = await stat(filePath)
+      // 云端占位：读头尾采样也会触发下载，跳过（真正落盘时会再触发事件）
+      if (isCloudStub(filePath, stats)) return
       const fileName = basename(filePath)
 
       // 视频的 file_hash 用"size + mtime + 头尾 64 KB 内容"做轻量哈希：
@@ -263,7 +338,7 @@ export class FileWatcher {
         for (const frame of this.db.getFramePhotosByVideo(existing.id)) {
           if (frame.deletedAt == null && frame.fileHash && !existsSync(this.indexer.getThumbnailPath(frame.fileHash)) &&
               !this.db.hasOpenOrFailedTask(frame.id, 'thumbnail')) {
-            this.db.addToQueue(frame.id, 'thumbnail', 20)
+            this.db.addToQueue(frame.id, 'thumbnail', 20, origin)
             this.indexer.processNext()
           }
         }
@@ -276,7 +351,7 @@ export class FileWatcher {
       // 时，photo_id 字段携带的是 videos.id 而非 photos.id（schema 不变）。
       // 优先级 6：排在图片 embed(10) / face(8) 之后 —— 视频按片段编码，一个长视频
       // 就要几分钟，放前面会让整库照片在视频跑完前都搜不到
-      this.db.addToQueue(videoId, 'extract_frames', 6)
+      this.db.addToQueue(videoId, 'extract_frames', 6, origin)
       this.indexer.processNext()
     } catch (error) {
       console.error(`Error handling add for video ${filePath}:`, error)
@@ -290,7 +365,7 @@ export class FileWatcher {
     // 音视频原地修改：handleAddVideo 会比对轻量 hash，变了才重排
     if (kind !== 'image') {
       const video = this.db.getVideoByPath(filePath)
-      if (video) await this.handleAddVideo(video.folderId, filePath, kind)
+      if (video) await this.handleAddVideo(video.folderId, filePath, kind, this.originFor(video.folderId))
       return
     }
 
@@ -302,6 +377,7 @@ export class FileWatcher {
       if (existing.fileSize === stats.size && existing.fileMtime === stats.mtimeMs) {
         return
       }
+      if (isCloudStub(filePath, stats)) return
 
       const fileName = basename(filePath)
       const fileBuffer = await this.ioLimit(() => readFile(filePath))
@@ -309,9 +385,11 @@ export class FileWatcher {
       const fileHash = hash(new Uint8Array(fileBuffer.buffer, fileBuffer.byteOffset, fileBuffer.byteLength))
 
       const photoId = this.db.addPhoto(existing.folderId, filePath, fileName, stats.size, stats.mtimeMs, fileHash)
+      this.db.setPhotoScreenshot(photoId, detectScreenshot(filePath, fileName))
 
-      this.db.addToQueue(photoId, 'thumbnail', 20)
-      this.db.addToQueue(photoId, 'embed', 10)
+      const origin = this.originFor(existing.folderId)
+      this.db.addToQueue(photoId, 'thumbnail', 20, origin)
+      this.db.addToQueue(photoId, 'embed', 10, origin)
       this.indexer.processNext()
     } catch (error) {
       console.error(`Error handling change for ${filePath}:`, error)

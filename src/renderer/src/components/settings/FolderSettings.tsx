@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { folderName, revealLabel } from '../../lib/platform'
-import type { WatchedFolder } from '../../../../shared/types'
+import type { SkippedFolder, WatchedFolder } from '../../../../shared/types'
 import type { InboxInfo } from '../../../../shared/collect'
 import { t } from '../../../../shared/i18n'
 
 /** 设置 › 文件夹：收集箱位置 + 监视的文件夹列表，添加 / 移除（移除前确认） */
 export function FolderSettings(): JSX.Element {
   const [folders, setFolders] = useState<WatchedFolder[]>([])
+  const [skipped, setSkipped] = useState<SkippedFolder[]>([])
   const [inbox, setInbox] = useState<InboxInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [deleteConfirm, setDeleteConfirm] = useState<{ folder: WatchedFolder; isOpen: boolean } | null>(null)
@@ -19,10 +20,17 @@ export function FolderSettings(): JSX.Element {
         setFolders(data)
         setIsLoading(false)
       })
+      window.api.getSkippedFolders().then(setSkipped).catch(() => {})
       window.api.collect.getInbox().then(setInbox).catch(() => {})
     }
     load()
     return window.api.onLibraryChanged(load)
+  }, [])
+
+  // "仍然索引"：标记 override，主进程整夹重扫把该目录补进索引
+  const handleIndexAnyway = useCallback(async (path: string) => {
+    setSkipped((prev) => prev.map((s) => (s.path === path ? { ...s, override: true } : s)))
+    await window.api.setSkippedFolderOverride(path, true).catch(() => {})
   }, [])
 
   // 更改位置只是换登记（不移动已有文件，文案里说明）；旧收集箱保留为普通文件夹
@@ -108,11 +116,17 @@ export function FolderSettings(): JSX.Element {
           </div>
         ) : (
           <div className="space-y-2">
-            {folders.map((folder) => (
+            {folders.map((folder) => {
+              const folderSkipped = skipped.filter((s) => s.folderId === folder.id)
+              const activeSkipped = folderSkipped.filter((s) => !s.override)
+              const isPhotosLibrary = /\.photoslibrary$/i.test(folder.path)
+              return (
               <div
                 key={folder.id}
-                className="flex items-center gap-3 p-2.5 rounded-lg bg-fill hover:bg-fill-hover transition-colors"
+                className="rounded-lg bg-fill hover:bg-fill-hover transition-colors"
+                data-folder-row
               >
+                <div className="flex items-center gap-3 p-2.5">
                 <svg className="w-4 h-4 text-accent/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
@@ -139,8 +153,38 @@ export function FolderSettings(): JSX.Element {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </button>
+                </div>
+                {/* 用户选的根目录本身是"照片"图库包：根目录不自动跳过，但提示它由 Photos 管理 */}
+                {isPhotosLibrary && (
+                  <p className="px-2.5 pb-2 text-micro text-warn/80">{t.settings.photosLibraryRoot}</p>
+                )}
+                {/* 跳过的"疑似数据集"目录：路径 + 逐个"仍然索引"（持久化，重启后仍记得） */}
+                {folderSkipped.length > 0 && (
+                  <div className="px-2.5 pb-2.5" data-skipped-folders>
+                    <p className="text-micro text-ink-4 mb-1">{t.settings.skippedDatasets(activeSkipped.length || folderSkipped.length)}</p>
+                    <ul className="space-y-1">
+                      {folderSkipped.map((s) => (
+                        <li key={s.path} className="flex items-center gap-2 text-micro">
+                          <span className="truncate text-ink-3" title={s.path}>{s.path}</span>
+                          <span className="flex-shrink-0 text-ink-4">{t.settings.skippedDatasetDetail(s.fileCount)}</span>
+                          {s.override ? (
+                            <span className="flex-shrink-0 ml-auto text-ink-4">{t.settings.indexAnywayDone}</span>
+                          ) : (
+                            <button
+                              onClick={() => { void handleIndexAnyway(s.path) }}
+                              className="flex-shrink-0 ml-auto h-5 px-1.5 rounded bg-fill-hover hover:bg-fill-active text-ink-2 hover:text-ink transition-colors"
+                            >
+                              {t.settings.indexAnyway}
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
