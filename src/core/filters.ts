@@ -24,7 +24,7 @@ export function hasActiveFilters(f: MediaFilters | undefined): boolean {
   if (!f) return false
   return !!(f.dateFrom || f.dateTo || f.orientation || f.minPixels || f.maxPixels ||
     f.durationMin != null || f.durationMax != null || f.personId != null || f.favorite ||
-    (f.tagIds?.length ?? 0) > 0 || f.color)
+    (f.tagIds?.length ?? 0) > 0 || f.color || f.screenshot)
 }
 
 /** 需要查库才能判断的条件，调用方预先取成 hash 集合 */
@@ -43,6 +43,7 @@ export function matchesFilters(photo: Photo, f: MediaFilters, sets: FilterSets =
   if (f.dateFrom && photo.takenAt && photo.takenAt < f.dateFrom) return false
   if (f.dateTo && photo.takenAt && photo.takenAt > f.dateTo) return false
   if (f.kind && (photo.mediaKind ?? 'image') !== f.kind) return false
+  if (f.screenshot && photo.isScreenshot !== 1) return false
   if (sets.folderHashes && !sets.folderHashes.has(photo.fileHash)) return false
   if (f.orientation && classifyOrientation(photo.width, photo.height) !== f.orientation) return false
   const pixels = (photo.width ?? 0) * (photo.height ?? 0)

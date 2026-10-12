@@ -8,6 +8,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Power-aware indexing (like DigUp's).** The big backfill — first index of a large folder,
+  startup catch-up, OCR/face/color/auto-tag sweeps — now waits while the machine is on battery
+  (if the new *Settings → General → "Index on battery"* toggle is off; default stays on), in
+  Low Power Mode / battery saver, or thermally stressed (macOS `serious`/`critical`). A handful
+  of newly added files (watcher events, Inbox collects — up to 20 pending tasks) always index
+  right away, so new content is searchable immediately even while the backfill waits. The
+  status bar and Activity drawer show *why* ("等待接通电源 / Waiting for power", "低电量模式 /
+  Low Power Mode", "Mac 温度较高 / Paused while the Mac is hot") — distinct from manual pause,
+  which still overrides everything. Entirely event-driven via Electron `powerMonitor`
+  (`on-battery`/`on-ac`, `thermal-state-change`, `speed-limit-change`), no polling. Per
+  platform: battery state everywhere; thermal state macOS only; "low power mode" is detected
+  on macOS *and* Windows through the OS-advertised CPU speed limit (≤ 60 % counts), which is
+  how both macOS Low Power Mode and Windows battery saver/Power Throttling surface in Electron
+  — there is no direct `isLowPowerModeEnabled` API. Decision logic is a pure module
+  (`src/core/powerPolicy.ts`) with unit tests; a backfill video interrupted mid-way is
+  requeued (not failed) and resumes when power is back.
+- **Skip rules for the crawler** (`src/core/skipRules.ts`, pure + tested). Never read
+  key/credential files (`.pem .key .p12 .pfx .keystore .jks .kdbx .ppk id_rsa* .env*`,
+  `credentials.*`, GPG/CSR/DER files — they aren't media, but now it's explicit). Skip hidden
+  (dot) folders, `node_modules`/`.git`/build caches, and app/library bundles: `.app`,
+  `.framework`, `.photoslibrary` and friends (Photos-managed, huge, private layout — if the
+  chosen root *is* a `.photoslibrary`, it is still indexed, roots are never auto-skipped, and
+  Settings → Folders shows a note recommending exporting from Photos instead). Cloud-only
+  placeholders are never downloaded: macOS `.name.ext.icloud` stubs are ignored and evicted
+  (dataless) files are detected for free via `fs.stat` (`size > 4 KB` but `blocks === 0` —
+  the cheap proxy for `SF_DATALESS`, no extra syscall); on Windows, OneDrive Files On-Demand
+  stubs are detected via `GetFileAttributesW` (koffi FFI, already a dependency) checking
+  `OFFLINE` / `RECALL_ON_OPEN` / `RECALL_ON_DATA_ACCESS`. Linux gets the dataless-blocks check
+  only.
+- **Dataset folders are skipped and surfaced.** A folder with ≥ 200 same-kind media files whose
+  names are ≥ 80 % machine-made (`frame_000042`, `clip_000123`, UUIDs, long hex) is treated as
+  a dataset and not indexed. Camera naming is explicitly exempt — `IMG_1234`, `DSC_0001`,
+  `PXL_2026…`, `VID_…`, `20240101_123456`, GoPro/DJI/WhatsApp patterns are user photos, never a
+  dataset. Skipped folders are persisted and listed under Settings → Folders with file counts
+  and a per-folder "仍然索引 / Index anyway" button that rescans immediately. User-chosen roots
+  are never auto-skipped.
+- **Reliable screenshot detection.** On macOS the system marks screenshots with the
+  `com.apple.metadata:kMDItemIsScreenCapture` xattr (survives moves/copies); Vixel reads it via
+  a direct `getxattr` libc call through koffi — measured ~7 µs/file (vs ~10 ms for an `xattr -p`
+  subprocess), cheap enough to run on every import. Windows and foreign files fall back to
+  filename patterns (Screenshot*, Screen Shot*, 屏幕截图*, 屏幕快照*, 截屏*, 截图*, Snipaste_*,
+  微信截图_*, QQ截图*, TIM截图*, CleanShot*, SCR_*) plus the `Pictures\Screenshots` folder on
+  Windows. The verdict is stored per item in `photos.is_screenshot` (migration-safe: NULL =
+  not yet judged; existing libraries are backfilled in batches at startup). The 截图/screenshot
+  auto-tag now comes from this flag with full confidence (still removable; removal is
+  remembered); when the flag says "not a screenshot" the embedding-based screenshot label is
+  suppressed (embeddings love calling white-background UI photos screenshots), and only items
+  whose flag is unknown keep the old embedding-based behavior. New quick entry: a "仅截图 /
+  Screenshots only" chip in the filter bar, and the kind-word query "截图" browses flagged
+  screenshots directly; "……的截图" queries boost flagged items (a soft boost, never a filter).
+  `npm run eval`: no regressions (demo 1.00/1.00/1.00/1.00, footage 0.94/0.95/0.94/0.92,
+  identical to baseline).
+
 - **Weaker matches fold away.** When a search has a clear standout (hits on several channels at
   once — picture + filename + tag, say), results whose fused score is under 0.45× the top hit are
   tucked behind a collapsed "Weaker matches (N)" divider under the grid, expandable with one
@@ -29,6 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and flags any expected answer folded below the weaker-matches line.
 
 ### Changed
+- **Indexing queue knows task origins.** Tasks are tagged `live` (watcher events after the
+  initial scan, Inbox collects) or `backfill`; the power policy only ever delays backfill.
+  Follow-up face/OCR tasks inherit the origin of the task that spawned them.
 - **Search ranking.** Measured on the eval harness, old baseline → new:
   demo top-1 0.88 → 1.00, MRR 0.94 → 1.00, mAP 0.93 → 1.00, negatives 4/4 (now 5/5 of an
   extended set); footage top-1 0.84 → 0.94, MRR 0.88 → 0.95, mAP 0.85 → 0.92, negatives 3/4

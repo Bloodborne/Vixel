@@ -4,6 +4,7 @@ import { dirname, join } from 'path'
 import * as sqliteVec from 'sqlite-vec'
 import type { LibraryCounts, MediaFilters, SmartAlbum,
   Photo, WatchedFolder, PhotoDetail, PhotoLocation, VideoRecord, MediaKind, MediaDetail, TaskOverview, TaskRow,
+  TaskOrigin, SkippedFolder,
 } from '../shared/types'
 import { tokenizeForFtsSync } from './text/tokenize'
 import type { ClusterPlan, PendingFace, PersonCentroid } from './face/cluster'
@@ -307,6 +308,18 @@ CREATE TABLE IF NOT EXISTS item_colors (
   bucket_mask INTEGER NOT NULL DEFAULT 0,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 被跳过的"疑似数据集"目录（见 core/skipRules.ts：同类媒体 ≥ N 且名字大多是机器生成）。
+-- override = 1 表示用户点了"仍然索引"，watcher 之后不再跳过它
+CREATE TABLE IF NOT EXISTS skipped_folders (
+  path        TEXT PRIMARY KEY,
+  folder_id   INTEGER NOT NULL REFERENCES watched_folders(id),
+  reason      TEXT NOT NULL DEFAULT 'dataset',
+  file_count  INTEGER NOT NULL DEFAULT 0,
+  override    INTEGER NOT NULL DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_skipped_folders_folder ON skipped_folders(folder_id);
 `
 
 /** 后来加的表（只读打开旧库时用空 TEMP 表顶替，见 initDatabase） */
@@ -322,6 +335,7 @@ const LATE_TABLES: Record<string, string> = {
   autotag_rejections: 'file_hash TEXT, label_id TEXT',
   item_sources: 'file_hash TEXT PRIMARY KEY, url TEXT, page_url TEXT, page_title TEXT, collected_at DATETIME',
   item_colors: 'file_hash TEXT PRIMARY KEY, palette TEXT, bucket_mask INTEGER, created_at DATETIME',
+  skipped_folders: 'path TEXT PRIMARY KEY, folder_id INTEGER, reason TEXT, file_count INTEGER, override INTEGER, created_at DATETIME',
 }
 
 // 照片查询共用列（表别名 p）。LEFT JOIN videos v 补出媒体类型和时长：
@@ -333,7 +347,7 @@ const PHOTO_COLUMNS = `
   p.file_size as fileSize, p.file_mtime as fileMtime, p.file_hash as fileHash,
   p.width, p.height, p.taken_at as takenAt, p.lat, p.lng,
   p.embed_status as embedStatus, p.face_status as faceStatus, p.video_id as videoId, p.frame_time_ms as frameTimeMs,
-  p.pages, p.deleted_at as deletedAt, p.created_at as createdAt, p.updated_at as updatedAt,
+  p.pages, p.is_screenshot as isScreenshot, p.deleted_at as deletedAt, p.created_at as createdAt, p.updated_at as updatedAt,
   ${MEDIA_KIND_EXPR} as mediaKind, v.duration_ms as durationMs,
   EXISTS (SELECT 1 FROM favorites fav WHERE fav.file_hash = p.file_hash) as favorite`
 const MEDIA_JOIN = `LEFT JOIN videos v ON v.id = p.video_id`
@@ -348,6 +362,8 @@ export function filterWhere(f: MediaFilters): { where: string; params: unknown[]
   if (f.dateFrom) { parts.push('p.taken_at >= ?'); params.push(f.dateFrom) }
   if (f.dateTo) { parts.push('p.taken_at <= ?'); params.push(f.dateTo) }
   if (f.kind) { parts.push(`${MEDIA_KIND_EXPR} = ?`); params.push(f.kind) }
+  // 截图：is_screenshot = 1（NULL = 还没判过的不算；见 core/screenshot.ts）
+  if (f.screenshot) parts.push('p.is_screenshot = 1')
   if (f.folderId != null) {
     parts.push('EXISTS (SELECT 1 FROM photos p4 WHERE p4.file_hash = p.file_hash AND p4.folder_id = ? AND p4.deleted_at IS NULL)')
     params.push(f.folderId)
@@ -424,6 +440,10 @@ export function migrateSchema(db: Database.Database): void {
   add('watched_folders', 'is_inbox', 'INTEGER DEFAULT 0')
   // 设计格式（PDF / AI）的页数
   add('photos', 'pages', 'INTEGER')
+  // 截图标记：NULL = 还没判过（后台回填），0 / 1 = 判过（见 core/screenshot.ts）
+  add('photos', 'is_screenshot', 'INTEGER')
+  // 任务来源：'live'（watcher 实时事件 / 收集箱）在电源策略挡住回填时仍然放行
+  add('index_queue', 'origin', `TEXT NOT NULL DEFAULT 'backfill'`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_faces_unassigned ON faces(cluster_state) WHERE person_id IS NULL`)
 
   // 自动标签：标签可以对应词表里的一个标签（label_id，界面按语言显示名字）；
@@ -498,14 +518,30 @@ export interface DatabaseInstance {
   getRepresentativePhotos: (limit: number, offset?: number) => Photo[]
   getPhotoLocations: (fileHash: string) => PhotoLocation[]
   markDuplicateProcessed: (photoId: number) => void
+  /** 截图标记（0 / 1；NULL = 未判，见 core/screenshot.ts） */
+  setPhotoScreenshot: (photoId: number, flag: 0 | 1) => void
+  /** 该内容 hash 任一存活副本的截图标记；都没判过返回 null */
+  getScreenshotFlagForHash: (fileHash: string) => 0 | 1 | null
+  /** 还没判过截图标记的存活图片（不含视频代表帧），启动回填用 */
+  photosMissingScreenshotFlag: (limit: number) => Array<{ id: number; filePath: string; fileName: string; fileHash: string }>
+
+  // 跳过的数据集目录（core/skipRules.ts 判定，watcher 写入；设置 › 文件夹 展示）
+  listSkippedFolders: (folderId?: number) => SkippedFolder[]
+  addSkippedFolder: (folderId: number, path: string, fileCount: number) => void
+  /** "仍然索引"：置 override，watcher 之后不再跳过该目录 */
+  setSkippedFolderOverride: (path: string, override: boolean) => void
 
   // 索引队列
-  addToQueue: (photoId: number, taskType: string, priority?: number) => void
+  /** origin：'live'（watcher 实时事件 / 收集箱）在电源策略挡住回填时仍然放行；默认 'backfill' */
+  addToQueue: (photoId: number, taskType: string, priority?: number, origin?: TaskOrigin) => void
   /** 是否已有排队中 / 进行中的同类任务（避免重复入队） */
   hasOpenTask: (photoId: number, taskType: string) => boolean
   /** 有排队中 / 进行中 / 失败的任务：启动对账据此跳过，失败的留给任务面板重试，不每次启动重跑 */
   hasOpenOrFailedTask: (photoId: number, taskType: string) => boolean
-  getNextTask: () => { id: number; photoId: number; taskType: string } | undefined
+  /** liveOnly：只取 origin='live' 的任务（电源策略挡住回填时用） */
+  getNextTask: (liveOnly?: boolean) => { id: number; photoId: number; taskType: string; origin: TaskOrigin } | undefined
+  /** 排队中的 live 任务数：≤ LIVE_TASK_BURST_MAX 才在回填等待期间放行 */
+  countLivePendingTasks: () => number
   peekNextTask: () => { id: number; photoId: number; taskType: string } | undefined
   /** note：任务成功但有可报告的问题（如部分片段失败），写进 error_msg 供任务面板展示 */
   completeTask: (taskId: number, note?: string) => void
@@ -756,6 +792,7 @@ export function sanitizeFilters(raw: unknown): MediaFilters {
   if (f.kind === 'image' || f.kind === 'video' || f.kind === 'audio') out.kind = f.kind
   if (f.orientation === 'landscape' || f.orientation === 'portrait' || f.orientation === 'square' || f.orientation === 'panorama') out.orientation = f.orientation
   if (f.favorite === true) out.favorite = true
+  if (f.screenshot === true) out.screenshot = true
   if (isColorBucket(f.color)) out.color = f.color
   if (Array.isArray(f.tagIds)) {
     const ids = f.tagIds.filter((x): x is number => typeof x === 'number' && Number.isInteger(x))
@@ -964,6 +1001,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
              file_size as fileSize, file_mtime as fileMtime, file_hash as fileHash,
              width, height, taken_at as takenAt, lat, lng,
              embed_status as embedStatus, video_id as videoId, frame_time_ms as frameTimeMs,
+             is_screenshot as isScreenshot,
              deleted_at as deletedAt, created_at as createdAt, updated_at as updatedAt
       FROM photos WHERE file_path = ?
     `),
@@ -1037,8 +1075,39 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       WHERE id = ?
     `),
 
+    // 截图标记（core/screenshot.ts 判定；NULL = 未判，回填补）
+    setPhotoScreenshot: db.prepare(`UPDATE photos SET is_screenshot = ? WHERE id = ?`),
+    getScreenshotFlagForHash: db.prepare(`
+      SELECT MAX(is_screenshot) as flag FROM photos WHERE file_hash = ? AND deleted_at IS NULL
+    `),
+    photosMissingScreenshotFlag: db.prepare(`
+      SELECT id, file_path as filePath, file_name as fileName, file_hash as fileHash
+      FROM photos
+      WHERE is_screenshot IS NULL AND deleted_at IS NULL AND video_id IS NULL
+      ORDER BY id
+      LIMIT ?
+    `),
+
+    // 跳过的数据集目录
+    listSkippedFolders: db.prepare(`
+      SELECT path, folder_id as folderId, reason, file_count as fileCount,
+             override, created_at as createdAt
+      FROM skipped_folders ORDER BY path
+    `),
+    listSkippedFoldersByFolder: db.prepare(`
+      SELECT path, folder_id as folderId, reason, file_count as fileCount,
+             override, created_at as createdAt
+      FROM skipped_folders WHERE folder_id = ? ORDER BY path
+    `),
+    addSkippedFolder: db.prepare(`
+      INSERT INTO skipped_folders (path, folder_id, reason, file_count) VALUES (?, ?, 'dataset', ?)
+      ON CONFLICT(path) DO UPDATE SET file_count = excluded.file_count
+    `),
+    setSkippedFolderOverride: db.prepare(`UPDATE skipped_folders SET override = ? WHERE path = ?`),
+    deleteSkippedFoldersByFolder: db.prepare(`DELETE FROM skipped_folders WHERE folder_id = ?`),
+
     addToQueue: db.prepare(`
-      INSERT INTO index_queue (photo_id, task_type, priority) VALUES (?, ?, ?)
+      INSERT INTO index_queue (photo_id, task_type, priority, origin) VALUES (?, ?, ?, ?)
     `),
     hasOpenTask: db.prepare(`
       SELECT 1 FROM index_queue
@@ -1051,10 +1120,19 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       LIMIT 1
     `),
     getNextTask: db.prepare(`
-      SELECT id, photo_id as photoId, task_type as taskType FROM index_queue
+      SELECT id, photo_id as photoId, task_type as taskType, origin FROM index_queue
       WHERE status = 'pending'
       ORDER BY priority DESC, id ASC
       LIMIT 1
+    `),
+    getNextLiveTask: db.prepare(`
+      SELECT id, photo_id as photoId, task_type as taskType, origin FROM index_queue
+      WHERE status = 'pending' AND origin = 'live'
+      ORDER BY priority DESC, id ASC
+      LIMIT 1
+    `),
+    countLivePendingTasks: db.prepare(`
+      SELECT COUNT(*) as n FROM index_queue WHERE status = 'pending' AND origin = 'live'
     `),
     peekNextTask: db.prepare(`
       SELECT id, photo_id as photoId, task_type as taskType FROM index_queue
@@ -1181,11 +1259,12 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       SELECT
         COUNT(*) as total,
         COUNT(DISTINCT p.file_hash) as uniqueTotal,
-        SUM(CASE WHEN p.width IS NOT NULL THEN 1 ELSE 0 END) as thumbnailed,
+        -- 和 uniqueTotal 一样按内容计数：同一张照片放在两个文件夹里只算一份，否则进度会超过 100%
+        COUNT(DISTINCT CASE WHEN p.width IS NOT NULL THEN p.file_hash END) as thumbnailed,
         -- 音频封面/波形图按设计不做图片向量，视同已索引
-        SUM(CASE WHEN p.embed_status = 'done'
+        COUNT(DISTINCT CASE WHEN p.embed_status = 'done'
                    OR p.video_id IN (SELECT id FROM videos WHERE media_kind = 'audio')
-                 THEN 1 ELSE 0 END) as indexed,
+                 THEN p.file_hash END) as indexed,
         (SELECT COUNT(DISTINCT file_hash) FROM image_ocr) as ocred
       FROM photos p
       WHERE p.deleted_at IS NULL
@@ -1587,6 +1666,7 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       return stmts.addFolder.get(path) as WatchedFolder
     },
     removeFolder: (id: number): void => {
+      stmts.deleteSkippedFoldersByFolder.run(id)
       stmts.removeFolder.run(id)
     },
     getFolder: (id: number): WatchedFolder | undefined => {
@@ -1694,12 +1774,33 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     markDuplicateProcessed: (photoId: number): void => {
       stmts.markDuplicateProcessed.run(photoId)
     },
+    setPhotoScreenshot: (photoId: number, flag: 0 | 1): void => {
+      stmts.setPhotoScreenshot.run(flag, photoId)
+    },
+    getScreenshotFlagForHash: (fileHash: string): 0 | 1 | null => {
+      const row = stmts.getScreenshotFlagForHash.get(fileHash) as { flag: number | null } | undefined
+      return row?.flag == null ? null : row.flag >= 1 ? 1 : 0
+    },
+    photosMissingScreenshotFlag: (limit: number) => {
+      return stmts.photosMissingScreenshotFlag.all(limit) as Array<{ id: number; filePath: string; fileName: string; fileHash: string }>
+    },
+    listSkippedFolders: (folderId?: number): SkippedFolder[] => {
+      const rows = (folderId == null ? stmts.listSkippedFolders.all() : stmts.listSkippedFoldersByFolder.all(folderId)) as
+        Array<Omit<SkippedFolder, 'override'> & { override: number }>
+      return rows.map((r) => ({ ...r, override: !!r.override }))
+    },
+    addSkippedFolder: (folderId: number, path: string, fileCount: number): void => {
+      stmts.addSkippedFolder.run(path, folderId, fileCount)
+    },
+    setSkippedFolderOverride: (path: string, override: boolean): void => {
+      stmts.setSkippedFolderOverride.run(override ? 1 : 0, path)
+    },
     getRepresentativeByHash: (fileHash: string): Photo | undefined => {
       return stmts.getRepresentativeByHash.get(fileHash) as Photo | undefined
     },
 
-    addToQueue: (photoId: number, taskType: string, priority = 0): void => {
-      stmts.addToQueue.run(photoId, taskType, priority)
+    addToQueue: (photoId: number, taskType: string, priority = 0, origin: TaskOrigin = 'backfill'): void => {
+      stmts.addToQueue.run(photoId, taskType, priority, origin)
     },
     hasOpenOrFailedTask: (photoId: number, taskType: string): boolean => {
       return stmts.hasOpenOrFailedTask.get(photoId, taskType) !== undefined
@@ -1707,14 +1808,17 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     hasOpenTask: (photoId: number, taskType: string): boolean => {
       return stmts.hasOpenTask.get(photoId, taskType) !== undefined
     },
-    getNextTask: () => {
-      const task = stmts.getNextTask.get() as
-        | { id: number; photoId: number; taskType: string }
+    getNextTask: (liveOnly = false) => {
+      const task = (liveOnly ? stmts.getNextLiveTask : stmts.getNextTask).get() as
+        | { id: number; photoId: number; taskType: string; origin: TaskOrigin }
         | undefined
       if (task) {
         stmts.markTaskProcessing.run(task.id)
       }
       return task
+    },
+    countLivePendingTasks: (): number => {
+      return (stmts.countLivePendingTasks.get() as { n: number }).n
     },
     peekNextTask: () => {
       return stmts.peekNextTask.get() as
@@ -1739,11 +1843,11 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       stmts.clearModelNotReadyErrors.run()
       const photos = stmts.getPhotosWithoutEmbedding.all() as Array<{ id: number }>
       for (const photo of photos) {
-        stmts.addToQueue.run(photo.id, 'embed', 10)
+        stmts.addToQueue.run(photo.id, 'embed', 10, 'backfill')
       }
       const videos = stmts.getVideosWithoutSegments.all() as Array<{ id: number }>
       for (const video of videos) {
-        stmts.addToQueue.run(video.id, 'extract_frames', 6)
+        stmts.addToQueue.run(video.id, 'extract_frames', 6, 'backfill')
       }
       return photos.length + videos.length
     }),

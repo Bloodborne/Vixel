@@ -13,6 +13,14 @@ import { t } from '../shared/i18n'
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
+/** 截图巡检需要主进程帮忙布置的状态（见 index.ts 的 runCaptureTour 调用处） */
+export interface CaptureHooks {
+  /** on=true：模拟电源受限（过热）+ 排一个回填任务，状态栏显示等待原因；false 还原 */
+  simulatePowerWait?: (on: boolean) => void
+  /** on=true：造一条"跳过的数据集目录"记录（设置 › 文件夹 的列表）；false 清掉 */
+  seedSkippedFolder?: (on: boolean) => void
+}
+
 interface Step { name: string; run: (win: BrowserWindow) => Promise<void> | void; wait?: number; after?: (win: BrowserWindow) => Promise<void> | void }
 
 const command = (cmd: MenuCommand) => (win: BrowserWindow) => win.webContents.send(IPC_CHANNELS.MENU_COMMAND, cmd)
@@ -166,7 +174,7 @@ const STEPS: Step[] = [
   { name: 'tasks', run: (w) => { command('source:all')(w); command('activity')(w) }, wait: 2000 },
 ]
 
-export async function runCaptureTour(win: BrowserWindow, outDir: string, openSettings: () => BrowserWindow): Promise<void> {
+export async function runCaptureTour(win: BrowserWindow, outDir: string, openSettings: () => BrowserWindow, hooks: CaptureHooks = {}): Promise<void> {
   await mkdir(outDir, { recursive: true })
   win.setSize(1440, 900)
   win.center()
@@ -182,13 +190,33 @@ export async function runCaptureTour(win: BrowserWindow, outDir: string, openSet
       console.log(`[capture] ${theme}-${step.name}.png`)
       await step.after?.(win)
     }
-    // 设置窗口（通用页：外观、语言）
+    // 电源策略等待：模拟过热 + 一个待办回填任务 → 状态栏显示等待原因（与手动暂停不同的文案）
+    if (hooks.simulatePowerWait) {
+      hooks.simulatePowerWait(true)
+      await sleep(1200)
+      await writeFile(join(outDir, `${theme}-power-wait.png`), (await win.webContents.capturePage()).toPNG())
+      console.log(`[capture] ${theme}-power-wait.png`)
+      hooks.simulatePowerWait(false)
+      await sleep(600)
+    }
+    // 设置窗口（通用页：外观、语言、索引电源开关）
     const settings = openSettings()
     await sleep(2000)
     await writeFile(join(outDir, `${theme}-settings.png`), (await settings.webContents.capturePage()).toPNG())
     console.log(`[capture] ${theme}-settings.png`)
-    // 设置 › 通用 › 浏览器扩展：确保服务开着让令牌面板露出来，截完恢复原状（改的是演示库的 meta_state）
     const sjs = (code: string): Promise<void> => settings.webContents.executeJavaScript(`try { ${code} } catch (e) {}`).then(() => {})
+    // 设置 › 文件夹：造一条"跳过的数据集目录"记录后截列表
+    if (hooks.seedSkippedFolder) {
+      hooks.seedSkippedFolder(true)
+      await sjs(`[...document.querySelectorAll('header nav button')][1]?.click()`)
+      await sleep(1200)
+      await writeFile(join(outDir, `${theme}-settings-folders-skipped.png`), (await settings.webContents.capturePage()).toPNG())
+      console.log(`[capture] ${theme}-settings-folders-skipped.png`)
+      hooks.seedSkippedFolder(false)
+      await sjs(`[...document.querySelectorAll('header nav button')][0]?.click()`)
+      await sleep(600)
+    }
+    // 设置 › 通用 › 浏览器扩展：确保服务开着让令牌面板露出来，截完恢复原状（改的是演示库的 meta_state）
     await sjs(`window.__vxWasOn = document.querySelector('[data-collect-server-toggle]')?.checked; if (window.__vxWasOn === false) document.querySelector('[data-collect-server-toggle]').click()`)
     await sleep(800)
     await sjs(`document.querySelector('[data-collect-settings]')?.scrollIntoView({ block: 'center' })`)

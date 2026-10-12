@@ -125,8 +125,14 @@ export class SearchEngine {
       // 实测真命中掉到第二名还被标 lowConfidence）；类型意图下面做软加权
       const analysis = analyzeQuery(trimmedQuery)
 
-      // 查询只有类型词（「视频」「screenshots」）：没有内容可搜，按类型浏览
+      // 查询只有类型词（「视频」「screenshots」）：没有内容可搜，按类型浏览。
+      // 「截图」更进一步：有 is_screenshot 标记的库直接按标记浏览（macOS 系统截图属性 /
+      // 文件名模式，比向量判断可靠得多）；老库标记还没回填完时退回类型浏览
       if (analysis.kindOnly) {
+        if (analysis.screenshot) {
+          const shots = this.db.getRepresentativePhotosFiltered(limit, 0, { ...filters, screenshot: true })
+          if (shots.length > 0) return shots.map((photo) => ({ photo, score: 1.0 }))
+        }
         const photos = this.db.getRepresentativePhotosFiltered(limit, 0, { ...filters, kind: kind ?? analysis.kinds[0] })
         return photos.map((photo) => ({ photo, score: 1.0 }))
       }
@@ -242,6 +248,12 @@ export class SearchEngine {
             // 类型词的软加权：类型相符的结果乘 KIND_BOOST（不是过滤，见常量注释）
             const photo = getPhoto(r.fileHash)
             if (photo && analysis.kinds.includes(photo.mediaKind ?? 'image')) r.score *= KIND_BOOST
+          }
+          // 「……的截图」：is_screenshot 标记（系统属性 / 文件名，比向量可靠）再乘一次 ——
+          // 真截图排到长得像截图的 UI 照片前面；仍是加权不是过滤（标记未回填的旧库不受伤）
+          if (analysis.screenshot) {
+            const photo = getPhoto(r.fileHash)
+            if (photo?.isScreenshot === 1) r.score *= KIND_BOOST
           }
         }
         mergedResults.sort((a, b) => b.score - a.score)

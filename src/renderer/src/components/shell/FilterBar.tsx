@@ -6,7 +6,7 @@ import type { MediaFilters, Person } from '../../../../shared/types'
 import type { Tag } from '../../../../shared/tags'
 
 /** 来源（类型 / 文件夹）和日期之外的筛选条件；没设的键不出现（计数、判空都靠它） */
-export type ExtraFilters = Pick<MediaFilters, 'orientation' | 'minPixels' | 'maxPixels' | 'durationMin' | 'durationMax' | 'personId' | 'favorite' | 'tagIds' | 'color'>
+export type ExtraFilters = Pick<MediaFilters, 'orientation' | 'minPixels' | 'maxPixels' | 'durationMin' | 'durationMax' | 'personId' | 'favorite' | 'tagIds' | 'color' | 'screenshot'>
 
 interface Preset { key: string; label: string; value: ExtraFilters }
 
@@ -41,7 +41,7 @@ export function hasExtraFilters(f: ExtraFilters): boolean {
 /** 生效的条件组数（分辨率 / 时长的上下限算一组，每个标签算一个），给工具栏按钮的角标 */
 export function countExtraFilters(f: ExtraFilters): number {
   return GROUPS.filter((g) => g.keys.some((k) => f[k] != null)).length + (f.personId != null ? 1 : 0) + (f.favorite ? 1 : 0) +
-    (f.tagIds?.length ?? 0) + (f.color ? 1 : 0)
+    (f.tagIds?.length ?? 0) + (f.color ? 1 : 0) + (f.screenshot ? 1 : 0)
 }
 
 /** 生效条件的文字标签（智能相册默认名用）；人物名、标签名由调用方查好传入 */
@@ -54,6 +54,7 @@ export function describeExtraFilters(f: ExtraFilters, personName?: string, tagNa
   if (f.color) labels.push(t.design.colorNames[f.color] ?? f.color)
   if (f.personId != null) labels.push(personName || t.organize.person)
   if (f.favorite) labels.push(t.organize.favorites)
+  if (f.screenshot) labels.push(t.organize.screenshots)
   labels.push(...tagNames.map((n) => `#${n}`))
   return labels
 }
@@ -127,6 +128,7 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
     chips.push({ label: t.design.colorNames[value.color] ?? value.color, remove: () => onChange(without(value, ['color'])) })
   }
   if (value.favorite) chips.push({ label: t.organize.favoritesOnly, remove: () => onChange(without(value, ['favorite'])) })
+  if (value.screenshot) chips.push({ label: t.organize.screenshotsOnly, remove: () => onChange(without(value, ['screenshot'])) })
   const setTagIds = (ids: number[]): void => onChange(ids.length ? { ...value, tagIds: ids } : without(value, ['tagIds']))
   for (const id of value.tagIds ?? []) {
     const name = tags.find((x) => x.id === id)?.name
@@ -210,6 +212,19 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
         >
           <Icon name="heart" filled={!!value.favorite} className="w-3.5 h-3.5" />
           {t.organize.favoritesOnly}
+        </button>
+
+        {/* 截图：photos.is_screenshot（macOS 系统截图属性 / 文件名模式，见 core/screenshot.ts） */}
+        <button
+          onClick={() => onChange(value.screenshot ? without(value, ['screenshot']) : { ...value, screenshot: true })}
+          aria-pressed={!!value.screenshot}
+          data-screenshot-filter
+          className={`h-6 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
+            value.screenshot ? 'bg-accent-fill text-accent' : 'text-ink-2 hover:text-ink hover:bg-fill-hover'
+          }`}
+        >
+          <Icon name="screenshot" className="w-3.5 h-3.5" />
+          {t.organize.screenshotsOnly}
         </button>
 
         <TagPicker tags={tags} selected={value.tagIds ?? []} onChange={setTagIds} />

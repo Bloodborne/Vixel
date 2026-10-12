@@ -24,7 +24,12 @@ export interface AutoTagService {
   kick(): void
   /** 视频片段向量更新了：让这个视频的代表帧重新判定 */
   videoUpdated(videoId: number): void
+  /** 截图标记回填刚补上了这些 hash：已判定过的重新判定（让 截图 标签跟上标记） */
+  screenshotFlagged(hashes: string[]): void
 }
+
+/** 词表里"截图"标签的 id：is_screenshot 标记确定时它不再走向量判定（见 run 里的说明） */
+const SCREENSHOT_LABEL_ID = 'screenshot'
 
 export function registerAutoTags(db: DatabaseInstance, onTagsChanged: () => void): AutoTagService {
   const store = new AutoTagStore(db.raw)
@@ -105,7 +110,15 @@ export function registerAutoTags(db: DatabaseInstance, onTagsChanged: () => void
           const primary = img ? assignLabels(img, vecs, b.image) : []
           // 视频 / 音频：各片段（画面 + 声音）也判一遍，合并；只在片段里出现的标签门槛更高
           const segs = store.segmentVectors(hash).map((seg) => assignLabels(seg, vecs, b.segment))
-          changed += store.apply(hash, VOCABULARY_VERSION, mergeAssignments(segs, undefined, primary), labels)
+          let merged = mergeAssignments(segs, undefined, primary)
+          // 截图标签优先走 is_screenshot 标记（macOS xattr / 文件名模式，见 core/screenshot.ts）：
+          //   1 → 满置信地打上（用户仍可删，删了记进 rejections）；
+          //   0 → 判过确定不是，去掉向量判出的"截图"（嵌入会把白底 UI 图误判成截图）；
+          //   null（没判过：旧库未回填完、视频代表帧）→ 保留向量判定，聊胜于无。
+          const flag = db.getScreenshotFlagForHash(hash)
+          if (flag !== null) merged = merged.filter((a) => a.labelId !== SCREENSHOT_LABEL_ID)
+          if (flag === 1) merged = [{ labelId: SCREENSHOT_LABEL_ID, cosine: 1, z: 99 }, ...merged].slice(0, 3)
+          changed += store.apply(hash, VOCABULARY_VERSION, merged, labels)
         }
         broadcast()
         await new Promise((r) => setImmediate(r))
@@ -145,6 +158,10 @@ export function registerAutoTags(db: DatabaseInstance, onTagsChanged: () => void
       const hash = store.representativeHashOfVideo(videoId)
       if (hash) store.forget(hash)
       setTimeout(() => void run(), 2000)
+    },
+    screenshotFlagged: (hashes) => {
+      for (const hash of hashes) store.forget(hash)
+      if (hashes.length > 0) setTimeout(() => void run(), 2000)
     },
   }
 }
