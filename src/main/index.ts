@@ -1011,6 +1011,7 @@ function registerVixelProtocol(): void {
  * 不设环境变量时完全不监听，发布构建不受影响）。
  *   GET /state       窗口数 / 主窗口在不在 / 托盘在不在 / 是否正在退出
  *   GET /close-main  关闭主窗口（等同点窗口的 ×；Windows 上启用快捷键时应转入托盘驻留）
+ *   GET /show-panel  /hide-panel  快速搜索面板（全局快捷键没法自动化，走和它相同的 show/hide）
  *   GET /quit        显式退出（等同菜单 / 托盘的退出）
  */
 function startDebugControl(): void {
@@ -1022,6 +1023,12 @@ function startDebugControl(): void {
       if (req.url === '/close-main') {
         mainWindow?.close()
         res.end('{"ok":true}')
+      } else if (req.url === '/show-panel') {
+        quickPanel?.show()
+        res.end('{"ok":true}')
+      } else if (req.url === '/hide-panel') {
+        quickPanel?.hide()
+        res.end('{"ok":true}')
       } else if (req.url === '/quit') {
         res.end('{"ok":true}')
         setImmediate(() => app.quit())
@@ -1030,6 +1037,7 @@ function startDebugControl(): void {
           windows: BrowserWindow.getAllWindows().length,
           mainWindow: !!mainWindow,
           tray: !!quickPanel?.hasTray(),
+          panelVisible: !!quickPanel?.getWindow()?.isVisible(),
           quitting: isQuitting,
         }))
       } else {
