@@ -7,10 +7,17 @@
  *   SVG        所有平台 —— sharp 内置 librsvg；从 buffer 加载没有 base URI，
  *              外部 / 本地文件引用一律不解析（见 decode.test / design.test 的验证）
  *   PSD / PSB  所有平台 —— 纯 JS 解合成图（image/psd.ts）；macOS 上失败再走 qlmanage
- *   PDF / AI   仅 macOS —— sips 渲染第一页（AI 要求 PDF 兼容存储，临时改名 .pdf 交给 sips）；
- *              Windows / Linux 上没有不带原生 canvas 的轻量渲染器（pdfjs-dist 的渲染端
- *              需要 DOM/canvas），故不支持
- *   EPS        不支持 —— macOS 已移除 PostScript 解码（sips 报错、Quick Look 挂起）
+ *   PDF / AI   所有平台（AI 要求 PDF 兼容存储，Illustrator 默认开启）——
+ *                macOS：sips 渲染第一页（临时改名 .pdf 交给 sips），失败走 qlmanage，
+ *                再失败走 pdf.js 服务；
+ *                Windows / Linux：pdf.js 在一个隐藏的 BrowserWindow 里渲染（Chromium 有
+ *                真 canvas，纯 Node 下 pdfjs-dist 渲染不了）。服务由 main/pdfRender.ts
+ *                在应用启动时通过 setPdfRasterizer 注入 —— core 不 import electron
+ *                （CLI 以 ELECTRON_RUN_AS_NODE 编译运行这颗树）。
+ *                VIXEL_PDF_RENDERER=pdfjs 可在 macOS 上强制走 pdf.js（调试用，见 docs/debugging.md）
+ *   EPS        不支持 —— macOS 已移除 PostScript 解码（sips 报错、Quick Look 挂起）；
+ *              其它平台需要 Ghostscript（AGPL，且用户一般没装 —— Eagle 在 Windows 上
+ *              的 AI/EPS 缩略图就因此静默失败，见 docs/review/07-eagle.md）
  *
  * 预览一律在临时目录（mkdtemp）里生成再读回，从不写到原件旁边。
  */
@@ -38,14 +45,13 @@ export const DESIGN_BADGES: Record<string, string> = {
   '.ai': 'AI',
 }
 
-/** 当前平台能索引的设计格式扩展名 */
-export function supportedDesignExts(platform: NodeJS.Platform = process.platform): Set<string> {
-  const exts = new Set(['.svg', '.psd', '.psb'])
-  if (platform === 'darwin') {
-    exts.add('.pdf')
-    exts.add('.ai')
-  }
-  return exts
+/**
+ * 当前平台能索引的设计格式扩展名。
+ * PDF / AI 现在全平台支持：macOS 走 sips / qlmanage，Windows / Linux 走应用注入的
+ * pdf.js 服务（main/pdfRender.ts）。platform 参数保留给测试矩阵用。
+ */
+export function supportedDesignExts(_platform: NodeJS.Platform = process.platform): Set<string> {
+  return new Set(['.svg', '.psd', '.psb', '.pdf', '.ai'])
 }
 
 export function isDesignExt(ext: string, platform: NodeJS.Platform = process.platform): boolean {
@@ -55,8 +61,26 @@ export function isDesignExt(ext: string, platform: NodeJS.Platform = process.pla
 export interface DesignPreview {
   /** sharp 可直接消化的栅格 buffer（PNG） */
   buffer: Buffer
-  /** PDF / AI：页数（快速扫描 /Type /Page 得到，拿不到就省略） */
+  /** PDF / AI：页数（pdf.js 的 numPages 优先；否则快速扫描 /Type /Page，拿不到就省略） */
   pages?: number
+}
+
+/** pdf.js 服务返回的栅格结果（png = 第一页，pages = 精确页数） */
+export interface PdfRasterResult {
+  png: Buffer
+  pages?: number
+}
+
+/**
+ * PDF 栅格化服务的注入点：main/pdfRender.ts 启动时注册（隐藏 BrowserWindow + pdf.js）。
+ * core 不 import electron —— CLI（ELECTRON_RUN_AS_NODE）也编译这棵树。
+ */
+export type PdfRasterizer = (bytes: Buffer, maxSide: number) => Promise<PdfRasterResult>
+
+let pdfRasterizer: PdfRasterizer | null = null
+
+export function setPdfRasterizer(rasterizer: PdfRasterizer | null): void {
+  pdfRasterizer = rasterizer
 }
 
 /** 调度入口：按扩展名栅格化；失败抛错（调用方记任务失败） */
@@ -64,7 +88,7 @@ export async function renderDesignPreview(filePath: string, ext: string, origina
   const e = ext.toLowerCase()
   if (e === '.svg') return { buffer: await renderSvg(originalBuffer) }
   if (e === '.psd' || e === '.psb') return { buffer: await renderPsd(filePath) }
-  if (e === '.pdf' || e === '.ai') return renderPdf(filePath, e, originalBuffer)
+  if (e === '.pdf' || e === '.ai') return renderPdf(e, originalBuffer)
   throw new Error(`Not a design format: ${ext}`)
 }
 
@@ -108,15 +132,21 @@ async function renderPsd(filePath: string): Promise<Buffer> {
   }
 }
 
-/** PDF / AI（仅 macOS）：sips 渲染第一页；AI 改名 .pdf 再交给 sips（sips 认扩展名不认内容） */
-async function renderPdf(filePath: string, ext: string, originalBuffer: Buffer): Promise<DesignPreview> {
-  if (process.platform !== 'darwin') {
-    throw new Error(`PDF/AI preview requires macOS (got ${process.platform})`)
-  }
-  // AI 必须是 PDF 兼容存储（Illustrator 默认开启）；纯 PostScript 的老 .ai 不支持
+/**
+ * PDF / AI：第一页栅格化。
+ * macOS：sips 为主、qlmanage 次之、pdf.js 服务兜底（VIXEL_PDF_RENDERER=pdfjs 可强制走 pdf.js）；
+ * Windows / Linux：pdf.js 服务（隐藏 BrowserWindow，见 main/pdfRender.ts）。
+ * AI 必须是 PDF 兼容存储（Illustrator 默认开启）；纯 PostScript 的老 .ai 不支持。
+ */
+async function renderPdf(ext: string, originalBuffer: Buffer): Promise<DesignPreview> {
   if (ext === '.ai' && originalBuffer.toString('latin1', 0, 5) !== '%PDF-') {
     throw new Error('AI file is not PDF-compatible (re-save with "Create PDF Compatible File")')
   }
+  const forcePdfjs = process.env.VIXEL_PDF_RENDERER === 'pdfjs'
+  if (process.platform !== 'darwin' || forcePdfjs) {
+    return renderPdfWithService(originalBuffer)
+  }
+  // macOS：sips 渲染第一页；AI 改名 .pdf 再交给 sips（sips 认扩展名不认内容）
   const pages = countPdfPages(originalBuffer)
   const dir = await mkdtemp(join(tmpdir(), 'vixel-design-'))
   const inPath = join(dir, 'in.pdf')
@@ -130,12 +160,27 @@ async function renderPdf(filePath: string, ext: string, originalBuffer: Buffer):
       try {
         return { buffer: await renderWithQlmanage(inPath), ...(pages ? { pages } : {}) }
       } catch {
+        if (pdfRasterizer) {
+          try {
+            return await renderPdfWithService(originalBuffer)
+          } catch { /* 原始 sips 错误信息更有用 */ }
+        }
         throw sipsErr
       }
     }
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
   }
+}
+
+/** pdf.js 服务：页数优先用 numPages（精确），没有再退回启发式扫描 */
+async function renderPdfWithService(originalBuffer: Buffer): Promise<DesignPreview> {
+  if (!pdfRasterizer) {
+    throw new Error(`PDF preview service unavailable on ${process.platform} (pdf.js renderer not registered)`)
+  }
+  const result = await pdfRasterizer(originalBuffer, RASTER_MAX_SIDE)
+  const pages = result.pages ?? countPdfPages(originalBuffer) ?? undefined
+  return { buffer: result.png, ...(pages ? { pages } : {}) }
 }
 
 /**

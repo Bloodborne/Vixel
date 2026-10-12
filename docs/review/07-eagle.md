@@ -40,3 +40,15 @@ Eagle 今年也有了离线 AI 搜索（只限图片，`preferencesWindow.aiSear
 - 导入：浏览器扩展、网页 / 屏幕截图、拖拽、监视文件夹自动导入、素材包导入导出。
 - 资源库：多库切换合并、网盘同步冲突提示、密码锁 / Touch ID、回收站。
 - 没有人脸识别；OCR 插件调用 Google 接口（非离线）。
+
+## 附：Eagle 在 Windows 上怎么做 PDF / PSD / AI / EPS 缩略图（2026-10-12 实测）
+
+读 Eagle Windows 安装包验证：**PDF 用 pdf.js 在自己的窗口里渲染**（Chromium 有真 canvas）；
+**PSD / AI / EPS 走 ImageMagick（Magick.NET，经 edge-cs 调 .NET）**，其中 AI / EPS 还要求系统装有
+**Ghostscript** —— Eagle 不随包携带（AGPL），也不提示用户去装。在一台真实 Windows 机器上实测
+（2026-10-12，导入同一组测试文件）：PSD 和 PDF 正常出缩略图，**AI 和 EPS 只得到灰色占位图**，
+无任何报错或说明 —— 静默失败。
+
+Vixel 的对策：PDF 和 PDF 兼容 AI 一律用打包的 pdf.js 在隐藏窗口渲染（AI 的 PDF 兼容存储是
+Illustrator 默认，绝大多数 .ai 直接可用），Windows 上无需装任何东西；EPS 各平台都不支持并在
+文档里讲明原因，不给用户灰色方块。

@@ -50,6 +50,20 @@ VIXEL_PROFILE=1 npx electron . --user-data-dir=/tmp/vx-perf/data
 
 实测（M 系列 Mac）：缩略图 150 张 2400×1600 JPEG < 5 s；LiteRT GPU 上 `embed.encode` 约 0.3 s / 张（旧 ONNX CPU 约 3.3 s）；索引全程主进程无 > 50 ms 阻塞，IPC ≤ 1.2 ms。
 
+## PDF 渲染：`VIXEL_PDF_RENDERER=pdfjs`
+
+PDF / PDF 兼容 AI 的预览在 macOS 上默认走 `sips`（失败依次退 `qlmanage`、pdf.js），
+在 Windows / Linux 上走内置 pdf.js（隐藏 BrowserWindow，见 `src/main/pdfRender.ts`）。
+
+```bash
+VIXEL_PDF_RENDERER=pdfjs npm run dev        # macOS 上强制走 pdf.js 路径（与 Windows/Linux 行为一致）
+```
+
+用来在 Mac 上调试 / 验证 Windows 的渲染行为：两边 Chromium 版本一致，渲染结果可比。
+渲染服务串行处理、单次 20s 超时、崩溃自动重建窗口、空闲 60s 销毁；页面 CSP `default-src 'none'`，
+字节经 IPC 传入，cmaps / 字体 / wasm 走本地 `vixel-pdf://` 协议 —— 不发也发不出任何网络请求
+（可在主进程日志里确认没有 `[privacy] blocked network request`）。
+
 ## 数据库集成测试
 
 ```bash

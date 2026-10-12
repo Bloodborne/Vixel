@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **PDF / AI previews on Windows and Linux.** PDF and PDF-compatible AI files are now indexed on
+  every platform. On Windows/Linux (and as a macOS fallback) the first page is rendered by the
+  bundled pdf.js inside a hidden, sandboxed BrowserWindow — the same approach Eagle uses for PDF —
+  fully offline: the page has a `default-src 'none'` CSP, PDF bytes go in over IPC, and pdf.js
+  worker/CMaps/fonts/wasm are bundled and served from a local `vixel-pdf://` scheme (CJK text
+  renders correctly thanks to the bundled CMaps). Requests are serialized with a 20 s timeout,
+  the window is recreated on crash and destroyed after 60 s idle. Page counts now come from
+  pdf.js (`numPages`, exact) when it renders, instead of the heuristic scan. Unlike Eagle, AI
+  thumbnails on Windows need no ImageMagick/Ghostscript install — anything saved with "Create
+  PDF Compatible File" just works. EPS remains unsupported everywhere.
+  (`VIXEL_PDF_RENDERER=pdfjs` forces the pdf.js path on macOS, see docs/debugging.md.)
+
+### Added
 - **Design formats: SVG, PSD/PSB, PDF, AI.** Indexed like images through a rasterized preview
   (thumbnails, semantic search, OCR, faces); previews are generated in temp folders and the cache,
   never next to your originals. Grid cards show a format badge ("SVG" / "PSD" / "PDF" / "AI"),
@@ -16,8 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are never resolved (verified by test), keeping the app fully offline. PSD/PSB are parsed by a
   small pure-JS reader of the merged composite (raw + RLE, 8-bit RGB/gray/approximate CMYK; layer
   data is never loaded), with a Quick Look fallback on macOS. PDF and PDF-compatible AI render
-  their first page via `sips` and are macOS-only; they are not listed on Windows/Linux (no
-  reliable lightweight renderer without a native canvas). EPS is unsupported (macOS removed
+  their first page via `sips` on macOS. EPS is unsupported (macOS removed
   PostScript decoding).
 - **Color search.** Every image/video gets a ~5-color palette (extracted from a 64×64 downsample
   in CIELAB during thumbnailing; existing libraries are backfilled in the background without

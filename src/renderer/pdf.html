@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- 离线铁律：连不了任何 http(s)。脚本只许同源 bundle + wasm（JPX/JBIG2/ICC 解码）；
+         connect-src 只放行本地资源协议 vixel-pdf://（cmaps / 字体 / wasm）和 data:/blob:（pdf.js 内部用） -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src vixel-pdf: data: blob:; img-src data: blob:; font-src data: blob:; style-src 'unsafe-inline'"
+    />
+    <title>Vixel PDF renderer</title>
+  </head>
+  <body>
+    <script type="module" src="/src/pdf/render.ts"></script>
+  </body>
+</html>

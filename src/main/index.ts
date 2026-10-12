@@ -29,6 +29,7 @@ import { registerCleanupIpc } from './cleanup'
 import { broadcastTagsChanged, registerTagIpc } from './tags'
 import { registerCollectIpc } from './collect'
 import { registerAutoTags } from './autotags'
+import { registerPdfRenderer, disposePdfRenderer, releasePdfWindowIfLast, PDF_ASSET_SCHEME } from './pdfRender'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
 import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace, type ImageQueryInput } from '../shared/types'
@@ -142,7 +143,10 @@ function createWindow(): void {
     if (process.env.VIXEL_CAPTURE) void runCaptureTour(win, process.env.VIXEL_CAPTURE, openSettingsWindow)
     if (process.env.VIXEL_RECORD) void runRecording(win, process.env.VIXEL_RECORD)
   })
-  win.on('closed', () => { if (mainWindow === win) mainWindow = null })
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+    releasePdfWindowIfLast()
+  })
   loadRenderer(win)
 }
 
@@ -169,7 +173,10 @@ function openSettingsWindow(): BrowserWindow {
   })
   settingsWindow = win
   win.on('ready-to-show', () => win.show())
-  win.on('closed', () => { if (settingsWindow === win) settingsWindow = null })
+  win.on('closed', () => {
+    if (settingsWindow === win) settingsWindow = null
+    releasePdfWindowIfLast()
+  })
   loadRenderer(win, 'settings')
   return win
 }
@@ -791,6 +798,8 @@ function registerIpcHandlers(): void {
  */
 protocol.registerSchemesAsPrivileged([
   { scheme: 'vixel', privileges: { secure: true, supportFetchAPI: true, stream: true, bypassCSP: false } },
+  // PDF 渲染隐藏窗口取 pdfjs-dist 本地资源（cmaps / 字体 / wasm）用；standard + CORS 才能被页面 fetch/XHR
+  { scheme: PDF_ASSET_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, bypassCSP: false } },
 ])
 
 function registerVixelProtocol(): void {
@@ -892,6 +901,8 @@ app.whenReady().then(async () => {
   if (process.env.VIXEL_RECORD) await session.defaultSession.clearStorageData({ storages: ['localstorage'] })
   enforceOfflinePolicy()
   registerVixelProtocol()
+  // PDF / AI 的 pdf.js 栅格化服务（隐藏窗口按需创建；Windows/Linux 主路径，macOS 兜底）
+  registerPdfRenderer()
   registerIpcHandlers()
   registerCleanupIpc(db, broadcastLibraryChanged)
   registerTagIpc(db)
@@ -919,6 +930,7 @@ app.on('before-quit', () => {
   // VIXEL_PROFILE=1：退出时打印本次会话最慢的操作（p50 / p95 / max）
   if (PROFILE) console.table(perfSnapshot().slice(0, 25).map((r) => ({ ...r, p50: +r.p50.toFixed(1), p95: +r.p95.toFixed(1), max: +r.max.toFixed(1) })))
   watcher?.stopAll()
+  disposePdfRenderer()
   // 先停 indexer（清掉节流中的进度定时器），否则它可能在 db.close() 之后触发并查询已关闭的库
   indexer?.stop()
   inference?.stop()

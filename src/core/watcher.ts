@@ -33,8 +33,8 @@ const SUPPORTED_IMAGE_EXTENSIONS = new Set([
   '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.orf', '.rw2', '.avif',
 ])
 
-// 设计格式按栅格预览走图片管线；平台支持矩阵见 image/design.ts（PDF/AI 仅 macOS，
-// 不支持的平台上扩展名不进这份名单 —— 不入库、不在任务面板里失败）
+// 设计格式按栅格预览走图片管线；平台支持矩阵见 image/design.ts（SVG/PSD/PSB/PDF/AI
+// 全平台支持：PDF/AI 在 macOS 走 sips，Windows/Linux 走 pdf.js 隐藏窗口服务）
 for (const ext of supportedDesignExts()) SUPPORTED_IMAGE_EXTENSIONS.add(ext)
 
 // 支持的视频格式（实际能不能解码取决于 ffmpeg-static；这些是最常见的）

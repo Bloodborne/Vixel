@@ -147,17 +147,18 @@ npm run build && npm run package   # 产物在 release/
 |---|---|
 | 图片 | jpg · jpeg · png · webp · gif · bmp · tiff · avif · heic · heif |
 | RAW | cr2 · cr3 · nef · arw · dng · raf · orf · rw2 |
-| 设计 | svg · psd · psb · pdf* · ai*（* 仅 macOS；按栅格预览索引，网格有格式角标） |
+| 设计 | svg · psd · psb · pdf · ai（按栅格预览索引，网格有格式角标） |
 | 视频 | mp4 · mov · m4v · webm · mkv · avi |
 | 音频 | mp3 · m4a · aac · wav · flac · ogg · opus |
 
 | 平台 | 常见图片 | HEIC / HEIF | RAW | 设计格式 | 视频 / 音频 |
 |---|---|---|---|---|---|
-| macOS | ✅ sharp | ✅ sips | ✅ sips | ✅ SVG · PSD/PSB · PDF · AI | ✅ ffmpeg |
-| Linux / Windows | ✅ sharp | ✅ heic-convert | ✅ 相机内嵌预览 | ✅ SVG · PSD/PSB（PDF / AI 暂不支持） | ✅ ffmpeg |
+| macOS | ✅ sharp | ✅ sips | ✅ sips | ✅ SVG · PSD/PSB · PDF · AI（sips） | ✅ ffmpeg |
+| Linux / Windows | ✅ sharp | ✅ heic-convert | ✅ 相机内嵌预览 | ✅ SVG · PSD/PSB · PDF · AI（内置 pdf.js） | ✅ ffmpeg |
 
-PSD/PSB 读取文件内的合并合成图（Photoshop 默认开启"最大兼容"）；AI 需要以"创建 PDF 兼容文件"保存。
-EPS 不支持（macOS 已移除 PostScript 解码）。
+PSD/PSB 读取文件内的合并合成图（Photoshop 默认开启"最大兼容"）；AI 需要以"创建 PDF 兼容文件"保存
+（Illustrator 默认开启）。PDF / AI 在 Windows / Linux 上由内置的 pdf.js 离线渲染，无需安装任何东西。
+EPS 不支持（macOS 已移除 PostScript 解码，其它平台需要用户自装 Ghostscript）。
 
 内置播放器播不了的编码（如部分 mkv / avi）会提示用系统播放器打开，搜索和索引不受影响。
 

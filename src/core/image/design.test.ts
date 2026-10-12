@@ -1,29 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { join } from 'path'
 import { readFile } from 'fs/promises'
 import sharp from 'sharp'
-import { countPdfPages, renderDesignPreview, renderSvg, supportedDesignExts, isDesignExt, DESIGN_BADGES } from './design'
+import { countPdfPages, renderDesignPreview, renderSvg, supportedDesignExts, isDesignExt, setPdfRasterizer, DESIGN_BADGES } from './design'
 
 // vitest 从仓库根运行；tsconfig.cli 也会编译测试文件，避免 import.meta
 const FIXTURES = join(process.cwd(), 'tests', 'fixtures', 'design')
 
 describe('platform support matrix', () => {
-  it('SVG / PSD / PSB are supported everywhere', () => {
+  it('SVG / PSD / PSB / PDF / AI are supported everywhere (PDF/AI via sips on macOS, pdf.js elsewhere)', () => {
     for (const platform of ['darwin', 'win32', 'linux'] as const) {
       const exts = supportedDesignExts(platform)
       expect(exts.has('.svg')).toBe(true)
       expect(exts.has('.psd')).toBe(true)
       expect(exts.has('.psb')).toBe(true)
+      expect(exts.has('.pdf')).toBe(true)
+      expect(exts.has('.ai')).toBe(true)
     }
   })
 
-  it('PDF / AI are macOS-only (sips); EPS is supported nowhere', () => {
-    expect(supportedDesignExts('darwin').has('.pdf')).toBe(true)
-    expect(supportedDesignExts('darwin').has('.ai')).toBe(true)
-    for (const platform of ['win32', 'linux'] as const) {
-      expect(supportedDesignExts(platform).has('.pdf')).toBe(false)
-      expect(supportedDesignExts(platform).has('.ai')).toBe(false)
-    }
+  it('EPS is supported nowhere (Ghostscript is AGPL and nobody has it installed)', () => {
     for (const platform of ['darwin', 'win32', 'linux'] as const) {
       expect(supportedDesignExts(platform).has('.eps')).toBe(false)
     }
@@ -102,6 +98,64 @@ describe('renderDesignPreview', () => {
   it('rejects a non-PDF-compatible .ai', async () => {
     await expect(renderDesignPreview('/tmp/x.ai', '.ai', Buffer.from('%!PS-Adobe old ai')))
       .rejects.toThrow(/PDF/i)
+  })
+})
+
+describe('pdf.js rasterizer service hook', () => {
+  const PNG_1PX = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+  )
+  afterEach(() => {
+    setPdfRasterizer(null)
+    delete process.env.VIXEL_PDF_RENDERER
+  })
+
+  it('VIXEL_PDF_RENDERER=pdfjs forces the service and prefers its exact numPages', async () => {
+    process.env.VIXEL_PDF_RENDERER = 'pdfjs'
+    const calls: Array<{ bytes: number; maxSide: number }> = []
+    setPdfRasterizer(async (bytes, maxSide) => {
+      calls.push({ bytes: bytes.length, maxSide })
+      return { png: PNG_1PX, pages: 5 } // 启发式扫 brochure.pdf 是 3，服务的 numPages 必须优先
+    })
+    const pdf = await readFile(join(FIXTURES, 'brochure.pdf'))
+    const { buffer, pages } = await renderDesignPreview(join(FIXTURES, 'brochure.pdf'), '.pdf', pdf)
+    expect(buffer.equals(PNG_1PX)).toBe(true)
+    expect(pages).toBe(5)
+    expect(calls).toEqual([{ bytes: pdf.length, maxSide: 1600 }])
+  })
+
+  it('falls back to the heuristic page count when the service reports none', async () => {
+    process.env.VIXEL_PDF_RENDERER = 'pdfjs'
+    setPdfRasterizer(async () => ({ png: PNG_1PX }))
+    const pdf = await readFile(join(FIXTURES, 'brochure.pdf'))
+    const { pages } = await renderDesignPreview(join(FIXTURES, 'brochure.pdf'), '.pdf', pdf)
+    expect(pages).toBe(3)
+  })
+
+  it('reports a clear error when the service is required but not registered', async () => {
+    process.env.VIXEL_PDF_RENDERER = 'pdfjs' // 等价于跑在 win32/linux：没有 sips 可用
+    const pdf = await readFile(join(FIXTURES, 'brochure.pdf'))
+    await expect(renderDesignPreview(join(FIXTURES, 'brochure.pdf'), '.pdf', pdf))
+      .rejects.toThrow(/PDF preview service unavailable/)
+  })
+
+  it('still rejects a non-PDF-compatible .ai before calling the service', async () => {
+    process.env.VIXEL_PDF_RENDERER = 'pdfjs'
+    let called = false
+    setPdfRasterizer(async () => { called = true; return { png: PNG_1PX, pages: 1 } })
+    await expect(renderDesignPreview('/tmp/x.ai', '.ai', Buffer.from('%!PS-Adobe old ai')))
+      .rejects.toThrow(/PDF/i)
+    expect(called).toBe(false)
+  })
+
+  it('a PDF-compatible .ai goes through the service as-is (no rename dance)', async () => {
+    process.env.VIXEL_PDF_RENDERER = 'pdfjs'
+    setPdfRasterizer(async () => ({ png: PNG_1PX, pages: 1 }))
+    const ai = await readFile(join(FIXTURES, 'artwork.ai'))
+    const { buffer, pages } = await renderDesignPreview(join(FIXTURES, 'artwork.ai'), '.ai', ai)
+    expect(buffer.equals(PNG_1PX)).toBe(true)
+    expect(pages).toBe(1)
   })
 })
 
