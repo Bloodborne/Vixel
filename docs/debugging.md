@@ -72,6 +72,22 @@ npm run test:db
 
 vitest 跑在纯 Node 下加载不了 Electron ABI 的 better-sqlite3，`db.ts` 的删除级联、内容 GC、只读打开、文件名转义等在 `scripts/db-smoke.cjs` 里用 Electron-as-Node 验证。
 
+## 搜索质量评测：`npm run eval`
+
+改动排序 / 融合 / 门槛之前先跑一遍，改完再跑一遍对比：
+
+```bash
+npm run eval                                   # 两个标注集都跑（会先 build:cli），打印表格 + 失败明细
+npm run eval -- --set footage --json           # 只跑一个集合，输出机器可读 JSON（表格转 stderr）
+npm run eval -- --compare evals/baseline.json  # 与基线对比：各指标增减 + 每条查询的排名变化
+npm run eval -- --json --out evals/baseline.json   # 排序有意改变时重建基线
+```
+
+- 查询集在 `evals/demo.json` / `evals/footage.json`（约 35 条 / 集，按 image / video / ocr / filename / multilingual / kind / lookup / negative 分类），期望路径相对库根目录，`file@a-b` 表示要求命中片段与 `[a,b]` 秒有重叠。基线结果在 `evals/baseline.json`。
+- 指标：top-1 命中率、MRR、Recall@5、mAP、负例正确率（无结果或全部 lowConfidence 才算对）、平均返回条数。**不统计耗时**（速度看 bench，不对外发布）。
+- 走的是真实代码路径：`SearchEngine` + LiteRT 向量 + FTS5/jieba OCR + 文件名 / 标签通道；每次把 `library.db` 拷到临时目录**只读**打开，原库不动。
+- **评测库不在仓库里**。默认指向本机的 `~/workspace/dancer/vixel-demo/{data,library,footage-data,footage}`；别的机器用环境变量或旗标指定：`VIXEL_EVAL_DEMO_DATA` / `VIXEL_EVAL_DEMO_LIB` / `VIXEL_EVAL_FOOTAGE_DATA` / `VIXEL_EVAL_FOOTAGE_LIB`（`--demo-data` 等旗标同义），`*_DATA` 是含 `library.db` 的数据目录，`*_LIB` 是媒体文件根目录（期望路径的基准）。模型用 `VIXEL_MODELS_DIR`（默认 `resources/models`）。
+
 ## 推理卡死
 
 推理进程有看门狗：有在途请求却 10 分钟没有任何请求完成，就杀掉子进程。在途请求以失败结束（任务面板可见），下一次调用自动重启进程。

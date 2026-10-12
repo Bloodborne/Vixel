@@ -1,0 +1,1895 @@
+{
+ "generatedAt": "2026-10-12T10:40:16.391Z",
+ "limit": 10,
+ "sets": [
+  {
+   "set": "demo",
+   "overall": {
+    "n": 37,
+    "nPos": 33,
+    "nNeg": 4,
+    "top1": 0.8787878787878788,
+    "mrr": 0.9393939393939394,
+    "recall5": 1,
+    "map": 0.9343434343434344,
+    "negOk": 4,
+    "avgResults": 2.5675675675675675
+   },
+   "perTag": {
+    "filename": {
+     "n": 3,
+     "nPos": 3,
+     "nNeg": 0,
+     "top1": 0.3333333333333333,
+     "mrr": 0.6666666666666666,
+     "recall5": 1,
+     "map": 0.6666666666666666,
+     "negOk": null,
+     "avgResults": 2.3333333333333335
+    },
+    "image": {
+     "n": 13,
+     "nPos": 13,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 0.9871794871794872,
+     "negOk": null,
+     "avgResults": 2.1538461538461537
+    },
+    "kind": {
+     "n": 3,
+     "nPos": 3,
+     "nNeg": 0,
+     "top1": 0.6666666666666666,
+     "mrr": 0.8333333333333334,
+     "recall5": 1,
+     "map": 0.8333333333333334,
+     "negOk": null,
+     "avgResults": 1.3333333333333333
+    },
+    "lookup": {
+     "n": 4,
+     "nPos": 4,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 1
+    },
+    "multilingual": {
+     "n": 2,
+     "nPos": 2,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 1.5
+    },
+    "negative": {
+     "n": 4,
+     "nPos": 0,
+     "nNeg": 4,
+     "top1": null,
+     "mrr": null,
+     "recall5": null,
+     "map": null,
+     "negOk": 4,
+     "avgResults": 10
+    },
+    "ocr": {
+     "n": 5,
+     "nPos": 5,
+     "nNeg": 0,
+     "top1": 0.8,
+     "mrr": 0.9,
+     "recall5": 1,
+     "map": 0.9,
+     "negOk": null,
+     "avgResults": 1.2
+    },
+    "video": {
+     "n": 3,
+     "nPos": 3,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 1
+    }
+   },
+   "queries": [
+    {
+     "q": "粉色的花",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "自然/cyclamen_persicum.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/cyclamen_persicum.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "cactus with yellow flowers",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "自然/notocactus_minimus.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/notocactus_minimus.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "紫色的小花",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "自然/orychophragmus_violaceus.jpg",
+      "自然/polemonium_reptans.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/orychophragmus_violaceus.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "a bird of prey in flight",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "自然/prairie_falcon.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 3,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/prairie_falcon.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "沙漠里的沙丘",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "人像/mongolels.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "人像/mongolels.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "snow-capped mountains",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "其他格式/denali.webp",
+      "相机RAW/EOS_70D.CR2"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "其他格式/denali.webp",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "山间的湖泊",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/glarus.nef"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/glarus.nef",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "喷泉",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/philadelphia.nef"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/philadelphia.nef",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "colorful houses by the water",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/PowerShot_G12.CR2"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/PowerShot_G12.CR2",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "结冰的湖",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "其他格式/8bit-sRGB.avif",
+      "相机RAW/14bit-uncompressed-(3_2).arw"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 0.8333333333333333,
+     "nResults": 10,
+     "lowConfidence": true,
+     "first": {
+      "path": "相机RAW/14bit-uncompressed-(3_2).arw",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "一杯冰咖啡",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "其他格式/pixel-8a.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "其他格式/pixel-8a.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "黑白老照片里的科学家",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "人像/portrait.jpg",
+      "人像/portrait-orientation-6.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "人像/portrait-orientation-6.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "white flowers on the forest floor",
+     "tag": "image",
+     "kind": "pos",
+     "expect": [
+      "自然/wood_anemones.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/wood_anemones.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "夜の居酒屋",
+     "tag": "multilingual",
+     "kind": "pos",
+     "expect": [
+      "文字/japanese-shop.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "文字/japanese-shop.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "cactus en fleurs",
+     "tag": "multilingual",
+     "kind": "pos",
+     "expect": [
+      "自然/notocactus_minimus.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/notocactus_minimus.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "STARBUCKS",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "视频/train.mov"
+     ],
+     "rank": 2,
+     "top1": 0,
+     "mrr": 0.5,
+     "recall5": 1,
+     "ap": 0.5,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "其他格式/pixel-8a.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "HOPADILLO",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "文字/craft-beer.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "文字/craft-beer.jpg",
+      "segment": null,
+      "matchedBy": [
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "取报店",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "文字/japanese-shop.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "文字/japanese-shop.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual",
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "dost",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "文字/book-beside-flowers.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "文字/book-beside-flowers.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual",
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "user story",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "文字/handwritten-notes.jpg"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "文字/handwritten-notes.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual",
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "denali",
+     "tag": "filename",
+     "kind": "pos",
+     "expect": [
+      "其他格式/denali.webp"
+     ],
+     "rank": 2,
+     "top1": 0,
+     "mrr": 0.5,
+     "recall5": 1,
+     "ap": 0.5,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/EOS_70D.CR2",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "glarus",
+     "tag": "filename",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/glarus.nef"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/glarus.nef",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "anemone",
+     "tag": "filename",
+     "kind": "pos",
+     "expect": [
+      "自然/wood_anemones.jpg"
+     ],
+     "rank": 2,
+     "top1": 0,
+     "mrr": 0.5,
+     "recall5": 1,
+     "ap": 0.5,
+     "nResults": 4,
+     "lowConfidence": false,
+     "first": {
+      "path": "自然/polemonium_reptans.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "IMG_2682",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "其他格式/IMG_2682.heic"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "其他格式/IMG_2682.heic",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "2682",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "其他格式/IMG_2682.heic"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "其他格式/IMG_2682.heic",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "G12",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/PowerShot_G12.CR2"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/PowerShot_G12.CR2",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "450",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "相机RAW/Ricoh_GR3-450.DNG"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "相机RAW/Ricoh_GR3-450.DNG",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "火车的视频",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "视频/train.mov"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "视频/train.mov",
+      "segment": [
+       0,
+       21.74
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "video of a waterfall",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "视频/waterfall.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "视频/waterfall.mp4",
+      "segment": [
+       0,
+       10.36
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "埃菲尔铁塔的视频",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "视频/eiffel-tower.mp4"
+     ],
+     "rank": 2,
+     "top1": 0,
+     "mrr": 0.5,
+     "recall5": 1,
+     "ap": 0.5,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "视频/train.mov",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "红色的缆车",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "视频/train.mov"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "视频/train.mov",
+      "segment": [
+       0,
+       21.74
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "秋天山崖上的瀑布",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "视频/waterfall.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "视频/waterfall.mp4",
+      "segment": [
+       0,
+       10.36
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "night tower with sparkling lights",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "视频/eiffel-tower.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "视频/eiffel-tower.mp4",
+      "segment": [
+       0,
+       22.62
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "大象",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "first": {
+      "path": "其他格式/thompson-springs.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "滑雪的人",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "first": {
+      "path": "相机RAW/EOS_70D.CR2",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "birthday cake",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "first": {
+      "path": "其他格式/pixel-8a.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "手机截图",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "first": {
+      "path": "自然/orychophragmus_violaceus.jpg",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    }
+   ]
+  },
+  {
+   "set": "footage",
+   "overall": {
+    "n": 35,
+    "nPos": 31,
+    "nNeg": 4,
+    "top1": 0.8387096774193549,
+    "mrr": 0.8790322580645161,
+    "recall5": 0.9032258064516129,
+    "map": 0.8467741935483871,
+    "negOk": 3,
+    "avgResults": 2.742857142857143
+   },
+   "perTag": {
+    "filename": {
+     "n": 3,
+     "nPos": 3,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 1
+    },
+    "kind": {
+     "n": 3,
+     "nPos": 3,
+     "nNeg": 0,
+     "top1": 0.3333333333333333,
+     "mrr": 0.6666666666666666,
+     "recall5": 0.8333333333333334,
+     "map": 0.5,
+     "negOk": null,
+     "avgResults": 7
+    },
+    "lookup": {
+     "n": 3,
+     "nPos": 3,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 1
+    },
+    "multilingual": {
+     "n": 2,
+     "nPos": 2,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 2
+    },
+    "negative": {
+     "n": 4,
+     "nPos": 0,
+     "nNeg": 4,
+     "top1": null,
+     "mrr": null,
+     "recall5": null,
+     "map": null,
+     "negOk": 3,
+     "avgResults": 7.75
+    },
+    "ocr": {
+     "n": 3,
+     "nPos": 3,
+     "nNeg": 0,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "map": 1,
+     "negOk": null,
+     "avgResults": 1.6666666666666667
+    },
+    "video": {
+     "n": 17,
+     "nPos": 17,
+     "nNeg": 0,
+     "top1": 0.8235294117647058,
+     "mrr": 0.8382352941176471,
+     "recall5": 0.8529411764705882,
+     "map": 0.8088235294117647,
+     "negOk": null,
+     "avgResults": 1.7058823529411764
+    }
+   },
+   "queries": [
+    {
+     "q": "海鸥喂小鸟",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "seagull-chicks.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "seagull-chicks.mp4",
+      "segment": [
+       32,
+       45.01
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "火箭发射",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "rocket-falcon9.mp4",
+      "rocket-jason3.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "rocket-falcon9.mp4",
+      "segment": [
+       32,
+       45
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "rocket lifting off from the launch pad",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "rocket-falcon9.mp4@0-32"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "rocket-falcon9.mp4",
+      "segment": [
+       0,
+       32
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "train arriving at a station",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "train-zagreb.mp4@0-32"
+     ],
+     "rank": null,
+     "top1": 0,
+     "mrr": 0,
+     "recall5": 0,
+     "ap": 0,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "train-zagreb.mp4",
+      "segment": [
+       32,
+       45
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "烟花",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "fireworks-kamakura.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "fireworks-kamakura.mp4",
+      "segment": [
+       0,
+       24.44
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "猫在喝水",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "cat-puddle.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "cat-puddle.mp4",
+      "segment": [
+       0,
+       9
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "马在吃草",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "horse-grazing.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "horse-grazing.mp4",
+      "segment": [
+       32,
+       36.79
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "雪中的树林",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "snow-falling.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "snow-falling.mp4",
+      "segment": [
+       0,
+       15.05
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "夜晚的城市灯光",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "rain-window-night.mp4",
+      "earth-night-lights.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 0.5,
+     "ap": 0.5,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "rain-window-night.mp4",
+      "segment": [
+       0,
+       18.2
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "瀑布",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "waterfall-delaneys.mp4",
+      "waterfall-watagataki.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "waterfall-watagataki.mp4",
+      "segment": [
+       0,
+       15.6
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "海边日落",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "beach-sunset-timelapse.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "beach-sunset-timelapse.mp4",
+      "segment": [
+       0,
+       15.13
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "horses running across a field",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "wild-horses.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "wild-horses.mp4",
+      "segment": [
+       0,
+       32
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "狗跨栏",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "dogs-hurdles-1899.mp4"
+     ],
+     "rank": null,
+     "top1": 0,
+     "mrr": 0,
+     "recall5": 0,
+     "ap": 0,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "wild-dogs.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "做饭",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "cooking-alioli.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "cooking-alioli.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "波涛汹涌的大海",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "ocean-waves-irminger.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "ocean-waves-irminger.mp4",
+      "segment": [
+       0,
+       8.71
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "马拉着篷车",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "horse-wagons.mp4"
+     ],
+     "rank": 4,
+     "top1": 0,
+     "mrr": 0.25,
+     "recall5": 1,
+     "ap": 0.25,
+     "nResults": 10,
+     "lowConfidence": true,
+     "first": {
+      "path": "waterfall-watagataki.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "从太空看地球",
+     "tag": "video",
+     "kind": "pos",
+     "expect": [
+      "earth-night-lights.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "earth-night-lights.mp4",
+      "segment": [
+       0,
+       16.84
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "打ち上げ花火",
+     "tag": "multilingual",
+     "kind": "pos",
+     "expect": [
+      "fireworks-kamakura.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "fireworks-kamakura.mp4",
+      "segment": [
+       0,
+       24.44
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "cascade dans la forêt",
+     "tag": "multilingual",
+     "kind": "pos",
+     "expect": [
+      "waterfall-delaneys.mp4",
+      "waterfall-watagataki.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 2,
+     "lowConfidence": false,
+     "first": {
+      "path": "waterfall-delaneys.mp4",
+      "segment": [
+       0,
+       32
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "OLD SACRAMENTO",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "horse-wagons.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "horse-wagons.mp4",
+      "segment": [
+       0,
+       14.38
+      ],
+      "matchedBy": [
+       "segment",
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "NASA",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "rocket-falcon9.mp4",
+      "rocket-jason3.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 3,
+     "lowConfidence": false,
+     "first": {
+      "path": "rocket-falcon9.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual",
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "CHOTEL",
+     "tag": "ocr",
+     "kind": "pos",
+     "expect": [
+      "rain-window-night.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "rain-window-night.mp4",
+      "segment": null,
+      "matchedBy": [
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "1899",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "dogs-hurdles-1899.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "dogs-hurdles-1899.mp4",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "N49",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "rocket-jason3.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "rocket-jason3.mp4",
+      "segment": null,
+      "matchedBy": [
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "SEPTEMBER 6, 2015",
+     "tag": "lookup",
+     "kind": "pos",
+     "expect": [
+      "horse-wagons.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "horse-wagons.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual",
+       "text"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "irminger",
+     "tag": "filename",
+     "kind": "pos",
+     "expect": [
+      "ocean-waves-irminger.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "ocean-waves-irminger.mp4",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "kamakura",
+     "tag": "filename",
+     "kind": "pos",
+     "expect": [
+      "fireworks-kamakura.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "fireworks-kamakura.mp4",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "zagreb",
+     "tag": "filename",
+     "kind": "pos",
+     "expect": [
+      "train-zagreb.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 1,
+     "ap": 1,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "train-zagreb.mp4",
+      "segment": null,
+      "matchedBy": [
+       "filename"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "猫的视频",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "cat-curious.mp4",
+      "cat-puddle.mp4"
+     ],
+     "rank": 1,
+     "top1": 1,
+     "mrr": 1,
+     "recall5": 0.5,
+     "ap": 0.5,
+     "nResults": 1,
+     "lowConfidence": false,
+     "first": {
+      "path": "cat-puddle.mp4",
+      "segment": [
+       0,
+       9
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    },
+    {
+     "q": "video of fireworks",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "fireworks-kamakura.mp4"
+     ],
+     "rank": 2,
+     "top1": 0,
+     "mrr": 0.5,
+     "recall5": 1,
+     "ap": 0.5,
+     "nResults": 10,
+     "lowConfidence": true,
+     "first": {
+      "path": "rain-sonoma.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "下雪的视频",
+     "tag": "kind",
+     "kind": "pos",
+     "expect": [
+      "snow-falling.mp4"
+     ],
+     "rank": 2,
+     "top1": 0,
+     "mrr": 0.5,
+     "recall5": 1,
+     "ap": 0.5,
+     "nResults": 10,
+     "lowConfidence": true,
+     "first": {
+      "path": "seagull-chicks.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "滑雪的人",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "first": {
+      "path": "dogs-hurdles-1899.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "生日蛋糕",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "first": {
+      "path": "rocket-falcon9.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "sunflower field",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": true,
+     "nResults": 10,
+     "nConfident": 0,
+     "first": {
+      "path": "wild-dogs.mp4",
+      "segment": null,
+      "matchedBy": [
+       "visual"
+      ],
+      "lowConfidence": true
+     }
+    },
+    {
+     "q": "手机截图",
+     "tag": "negative",
+     "kind": "neg",
+     "negOk": false,
+     "nResults": 1,
+     "nConfident": 1,
+     "first": {
+      "path": "cat-curious.mp4",
+      "segment": [
+       0,
+       7.9
+      ],
+      "matchedBy": [
+       "segment"
+      ],
+      "lowConfidence": false
+     }
+    }
+   ]
+  }
+ ]
+}
