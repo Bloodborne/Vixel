@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Server / NAS edition (Docker).** Multi-arch image (`linux/amd64` + `linux/arm64`) running
+  the same core indexing/search pipeline as the desktop app behind a password-protected web UI
+  (phone + desktop browsers). Models are bundled in the image — fully offline at runtime;
+  photo folders are mounted read-only. Non-root with Synology-style `PUID`/`PGID` support,
+  `/healthz` healthcheck, graceful SIGTERM shutdown, `docker-compose.yml` example and a
+  zh/en deployment guide in `docs/server/README.md` (Synology Container Manager walkthrough,
+  reverse proxy / HTTPS, backup, limitations).
+- **PDF / AI previews on the server (Linux).** Pure-Node pdf.js rasterizer
+  (pdfjs-dist + @napi-rs/canvas) renders the first page for thumbnails/OCR/search —
+  PDF and PDF-compatible AI files now index in the container just like on desktop.
+- **HTTPS reverse-proxy support for the server session cookie**: `VIXEL_COOKIE_SECURE=1`
+  always sets `Secure`; `VIXEL_TRUST_PROXY=1` sets it when `X-Forwarded-Proto` is https
+  and keys the login rate limiter by `X-Forwarded-For`.
+
 ## [0.4.1] - 2026-10-13
 
 ### Added

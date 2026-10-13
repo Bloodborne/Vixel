@@ -81,6 +81,24 @@ The builds are not signed by Apple / Microsoft yet:
 
 GPU inference uses Metal on macOS and Direct3D 12 on Windows, falling back to CPU.
 
+## Server / NAS edition (Docker)
+
+The same indexing and search, self-hosted on your NAS or server and used from any
+browser (phone or desktop). `linux/amd64` + `linux/arm64`, works with Synology
+Container Manager. Models are baked into the image — zero outbound requests at
+runtime; photo folders are mounted read-only and never modified.
+
+```bash
+docker run -d -p 8080:8080 \
+  -e VIXEL_PASSWORD='your-password' \
+  -v /path/to/photos:/photos:ro \
+  -v vixel-data:/data \
+  vixel:latest
+```
+
+Full deployment guide (compose, Synology walkthrough, reverse proxy / HTTPS, backup,
+limitations): [docs/server/README.md](docs/server/README.md).
+
 ## Build from source
 
 Node.js 20+.

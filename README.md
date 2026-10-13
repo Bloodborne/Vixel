@@ -130,6 +130,23 @@ SCRFD 人脸检测 + MobileFaceNet 512 维特征 + sqlite-vec 近邻索引。
 
 语义模型默认用 GPU（macOS 上是 Metal，Windows 上是 Direct3D 12），没有可用 GPU 时自动退回 CPU。
 
+## 服务器 / NAS 版（Docker）
+
+同一套索引和搜索跑在你自己的 NAS / 服务器上，手机和电脑浏览器直接访问（支持
+`linux/amd64` 和 `linux/arm64`，群晖 Container Manager 可用）。模型内置在镜像里，
+运行时零出站请求；照片目录只读挂载，永不改动原文件。
+
+```bash
+docker run -d -p 8080:8080 \
+  -e VIXEL_PASSWORD='你的口令' \
+  -v /path/to/photos:/photos:ro \
+  -v vixel-data:/data \
+  vixel:latest
+```
+
+部署细节（docker compose、群晖逐步说明、反代 HTTPS、备份、限制）见
+[docs/server/README.md](docs/server/README.md)。
+
 ## 从源码运行
 
 需要 Node.js 20+。主要在 macOS（Apple Silicon）上开发，Windows x64 已验证可用。
