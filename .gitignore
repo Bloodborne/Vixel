@@ -49,3 +49,6 @@ resources/litert
 
 # agent worktrees
 .claude/worktrees/
+
+# web E2E 巡检输出（npm run test:web 默认 --out）
+e2e-out/
