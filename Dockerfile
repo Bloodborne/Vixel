@@ -52,11 +52,14 @@ RUN set -e; \
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production \
     VIXEL_DATA_DIR=/data \
-    VIXEL_LIBRARY_DIRS=/photos
+    VIXEL_LIBRARY_DIRS=/photos \
+    MALLOC_ARENA_MAX=2
 WORKDIR /app
 
 # 非 root 运行：基础镜像自带的 node(1000) 改名为 vixel；root 启动时 entrypoint 按 PUID/PGID
 # 调整后降权（群晖习惯）。setpriv（util-linux）/ usermod 都在基础镜像里，无需额外安装。
+# MALLOC_ARENA_MAX=2：glibc 多线程 arena 在 XNNPACK 推理下碎片化严重 —— 实测索引
+# demo+footage 库峰值 3.38→2.79 GiB、索引后常驻 3.26→2.02 GiB（8 vCPU、默认线程数）。
 RUN usermod -l vixel -d /app -s /usr/sbin/nologin node && groupmod -n vixel node \
  && mkdir -p /data /photos && chown vixel:vixel /data
 
