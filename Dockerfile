@@ -27,9 +27,18 @@ FROM node:22-bookworm AS deps
 WORKDIR /app
 COPY docker/package.json docker/package-lock.json ./
 # onnxruntime-node 的 install 脚本在 linux-x64 上默认会去下载 CUDA EP（容器纯 CPU 用不上）；
-# ffmpeg-static 的 install 脚本按当前平台下载对应二进制（buildx 每个平台各下各的）
+# ffmpeg-static 的 install 脚本按当前平台下载对应二进制（buildx 每个平台各下各的）。
+# 瘦身：onnxruntime-node 自带全平台二进制（darwin / win32 / 另一个 linux 架构 ~230 MB）只留本架构；
+# sharp / @napi-rs/canvas 的 musl 变体（Debian 是 glibc）不会被加载，删掉
+ARG TARGETARCH
 RUN npm_config_onnxruntime_node_install=skip npm ci --omit=dev --no-audit --no-fund \
- && npm cache clean --force
+ && npm cache clean --force \
+ && case "$TARGETARCH" in amd64) keep=x64 ;; arm64) keep=arm64 ;; *) exit 1 ;; esac \
+ && ort=node_modules/onnxruntime-node/bin/napi-v6 \
+ && rm -rf "$ort/darwin" "$ort/win32" \
+ && find "$ort/linux" -mindepth 1 -maxdepth 1 ! -name "$keep" -exec rm -rf {} + \
+ && test -d "$ort/linux/$keep" \
+ && rm -rf node_modules/@img/*linuxmusl* node_modules/@napi-rs/*-musl
 
 # ─── 3. 模型 + LiteRT 运行时（按目标架构挑选）───────────────────────────────────
 FROM node:22-bookworm AS assets
