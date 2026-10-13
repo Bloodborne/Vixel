@@ -464,12 +464,15 @@ const STEPS = [
     async run(ctx) {
       const { page, mobile, S, shot } = ctx
       await goAll(ctx)
-      const name = await page.eval(`document.querySelector('.photo-card')?.getAttribute('aria-label')`)
+      // 选第一张图片卡片（视频详情的滑动留给原生控件，图片上才能横扫翻页）
+      const name = await page.eval(`[...document.querySelectorAll('.photo-card')].map((c) => c.getAttribute('aria-label')).find((n) => /\\.(cr2|cr3|nef|arw|dng|jpe?g|png|webp|heic|tiff?)$/i.test(n || ''))`)
+      if (!name) throw new Error('no image card found in browse grid')
+      const cardSel = `.photo-card[aria-label=${JSON.stringify(name)}]`
       const heartSel = `!!document.querySelector(${JSON.stringify(`.photo-card[aria-label=${JSON.stringify(name)}] span[aria-label]`)})`
       let swipeNote = ''
       if (mobile) {
         // 手机：单击打开详情 → 横扫翻页（浏览集里有足够的同列表项）→ ⓘ 信息面板 → 心形
-        await page.click('.photo-card')
+        await page.click(cardSel)
         await page.waitFor(`!!document.querySelector('[role="dialog"]')`, 10000, 'detail opened')
         const pos0 = await page.eval(`document.querySelector('[data-detail-pos]')?.textContent`)
         await page.swipe(330, 300, 60, 300)
@@ -487,7 +490,7 @@ const STEPS = [
         await page.key('Escape')
         await page.waitFor(`!document.querySelector('[role="dialog"]')`, 5000)
       } else {
-        await page.click('.photo-card')
+        await page.click(cardSel)
         await page.key('f')
         await page.waitFor(heartSel, 8000, 'heart badge on card')
       }
