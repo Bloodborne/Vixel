@@ -207,7 +207,7 @@ export function PeopleView({ onSelectPhoto }: PeopleViewProps): JSX.Element {
           <span className="text-callout text-ink-3">{shown.length}</span>
           <span className="flex-1" />
           {!showHidden && (
-            <span className="text-micro text-ink-3 truncate min-w-0" title={t.people.hint(IS_MAC ? '⌘' : 'Ctrl')}>{t.people.hint(IS_MAC ? '⌘' : 'Ctrl')}</span>
+            <span className="text-micro text-ink-3 truncate min-w-0 touch:hidden" title={t.people.hint(IS_MAC ? '⌘' : 'Ctrl')}>{t.people.hint(IS_MAC ? '⌘' : 'Ctrl')}</span>
           )}
           {(hidden.length > 0 || showHidden) && (
             <button

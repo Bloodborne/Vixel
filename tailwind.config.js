@@ -3,10 +3,6 @@ module.exports = {
   content: ['./src/renderer/**/*.{js,ts,jsx,tsx,html}'],
   theme: {
     extend: {
-      // touch: 无悬停指针的设备（手机 / 平板）。只增不改，桌面（hover: hover）完全不受影响
-      screens: {
-        touch: { raw: '(hover: none)' },
-      },
       // 颜色全部走 CSS 变量（定义在 globals.css），深色 / 浅色两套值随系统外观切换。
       // 需要 /xx 透明度修饰的（accent、状态色）用 "R G B" 通道变量
       colors: {
@@ -76,5 +72,11 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // touch: 无悬停指针的设备（手机 / 平板）。注意不能用 screens 的 raw 写法 —— 那会让
+    // Tailwind 无法生成 max-md / max-lg 等 max-* 变体（它要求 screens 全是简单 min-width）
+    function touchVariant({ addVariant }) {
+      addVariant('touch', '@media (hover: none)')
+    },
+  ],
 }

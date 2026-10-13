@@ -118,7 +118,8 @@ export function MediaPlayer({ media, posterPhotoId, posterHash, hit, onResolutio
             currentMs={currentMs}
             onSeek={seek}
           />
-          <p className="mt-1.5 text-micro text-ink-3 text-center">{t.grid.playerHint}</p>
+          {/* 键盘提示在触屏上没有意义 */}
+          <p className="mt-1.5 text-micro text-ink-3 text-center touch:hidden">{t.grid.playerHint}</p>
         </div>
       )}
     </div>

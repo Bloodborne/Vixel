@@ -99,7 +99,7 @@ export function PhotoDetail({ result, siblings, onSelect, onClose, onToggleFavor
 
   return (
     <div
-      className="theme-dark fixed inset-0 bg-black/95 text-ink flex animate-fade-in modal-overlay"
+      className="theme-dark fixed inset-0 bg-black/95 max-lg:bg-black text-ink flex animate-fade-in modal-overlay"
       role="dialog"
       aria-modal="true"
       aria-label={photo.fileName}

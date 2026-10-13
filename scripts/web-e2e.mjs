@@ -700,7 +700,8 @@ async function runSuite(viewport, lang, cropFile, cropSource) {
     for (const step of STEPS) {
       idx++
       const prefix = String(idx).padStart(2, '0')
-      const shot = (suffix) => page.screenshot(join(dir, `${prefix}-${step.name}-${suffix}.png`))
+      // 入场动画 200ms 左右：截图前先让画面停稳
+      const shot = async (suffix) => { await sleep(400); await page.screenshot(join(dir, `${prefix}-${step.name}-${suffix}.png`)) }
       const ctx = { page, base: BASE, password: PASSWORD, lang, mobile, S: STR[lang], shot, liveDir: LIVE_DIR, cropFile, cropSource, runId }
       let status = 'PASS'
       let note = ''
@@ -712,6 +713,7 @@ async function runSuite(viewport, lang, cropFile, cropSource) {
         status = 'FAIL'
         note = e.message
       }
+      await sleep(350)
       await page.screenshot(join(dir, `${prefix}-${step.name}.png`)).catch(() => {})
       results.push({ viewport, lang, step: step.name, status, note })
       console.log(`  [${viewport}/${lang}] ${status === 'PASS' ? '✓' : status === 'SKIP' ? '–' : '✗'} ${step.name}${note ? ` — ${note}` : ''}`)
