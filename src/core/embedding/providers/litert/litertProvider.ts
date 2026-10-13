@@ -71,8 +71,11 @@ export class LiteRtEmbeddingProvider implements EmbeddingProvider {
     const cacheDir = this.config.cacheDir ?? join(tmpdir(), 'vixel-litert-cache')
     if (!existsSync(cacheDir)) mkdirSync(cacheDir, { recursive: true })
 
-    // CPU 后端只用一半核，给 UI 和其他应用留余量
-    const opts = { cacheDir, numThreads: Math.max(1, Math.floor(cpus().length / 2)), maxInputTokens: MAX_INPUT_TOKENS }
+    // CPU 后端线程数：VIXEL_THREADS 显式指定（服务器 / NAS 控制资源用），默认只用一半核，
+    // 给 UI 和其他应用留余量
+    const envThreads = Number(process.env.VIXEL_THREADS)
+    const numThreads = Number.isInteger(envThreads) && envThreads > 0 ? envThreads : Math.max(1, Math.floor(cpus().length / 2))
+    const opts = { cacheDir, numThreads, maxInputTokens: MAX_INPUT_TOKENS }
     const order: Array<'gpu' | 'cpu'> = this.config.backend === 'cpu' ? ['cpu'] : this.config.backend === 'gpu' ? ['gpu'] : ['gpu', 'cpu']
     let lastError: unknown
     for (const backend of order) {
