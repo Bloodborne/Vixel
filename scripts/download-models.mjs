@@ -115,6 +115,12 @@ const LITERT_RUNTIMES = {
     sha256: 'b64e2cf6d7dcb90ff094b74af595cc5d53faa07e0889f967d15df8d3e696b53c',
     files: ['liblitert-lm.so'],
   },
+  // 服务器版（Docker / NAS，群晖等 arm64 机型）；跨平台准备用 LITERT_PLATFORM=linux-arm64
+  'linux-arm64': {
+    url: 'https://files.pythonhosted.org/packages/cf/f2/60707ac6860248e5f3601926c7cfe44794db350b60c1f14cb6e7e8874ae4/litert_lm_api-0.18.0-py3-none-manylinux_2_27_aarch64.whl',
+    sha256: 'd066db0c2bcd832b2b9cf8532b5fff385f7cff8562a1b482f8da0b51f810c47c',
+    files: ['liblitert-lm.so'],
+  },
 }
 
 async function sha256Of(path) {

@@ -7,6 +7,12 @@
 //   npm run eval -- --json                    # 机器可读 JSON 到 stdout（表格转 stderr）
 //   npm run eval -- --json --out evals/baseline.json   # 写基线文件
 //   npm run eval -- --compare evals/baseline.json      # 与基线对比，打印各指标增减和排名变化
+//   npm run eval -- --strict --compare evals/baseline.json  # 有任何差异（Δ≠0 / 排名变化）退出码非 0
+//
+// 服务器模式（层级 3 · 搜索一致性）：评测走 HTTP 而不是本地引擎 ——
+//   npm run eval -- --set demo --server http://127.0.0.1:8080 --password <pw> --compare evals/baseline.json --strict
+// 服务器要事先跑在"该库的副本"上（VIXEL_DATA_DIR 指向拷贝的 library.db；库根路径保持与
+// 基线一致 —— 库里存的是绝对路径）。一个服务器一个库，所以配合 --set 一次评一个集合。
 //
 // 评测库不在仓库里，位置用环境变量或旗标指定（默认指向 vixel-demo）：
 //   VIXEL_EVAL_DEMO_DATA / --demo-data        demo 库的数据目录（含 library.db）
@@ -156,8 +162,8 @@ function aggregate(rows) {
 }
 
 // ---------- 运行 ----------
-async function runSet(name, cfg, tmpBase) {
-  const spec = JSON.parse(fs.readFileSync(cfg.queries, 'utf8'))
+/** 本地引擎适配器：拷库副本 → 只读打开 → SearchEngine */
+async function makeLocalAdapter(cfg, tmpBase) {
   const dbPath = copyLibrary(cfg.dataDir, tmpBase)
   let db
   try {
@@ -169,10 +175,77 @@ async function runSet(name, cfg, tmpBase) {
     db.raw.prepare('SELECT id, file_path FROM videos').all().map((r) => [r.id, r.file_path])
   )
   const engine = new SearchEngine(db)
+  return {
+    search: (q) => engine.search(q, SEARCH_LIMIT),
+    videoPath: async (id) => videoPathById.get(id),
+    close: () => db.close(),
+  }
+}
+
+/** 服务器适配器（--server）：同一套查询走 HTTP API（POST /api/<method>，会话 cookie 认证） */
+async function makeServerAdapter(baseUrl, password) {
+  const base = String(baseUrl).replace(/\/$/, '')
+  let cookie = ''
+  const post = async (method, args) => {
+    const res = await fetch(`${base}/api/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-vixel': '1', ...(cookie ? { cookie } : {}) },
+      body: JSON.stringify({ args }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok || body.ok === false) throw new Error(`POST /api/${method} → ${res.status}: ${body.error || 'unknown error'}`)
+    return body.result
+  }
+  if (password) {
+    const res = await fetch(`${base}/api/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-vixel': '1' },
+      body: JSON.stringify({ password }),
+    })
+    if (!res.ok) throw new Error(`login failed: ${res.status}`)
+    const setCookie = res.headers.get('set-cookie') || ''
+    cookie = setCookie.split(';')[0]
+    if (!cookie) throw new Error('login did not set a session cookie')
+  }
+  const videoCache = new Map()
+  // 模型就绪再开始评测：服务器启动后在后台预热 EmbeddingGemma 2，没就绪时搜索会
+  // 退化成纯文本通道（和桌面一样的 UX），评测必须等它（最多 120s）
+  const deadline = Date.now() + 120_000
+  for (;;) {
+    const status = await post('getModelStatus', [])
+    if (status && status.embeddingReady) break
+    if (status && status.initError) throw new Error(`server embedding init failed: ${status.initError}`)
+    if (Date.now() > deadline) throw new Error('server embedding model not ready after 120s')
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  return {
+    search: (q) => post('search', [q, SEARCH_LIMIT]),
+    videoPath: async (id) => {
+      if (!videoCache.has(id)) {
+        const detail = await post('getMediaDetail', [id]).catch(() => null)
+        videoCache.set(id, detail ? detail.filePath : undefined)
+      }
+      return videoCache.get(id)
+    },
+    close: () => {},
+  }
+}
+
+async function runSet(name, cfg, tmpBase) {
+  const spec = JSON.parse(fs.readFileSync(cfg.queries, 'utf8'))
+  const adapter = flags.server
+    ? await makeServerAdapter(flags.server, flags.password || process.env.VIXEL_PASSWORD)
+    : await makeLocalAdapter(cfg, tmpBase)
 
   const rows = []
   for (const q of spec.queries) {
-    const results = await engine.search(q.q, SEARCH_LIMIT)
+    const results = await adapter.search(q.q)
+    // 视频结果的真实文件路径（服务器模式经 getMediaDetail 懒取）
+    const videoPathById = new Map()
+    for (const r of results) {
+      const vid = r.photo.videoId
+      if (vid != null && !videoPathById.has(vid)) videoPathById.set(vid, await adapter.videoPath(vid))
+    }
     const resView = results.map((r) => ({
       rel: resultRelPath(r, cfg.libRoot, videoPathById),
       segment: r.segment ?? null,
@@ -213,7 +286,7 @@ async function runSet(name, cfg, tmpBase) {
       })
     }
   }
-  db.close()
+  adapter.close()
 
   const perTag = {}
   for (const tag of [...new Set(rows.map((r) => r.tag))].sort()) {
@@ -259,53 +332,65 @@ function printSet(r) {
   }
 }
 
+/** 与基线对比；返回差异条数（--strict 时非 0 差异 → 退出码 2） */
 function printCompare(prev, cur) {
   out(`\n== compare vs ${flags.compare} ==`)
+  let diffs = 0
   const d = (a, b, digits = 2) => {
     if (a == null || b == null) return '    -'
     const delta = b - a
     const s = delta.toFixed(digits)
     return (delta > 0 ? '+' + s : s).padStart(6)
   }
+  const metricChanged = (p, c) => ['top1', 'mrr', 'recall5', 'map'].some((k) => p[k] != null && c[k] != null && Math.abs(p[k] - c[k]) > 1e-9)
   for (const curSet of cur) {
     const prevSet = (Array.isArray(prev.sets) ? prev.sets : []).find((s) => s.set === curSet.set)
-    if (!prevSet) { out(`  ${curSet.set}: 基线里没有这个集合`); continue }
+    if (!prevSet) { out(`  ${curSet.set}: 基线里没有这个集合`); diffs++; continue }
+    if (metricChanged(prevSet.overall, curSet.overall) || (prevSet.overall.negOk ?? null) !== (curSet.overall.negOk ?? null)) diffs++
     out(`  ${curSet.set}: Δtop1 ${d(prevSet.overall.top1, curSet.overall.top1)}  ΔMRR ${d(prevSet.overall.mrr, curSet.overall.mrr)}  ΔR@5 ${d(prevSet.overall.recall5, curSet.overall.recall5)}  ΔmAP ${d(prevSet.overall.map, curSet.overall.map)}  Δneg ${prevSet.overall.negOk ?? '-'}→${curSet.overall.negOk ?? '-'}`)
     for (const [tag, agg] of Object.entries(curSet.perTag)) {
       const p = prevSet.perTag[tag]
       if (!p) continue
-      const changed = ['top1', 'mrr', 'recall5', 'map'].some((k) => p[k] != null && agg[k] != null && Math.abs(p[k] - agg[k]) > 1e-9)
-      if (changed) out(`    ${tag.padEnd(12)} Δtop1 ${d(p.top1, agg.top1)}  ΔMRR ${d(p.mrr, agg.mrr)}  ΔR@5 ${d(p.recall5, agg.recall5)}  ΔmAP ${d(p.map, agg.map)}`)
+      if (metricChanged(p, agg)) {
+        diffs++
+        out(`    ${tag.padEnd(12)} Δtop1 ${d(p.top1, agg.top1)}  ΔMRR ${d(p.mrr, agg.mrr)}  ΔR@5 ${d(p.recall5, agg.recall5)}  ΔmAP ${d(p.map, agg.map)}`)
+      }
     }
     // 单条查询的排名变化
     const prevByQ = new Map(prevSet.queries.map((q) => [q.q, q]))
     for (const q of curSet.queries) {
       const p = prevByQ.get(q.q)
-      if (!p) { out(`    new query: "${q.q}"`); continue }
-      if (q.kind === 'pos' && p.rank !== q.rank) out(`    "${q.q}": rank ${p.rank ?? '∅'} → ${q.rank ?? '∅'}`)
-      if (q.kind === 'neg' && !!p.negOk !== !!q.negOk) out(`    "${q.q}": neg ${p.negOk ? 'ok' : 'FAIL'} → ${q.negOk ? 'ok' : 'FAIL'}`)
+      if (!p) { out(`    new query: "${q.q}"`); diffs++; continue }
+      if (q.kind === 'pos' && p.rank !== q.rank) { out(`    "${q.q}": rank ${p.rank ?? '∅'} → ${q.rank ?? '∅'}`); diffs++ }
+      if (q.kind === 'neg' && !!p.negOk !== !!q.negOk) { out(`    "${q.q}": neg ${p.negOk ? 'ok' : 'FAIL'} → ${q.negOk ? 'ok' : 'FAIL'}`); diffs++ }
     }
   }
+  return diffs
 }
 
 async function main() {
-  const models = modelsDir()
-  if (!models) {
-    console.error('未找到模型目录（VIXEL_MODELS_DIR 或 resources/models）。没有向量通道的评测没有意义，退出。')
+  // 服务器模式：模型跑在服务器进程里，本地不需要初始化 embedding
+  if (!flags.server) {
+    const models = modelsDir()
+    if (!models) {
+      console.error('未找到模型目录（VIXEL_MODELS_DIR 或 resources/models）。没有向量通道的评测没有意义，退出。')
+      process.exit(1)
+    }
+    // 固定的 userData（litert 缓存放这里，第二次起跑得快）；库副本在一次性临时目录里
+    const cacheDir = join(os.tmpdir(), 'vixel-eval-cache')
+    fs.mkdirSync(cacheDir, { recursive: true })
+    initEmbeddingServicePath(cacheDir, models, litertDir())
+    const svc = getEmbeddingService()
+    await svc.init()
+    if (!svc.isReady()) {
+      console.error('Embedding 服务初始化失败（模型 / LiteRT 运行时）。')
+      process.exit(1)
+    }
+  } else if (wantSets.length > 1) {
+    console.error('--server 一次只能评一个集合（一个服务器一个库）：加 --set demo 或 --set footage')
     process.exit(1)
   }
-  // 固定的 userData（litert 缓存放这里，第二次起跑得快）；库副本在一次性临时目录里
-  const cacheDir = join(os.tmpdir(), 'vixel-eval-cache')
-  fs.mkdirSync(cacheDir, { recursive: true })
   const tmpBase = fs.mkdtempSync(join(os.tmpdir(), 'vixel-eval-'))
-
-  initEmbeddingServicePath(cacheDir, models, litertDir())
-  const svc = getEmbeddingService()
-  await svc.init()
-  if (!svc.isReady()) {
-    console.error('Embedding 服务初始化失败（模型 / LiteRT 运行时）。')
-    process.exit(1)
-  }
 
   const results = []
   try {
@@ -316,9 +401,11 @@ async function main() {
 
   for (const r of results) printSet(r)
 
+  let diffs = 0
   if (flags.compare) {
     const prev = JSON.parse(fs.readFileSync(String(flags.compare), 'utf8'))
-    printCompare(prev, results)
+    diffs = printCompare(prev, results)
+    if (flags.strict) out(diffs === 0 ? '\nstrict: Δ = 0 ✓' : `\nstrict: ${diffs} 处差异 ✗`)
   }
 
   const payload = { generatedAt: new Date().toISOString(), limit: SEARCH_LIMIT, sets: results }
@@ -327,7 +414,7 @@ async function main() {
     out(`\nwrote ${flags.out}`)
   }
   if (asJson && !flags.out) console.log(JSON.stringify(payload, null, 1))
-  process.exit(0)
+  process.exit(flags.strict && diffs > 0 ? 2 : 0)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })

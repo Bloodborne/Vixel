@@ -49,9 +49,18 @@ export const DESIGN_BADGES: Record<string, string> = {
  * 当前平台能索引的设计格式扩展名。
  * PDF / AI 现在全平台支持：macOS 走 sips / qlmanage，Windows / Linux 走应用注入的
  * pdf.js 服务（main/pdfRender.ts）。platform 参数保留给测试矩阵用。
+ * 服务器版（无 Electron、无隐藏窗口）在 Linux 上没有 PDF 渲染器：
+ * 启动时用 restrictDesignExts 把 .pdf/.ai 从支持列表里去掉（见 src/server/index.ts）。
  */
 export function supportedDesignExts(_platform: NodeJS.Platform = process.platform): Set<string> {
-  return new Set(['.svg', '.psd', '.psb', '.pdf', '.ai'])
+  return designExtsOverride ?? new Set(['.svg', '.psd', '.psb', '.pdf', '.ai'])
+}
+
+let designExtsOverride: Set<string> | null = null
+
+/** 收窄设计格式支持（服务器版启动时调用，必须早于任何 classifyMedia / 索引） */
+export function restrictDesignExts(exts: string[]): void {
+  designExtsOverride = new Set(exts.map((e) => e.toLowerCase()))
 }
 
 export function isDesignExt(ext: string, platform: NodeJS.Platform = process.platform): boolean {

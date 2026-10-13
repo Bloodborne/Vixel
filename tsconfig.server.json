@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "outDir": "./dist/server",
+    "rootDir": "./src",
+    "declaration": false,
+    "types": ["node"]
+  },
+  "include": ["src/server/**/*", "src/services/**/*", "src/core/**/*", "src/shared/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}

@@ -28,7 +28,11 @@
     "test": "vitest run",
     "eval": "npm run build:cli && ELECTRON_RUN_AS_NODE=1 electron scripts/eval.cjs",
     "test:watch": "vitest",
-    "test:db": "npm run build:cli && ELECTRON_RUN_AS_NODE=1 electron scripts/db-smoke.cjs"
+    "test:db": "npm run build:cli && ELECTRON_RUN_AS_NODE=1 electron scripts/db-smoke.cjs",
+    "build:server": "tsc -p tsconfig.server.json && node scripts/server-postbuild.mjs",
+    "server": "npm run build:server && node dist/server/index.js",
+    "server:deps": "npm --prefix server install --no-audit --no-fund",
+    "test:server:security": "npm run build:server && node scripts/server-security.mjs"
   },
   "bin": {
     "vixel": "./dist/cli/cli/index.js"
@@ -51,6 +55,7 @@
     "react-leaflet-cluster": "^4.0.0",
     "sharp": "^0.34.0",
     "sqlite-vec": "^0.1.7",
+    "ws": "^8.22.0",
     "xxhash-wasm": "^1.1.0"
   },
   "overrides": {
@@ -64,6 +69,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/react-window": "^1.8.8",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "electron": "^33.4.0",

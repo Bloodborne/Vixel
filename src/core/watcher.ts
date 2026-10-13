@@ -37,8 +37,16 @@ const SUPPORTED_IMAGE_EXTENSIONS = new Set([
 ])
 
 // 设计格式按栅格预览走图片管线；平台支持矩阵见 image/design.ts（SVG/PSD/PSB/PDF/AI
-// 全平台支持：PDF/AI 在 macOS 走 sips，Windows/Linux 走 pdf.js 隐藏窗口服务）
-for (const ext of supportedDesignExts()) SUPPORTED_IMAGE_EXTENSIONS.add(ext)
+// 全平台支持：PDF/AI 在 macOS 走 sips，Windows/Linux 走 pdf.js 隐藏窗口服务）。
+// 懒合并：服务器版启动时可能先 restrictDesignExts 收窄列表（无 Electron 时 Linux 没有 PDF 渲染器）
+let imageExts: Set<string> | null = null
+function supportedImageExts(): Set<string> {
+  if (!imageExts) {
+    imageExts = new Set(SUPPORTED_IMAGE_EXTENSIONS)
+    for (const ext of supportedDesignExts()) imageExts.add(ext)
+  }
+  return imageExts
+}
 
 // 支持的视频格式（实际能不能解码取决于 ffmpeg-static；这些是最常见的）
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([
@@ -89,7 +97,7 @@ async function computeVideoLightHash(
 
 export function classifyMedia(filePath: string): MediaKind | null {
   const ext = extname(filePath).toLowerCase()
-  if (SUPPORTED_IMAGE_EXTENSIONS.has(ext)) return 'image'
+  if (supportedImageExts().has(ext)) return 'image'
   if (SUPPORTED_VIDEO_EXTENSIONS.has(ext)) return 'video'
   if (SUPPORTED_AUDIO_EXTENSIONS.has(ext)) return 'audio'
   return null

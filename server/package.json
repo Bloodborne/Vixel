@@ -1,0 +1,8 @@
+{
+  "name": "vixel-server-native-deps",
+  "private": true,
+  "description": "Node-ABI builds of ABI-bound native modules for the server edition. The repo's top-level node_modules are rebuilt for Electron's ABI (postinstall: electron-builder install-app-deps); running the server under plain Node needs better-sqlite3 compiled for Node's ABI instead. `npm run server:deps` installs it here, and src/server/bootstrap.ts redirects resolution to this directory when not running under Electron. In the Docker image (phase 3) everything is installed for Node directly and this package is unused.",
+  "dependencies": {
+    "better-sqlite3": "^11.7.0"
+  }
+}
