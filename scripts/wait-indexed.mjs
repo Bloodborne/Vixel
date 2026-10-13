@@ -65,14 +65,17 @@ async function main() {
       segments: `${m.segmentsDone}/${m.segmentsExpected}`,
       embeddingReady: model?.embeddingReady ?? null,
     })
-    if (line !== last) { console.log(new Date().toISOString(), line); last = line }
+    const changed = line !== last
+    if (changed) console.log(new Date().toISOString(), line)
 
     const settled = pending === 0 &&
       p.total > 0 && p.indexed >= p.total && p.thumbnailed >= p.total &&
-      (m.video?.done ?? 0) >= (m.video?.total ?? 0) &&
-      (m.segmentsDone ?? 0) >= (m.segmentsExpected ?? 0)
-    // OCR / 人脸不走任务表的部分：连续几轮完全静止才算完
-    quietRounds = settled ? quietRounds + 1 : 0
+      (m.video?.done ?? 0) >= (m.video?.total ?? 0)
+    // 注意不要求 segmentsDone >= segmentsExpected：expected 是按时长上取整的估计值，
+    // 过短的尾段合法地少一段（桌面版同样如此）。
+    // OCR / 人脸不走任务表的部分：连续几轮完全静止（统计行不变）才算完
+    quietRounds = settled && !changed ? quietRounds + 1 : 0
+    last = line
     if (quietRounds >= 6) { // ~60s 静止
       console.log('--- settled ---')
       console.log('task counts:', JSON.stringify(counts))

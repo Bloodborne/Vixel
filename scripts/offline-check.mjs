@@ -44,7 +44,7 @@ for (let i = 0; i < 60; i++) {
 ok('embedding model ready (loaded from bundled files)', ready)
 
 const counts = await api('getLibraryCounts')
-ok('library counts', counts.status === 200 && (counts.result?.photos ?? 0) > 0, JSON.stringify(counts))
+ok('library counts', counts.status === 200 && (counts.result?.all ?? 0) > 0, JSON.stringify(counts))
 
 const search = await api('search', [QUERY, 10])
 const results = search.result?.results ?? search.result ?? []
