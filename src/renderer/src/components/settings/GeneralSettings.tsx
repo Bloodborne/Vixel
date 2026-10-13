@@ -57,7 +57,7 @@ export function GeneralSettings(): JSX.Element {
 
   return (
     <div className="p-6 flex flex-col gap-6">
-      <section className="flex gap-6">
+      <section className="settings-row flex gap-6">
         <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.appearance}</h3>
         <div className="flex flex-col gap-2">
           <div className="flex gap-4">
@@ -90,7 +90,7 @@ export function GeneralSettings(): JSX.Element {
         </div>
       </section>
 
-      <section className="flex gap-6">
+      <section className="settings-row flex gap-6">
         <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.language}</h3>
         <div className="flex flex-col gap-2">
           <div className="flex gap-1 p-0.5 rounded-md bg-fill w-fit">
@@ -113,7 +113,7 @@ export function GeneralSettings(): JSX.Element {
       {/* 快速搜索面板（全局快捷键 + 常驻窗口 + 托盘）与浏览器扩展收集：桌面专属 */}
       {!IS_WEB && <QuickSearchSettings />}
 
-      <section className="flex gap-6" data-power-settings>
+      <section className="settings-row flex gap-6" data-power-settings>
         <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.indexingSection}</h3>
         <div className="flex flex-col gap-2 min-w-0">
           <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">
@@ -149,7 +149,7 @@ function WebAccessSettings(): JSX.Element {
     window.location.replace('/login')
   }
   return (
-    <section className="flex gap-6" data-web-access>
+    <section className="settings-row flex gap-6" data-web-access>
       <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.web.accessSection}</h3>
       <div className="flex flex-col gap-2 min-w-0">
         <button
@@ -223,7 +223,7 @@ function QuickSearchSettings(): JSX.Element {
   const conflict = qp.enabled && !qp.registered
 
   return (
-    <section className="flex gap-6" data-quickpanel-settings>
+    <section className="settings-row flex gap-6" data-quickpanel-settings>
       <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.quickpanel.sectionTitle}</h3>
       <div className="flex flex-col gap-2 min-w-0">
         <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">

@@ -14,6 +14,7 @@ import { StatusBar, THUMB_MIN, THUMB_MAX } from './components/shell/StatusBar'
 import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
 import { IS_WEB } from './lib/platform'
+import { useViewport, isTouch } from './lib/viewport'
 import { thumbUrl } from './lib/mediaUrl'
 import { sourcePathOf } from './lib/resultActions'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
@@ -138,6 +139,11 @@ function App(): JSX.Element {
   })
   const [inspectorDismissed, setInspectorDismissed] = useState(false)
   const [narrow, setNarrow] = useState(() => window.innerWidth < INSPECTOR_DOCK_MIN_WINDOW)
+  // 窄视口（手机 / 竖屏平板，<1024px）：侧栏变抽屉、检查器变底部面板、工具栏两行
+  const { compact } = useViewport()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+  useEffect(() => { if (!compact) setDrawerOpen(false) }, [compact])
 
   const hasSearchQuery = !!query.trim()
   const hasImageQuery = !!imageQuery
@@ -750,6 +756,13 @@ function App(): JSX.Element {
     const { searchResults: rs, selectedIds: cur, idIndex: map } = live.current
     const id = rs[index]?.photo.id
     if (id == null) return
+    // 触屏（无悬停指针）：双击 / 悬停预览不可用，单击直接打开详情（同时选中）
+    if (isTouch() && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      selectOnly(id)
+      setQuickLookId(null)
+      setSelected(rs[index])
+      return
+    }
     // 点选项目即表示想看信息：撤销上次 × 收起
     setInspectorDismissed(false)
     if (e.shiftKey && anchorId.current != null) {
@@ -1009,7 +1022,8 @@ function App(): JSX.Element {
     if (e.key === 'Escape') {
       // 输入框里的 Esc 留给输入框自己（取消编辑 / 清空搜索），不关浮层不丢文本
       if (isTextInput(e.target)) return
-      if (selected) setSelected(null)
+      if (drawerOpen) closeDrawer()
+      else if (selected) setSelected(null)
       else if (!showTasks && selectedIds.size > 0) clearSelection()
       else if (!showTasks && imageQuery) clearImageQuery()
       return
@@ -1079,38 +1093,45 @@ function App(): JSX.Element {
       : searchResults.length > 0 ? `${t.common.items(searchResults.length)}${hasDateFilter ? t.shell.dateFiltered : hasExtraFilters(extraFilters) ? t.organize.filtered : ''}` : undefined
     : undefined
 
+  // 窄视口抽屉：点选任何入口后收起（选中内容立即可见）
+  const selectAndCloseDrawer = useCallback((next: Source) => { closeDrawer(); handleSelectSource(next) }, [closeDrawer, handleSelectSource])
+  const searchAndCloseDrawer = useCallback((q: string) => { closeDrawer(); handleSearch(q) }, [closeDrawer, handleSearch])
+  const sidebarEl = (drawer: boolean): JSX.Element => (
+    <Sidebar
+      width={sidebarWidth}
+      drawer={drawer}
+      onResize={handleSidebarResize}
+      source={source}
+      onSelect={drawer ? selectAndCloseDrawer : handleSelectSource}
+      counts={counts}
+      folders={folders}
+      onAddFolder={handleAddFolder}
+      albums={albums}
+      canSaveAlbum={canSaveAlbum}
+      onSaveAlbum={drawer ? () => { closeDrawer(); void saveCurrentAsAlbum() } : saveCurrentAsAlbum}
+      onRenameAlbum={handleRenameAlbum}
+      onAlbumMenu={handleAlbumMenu}
+      tags={tags}
+      onRenameTag={handleRenameTag}
+      onTagMenu={handleTagMenu}
+      recentSearches={history.recent}
+      activeQuery={source.type === 'album' ? null : activeQuery}
+      onRunSearch={drawer ? searchAndCloseDrawer : handleSearch}
+      onRemoveSearch={removeRecent}
+    />
+  )
+
   return (
     <div className="h-screen flex bg-canvas text-ink">
-      {!sidebarHidden && (
-        <Sidebar
-          width={sidebarWidth}
-          onResize={handleSidebarResize}
-          source={source}
-          onSelect={handleSelectSource}
-          counts={counts}
-          folders={folders}
-          onAddFolder={handleAddFolder}
-          albums={albums}
-          canSaveAlbum={canSaveAlbum}
-          onSaveAlbum={saveCurrentAsAlbum}
-          onRenameAlbum={handleRenameAlbum}
-          onAlbumMenu={handleAlbumMenu}
-          tags={tags}
-          onRenameTag={handleRenameTag}
-          onTagMenu={handleTagMenu}
-          recentSearches={history.recent}
-          activeQuery={source.type === 'album' ? null : activeQuery}
-          onRunSearch={handleSearch}
-          onRemoveSearch={removeRecent}
-        />
-      )}
+      {!compact && !sidebarHidden && sidebarEl(false)}
 
       <div className="flex-1 min-w-0 flex flex-col">
         <Toolbar
           title={title}
           subtitle={subtitle}
+          compact={compact}
           sidebarHidden={sidebarHidden}
-          onToggleSidebar={toggleSidebar}
+          onToggleSidebar={compact ? () => setDrawerOpen((o) => !o) : toggleSidebar}
           showSearch={isGrid}
           query={query}
           onSearch={handleSearch}
@@ -1143,7 +1164,7 @@ function App(): JSX.Element {
 
         {/* 日期过滤栏 */}
         {showDateFilter && isGrid && (
-          <div className="h-9 flex-shrink-0 px-4 bg-bar border-b border-line flex items-center gap-3 animate-fade-in">
+          <div className="h-9 max-md:h-auto max-md:flex-wrap max-md:py-2 flex-shrink-0 px-4 bg-bar border-b border-line flex items-center gap-3 animate-fade-in">
             <span className="text-caption text-ink-3">{t.shell.date}</span>
             <input
               type="date"
@@ -1301,13 +1322,15 @@ function App(): JSX.Element {
           )}
         </main>
 
-        {/* 检查器：有选择才出现；宽窗口停靠在右侧，窄窗口浮在网格上 */}
+        {/* 检查器：有选择才出现；宽窗口停靠在右侧，窄窗口浮在网格上；手机 / 竖屏平板变底部面板 */}
         {inspectorShown && (
           <aside
-            style={{ width: INSPECTOR_WIDTH }}
-            className={`flex-shrink-0 bg-sidebar border-l border-line animate-slide-in ${
-              narrow ? 'absolute right-0 inset-y-0 z-20 shadow-2xl shadow-black/60' : ''
-            }`}
+            style={compact ? undefined : { width: INSPECTOR_WIDTH }}
+            className={compact
+              ? 'absolute inset-x-0 bottom-0 z-20 h-[min(60vh,520px)] bg-sidebar border-t border-line rounded-t-xl shadow-2xl shadow-black/60 animate-slide-up'
+              : `flex-shrink-0 bg-sidebar border-l border-line animate-slide-in ${
+                  narrow ? 'absolute right-0 inset-y-0 z-20 shadow-2xl shadow-black/60' : ''
+                }`}
             data-inspector
           >
             {selectedResults.length > 1 ? (
@@ -1349,6 +1372,16 @@ function App(): JSX.Element {
       </div>
 
       <TaskDrawer open={showTasks} onClose={handleCloseTasks} progress={indexProgress} />
+
+      {/* 窄视口：侧栏作为抽屉盖在内容上（汉堡按钮打开，点选 / 点遮罩 / Esc 关闭） */}
+      {compact && drawerOpen && (
+        <div className="fixed inset-0 z-40" data-drawer>
+          <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={closeDrawer} aria-hidden="true" />
+          <div className="absolute inset-y-0 left-0 w-[min(85vw,300px)] shadow-2xl shadow-black/60 animate-drawer-in">
+            {sidebarEl(true)}
+          </div>
+        </div>
+      )}
 
       {/* 快速查看 */}
       {quickLookResult && !selected && (

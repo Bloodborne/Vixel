@@ -22,7 +22,7 @@ export function AutoTagSettings(): JSX.Element {
     : t.autotags.upToDate(status.done)
 
   return (
-    <section className="flex gap-6" data-autotag-settings>
+    <section className="settings-row flex gap-6" data-autotag-settings>
       <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.autotags.settingTitle}</h3>
       <div className="flex flex-col gap-2 min-w-0">
         <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">

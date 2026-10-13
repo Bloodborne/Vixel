@@ -37,6 +37,7 @@ const zh = {
   noFolders: '还没有文件夹',
   // 工具栏
   showSidebar: (key: string) => `显示侧边栏 (${key})`,
+  menuButton: '菜单',
   dateFilter: '时间过滤',
   settingsTitle: (key: string) => `设置 (${key})`,
   // 搜索框
@@ -94,6 +95,7 @@ const en: typeof zh = {
   addFolderTitle: (key) => `Add Folder (${key})`,
   noFolders: 'No folders yet',
   showSidebar: (key) => `Show Sidebar (${key})`,
+  menuButton: 'Menu',
   dateFilter: 'Filter by Date',
   settingsTitle: (key) => `Settings (${key})`,
   searchPlaceholder: 'Search objects, scenes, text in images, file names…',

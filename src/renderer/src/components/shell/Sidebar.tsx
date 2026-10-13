@@ -31,6 +31,8 @@ export const SIDEBAR_MAX = 320
 interface SidebarProps {
   width: number
   onResize: (width: number) => void
+  /** 窄视口抽屉模式：占满容器宽度、不可拖宽、无标题栏让位 */
+  drawer?: boolean
   source: Source
   onSelect: (source: Source) => void
   counts: LibraryCounts | null
@@ -66,7 +68,7 @@ const TAGS_COLLAPSED_KEY = 'sidebar.tagsCollapsed'
 export { folderName }
 
 export function Sidebar({
-  width, onResize, source, onSelect, counts, folders, onAddFolder,
+  width, onResize, drawer, source, onSelect, counts, folders, onAddFolder,
   albums, canSaveAlbum, onSaveAlbum, onRenameAlbum, onAlbumMenu,
   tags, onRenameTag, onTagMenu,
   recentSearches, activeQuery, onRunSearch, onRemoveSearch,
@@ -118,9 +120,12 @@ export function Sidebar({
   const recentShown = recentSearches.slice(0, RECENT_SHOWN)
 
   return (
-    <aside style={{ width: dragWidth ?? width }} className="relative flex-shrink-0 h-full flex flex-col bg-sidebar border-r border-line select-none">
-      {/* 红绿灯区：整条可拖动窗口 */}
-      <div className="titlebar h-[52px] flex-shrink-0" />
+    <aside
+      style={drawer ? undefined : { width: dragWidth ?? width }}
+      className={`relative flex-shrink-0 h-full flex flex-col bg-sidebar select-none ${drawer ? 'w-full' : 'border-r border-line'}`}
+    >
+      {/* 红绿灯区：整条可拖动窗口；抽屉模式没有红绿灯，只留一点呼吸空间 */}
+      <div className={drawer ? 'h-3 flex-shrink-0' : 'titlebar h-[52px] flex-shrink-0'} />
 
       <nav className="flex-1 overflow-y-auto px-2.5 pb-4 flex flex-col gap-4">
         <Group title={t.shell.groupLibrary}>
@@ -276,11 +281,13 @@ export function Sidebar({
         </Group>
       </nav>
 
-      {/* 拖动改宽度 */}
-      <div
-        onMouseDown={handleResizeStart}
-        className="absolute top-0 -right-1 w-2 h-full cursor-col-resize z-10"
-      />
+      {/* 拖动改宽度（抽屉模式固定宽度，不可拖） */}
+      {!drawer && (
+        <div
+          onMouseDown={handleResizeStart}
+          className="absolute top-0 -right-1 w-2 h-full cursor-col-resize z-10"
+        />
+      )}
     </aside>
   )
 }
@@ -340,7 +347,7 @@ function Row({ icon, label, active, onClick, count, hint, title, muted, onRemove
         }
       }}
       title={title ?? (hint ? `${label} (${hint})` : label)}
-      className={`group/row h-7 px-2 rounded-md flex items-center gap-2 text-body text-left cursor-default transition-colors duration-fast ${
+      className={`group/row h-7 touch:h-10 px-2 rounded-md flex items-center gap-2 text-body text-left cursor-default transition-colors duration-fast ${
         active ? 'bg-accent-fill text-ink' : `${muted ? 'text-ink-3' : 'text-ink-2'} hover:bg-fill hover:text-ink`
       }`}
     >

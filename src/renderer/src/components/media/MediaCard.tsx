@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { MatchChannel, SearchResult } from '../../../../shared/types'
 import { formatDuration, mediaKindOf } from '../../lib/format'
+import { isTouch } from '../../lib/viewport'
 import { t } from '../../../../shared/i18n'
 
 /** 与 core/db.ts 的 SEGMENT_MS 一致：音视频按 32s 切片 */
@@ -97,7 +98,8 @@ export const MediaCard = memo(function MediaCard({
   }
 
   const handleEnter = (e: React.MouseEvent): void => {
-    if (!canPreview) return
+    // 触屏没有悬停：点按会合成 mouseenter，不要因此开解码器 / 拉 sprite
+    if (!canPreview || isTouch()) return
     setScrub(ratioAt(e))
     if (spriteFrames === 0) { startPreviewTimer(); return }
     if (spriteFrames !== null) return

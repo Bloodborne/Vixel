@@ -52,7 +52,7 @@ export function CollectSettings(): JSX.Element {
     : t.collect.extensionStopped
 
   return (
-    <section className="flex gap-6" data-collect-settings>
+    <section className="settings-row flex gap-6" data-collect-settings>
       <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.collect.extension}</h3>
       <div className="flex flex-col gap-2 min-w-0 flex-1">
         <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">

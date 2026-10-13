@@ -320,3 +320,32 @@ body {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
   cursor: pointer;
 }
+
+/* 抽屉滑入（窄视口侧栏） */
+@keyframes drawerIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-drawer-in {
+  animation: drawerIn 0.2s ease-out;
+}
+
+/* 设置页的行（标签 + 内容两栏）：手机上改为上下堆叠，内容不再被挤出屏幕 */
+@media (max-width: 767px) {
+  .settings-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .settings-row > h3 {
+    width: auto;
+    text-align: left;
+    padding-top: 0;
+  }
+}
+
+/* 触屏：命中片段时间条加高到可点按（桌面悬停精度高，保持紧凑） */
+@media (hover: none) {
+  .segment-strip {
+    height: 2.25rem;
+  }
+}

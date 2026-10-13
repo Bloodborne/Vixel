@@ -156,7 +156,7 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
           title={t.shell.densityTitle(density === 'info')}
           aria-pressed={density === 'info'}
           data-density={density}
-          className={`flex-shrink-0 w-5 h-[18px] rounded flex items-center justify-center transition-colors duration-fast ${
+          className={`max-md:hidden flex-shrink-0 w-5 h-[18px] rounded flex items-center justify-center transition-colors duration-fast ${
             density === 'info' ? 'text-accent bg-accent/15' : 'text-ink-3 hover:text-ink hover:bg-fill-hover'
           }`}
         >
@@ -179,7 +179,7 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
       )}
 
       {thumbSize !== undefined && onThumbSize && (
-        <label className="flex-shrink-0 flex items-center gap-1.5" title={t.shell.thumbSizeTitle(kbd('⌘+'), kbd('⌘−'))}>
+        <label className="max-md:hidden flex-shrink-0 flex items-center gap-1.5" title={t.shell.thumbSizeTitle(kbd('⌘+'), kbd('⌘−'))}>
           <span className="w-2 h-2 rounded-[2px] border border-ink-3" />
           <input
             type="range"

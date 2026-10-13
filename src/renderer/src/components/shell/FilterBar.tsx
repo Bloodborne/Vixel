@@ -138,7 +138,7 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
   if (!expanded) {
     return (
       <div
-        className="h-9 flex-shrink-0 px-4 bg-bar border-b border-line flex items-center gap-1.5 animate-fade-in cursor-default"
+        className="h-9 max-md:h-auto max-md:flex-wrap max-md:py-2 flex-shrink-0 px-4 bg-bar border-b border-line flex items-center gap-1.5 animate-fade-in cursor-default"
         onClick={(e) => { if (e.target === e.currentTarget) onExpand() }}
       >
         <button onClick={onExpand} className="flex items-center gap-1 text-caption text-ink-3 hover:text-ink mr-1">
@@ -146,7 +146,7 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
           {t.organize.filter}
         </button>
         {chips.map((c) => (
-          <span key={c.label} className="h-6 pl-2 pr-1 rounded-md bg-accent-fill text-accent text-caption flex items-center gap-0.5">
+          <span key={c.label} className="h-6 touch:h-9 pl-2 pr-1 rounded-md bg-accent-fill text-accent text-caption flex items-center gap-0.5">
             {c.label}
             <button
               onClick={c.remove}
@@ -194,7 +194,7 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
               const id = e.target.value ? Number(e.target.value) : null
               onChange(id == null ? without(value, ['personId']) : { ...value, personId: id })
             }}
-            className={`h-6 max-w-[160px] px-1.5 text-caption rounded border focus:outline-none focus:border-accent/50 ${
+            className={`h-6 touch:h-9 max-w-[160px] px-1.5 text-caption rounded border focus:outline-none focus:border-accent/50 ${
               value.personId != null ? 'bg-accent-fill border-accent/40 text-accent' : 'bg-fill border-line text-ink'
             }`}
           >
@@ -206,7 +206,7 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
         <button
           onClick={() => onChange(value.favorite ? without(value, ['favorite']) : { ...value, favorite: true })}
           aria-pressed={!!value.favorite}
-          className={`h-6 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
+          className={`h-6 touch:h-9 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
             value.favorite ? 'bg-accent-fill text-accent' : 'text-ink-2 hover:text-ink hover:bg-fill-hover'
           }`}
         >
@@ -219,7 +219,7 @@ export function FilterBar({ value, expanded, onChange, onExpand, onClose }: {
           onClick={() => onChange(value.screenshot ? without(value, ['screenshot']) : { ...value, screenshot: true })}
           aria-pressed={!!value.screenshot}
           data-screenshot-filter
-          className={`h-6 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
+          className={`h-6 touch:h-9 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
             value.screenshot ? 'bg-accent-fill text-accent' : 'text-ink-2 hover:text-ink hover:bg-fill-hover'
           }`}
         >
@@ -272,7 +272,7 @@ function TagPicker({ tags, selected, onChange }: {
         onClick={() => { setOpen((o) => !o); setFilter('') }}
         aria-expanded={open}
         data-tag-filter
-        className={`h-6 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
+        className={`h-6 touch:h-9 px-2 rounded-md text-caption flex items-center gap-1 transition-colors duration-fast ${
           selected.length ? 'bg-accent-fill text-accent' : 'text-ink-2 hover:text-ink hover:bg-fill-hover'
         }`}
       >
@@ -341,7 +341,7 @@ function ColorPicker({ selected, onChange }: {
               aria-pressed={on}
               title={t.design.colorFilterTitle(name)}
               data-color-swatch={b}
-              className={`w-[18px] h-[18px] rounded-full border transition-shadow duration-fast ${
+              className={`w-[18px] h-[18px] touch:w-7 touch:h-7 rounded-full border transition-shadow duration-fast ${
                 on ? 'ring-2 ring-accent ring-offset-1 ring-offset-bar border-transparent' : 'border-line-heavy hover:ring-1 hover:ring-ink-4'
               }`}
               style={colorSwatchStyle(b)}
@@ -367,7 +367,7 @@ function Segmented({ title, options, onPick }: {
             key={o.key}
             onClick={() => onPick(o.key)}
             aria-pressed={o.active}
-            className={`h-5 px-2 rounded-[4px] text-caption whitespace-nowrap transition-colors duration-fast ${
+            className={`h-5 touch:h-8 px-2 touch:px-2.5 rounded-[4px] text-caption whitespace-nowrap transition-colors duration-fast ${
               o.active ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink'
             }`}
           >

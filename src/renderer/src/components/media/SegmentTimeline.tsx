@@ -37,7 +37,7 @@ export function SegmentTimeline({ durationMs, segments, hit, currentMs, onSeek }
         </span>
         {hover && <span className="text-ink-2">{formatDuration(hover.startMs)} – {formatDuration(hover.endMs)}</span>}
       </div>
-      <div className="relative h-5 rounded bg-fill overflow-hidden" onMouseLeave={() => setHover(null)}>
+      <div className="segment-strip relative h-5 rounded bg-fill overflow-hidden" onMouseLeave={() => setHover(null)}>
         {segments.map((s) => (
           <button
             key={s.startMs}

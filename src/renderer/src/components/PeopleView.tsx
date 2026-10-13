@@ -512,7 +512,7 @@ function PersonDetail({ person, others, onBack, onSelectPhoto, onRename, onHide,
 
   return (
     <div className="h-full flex flex-col bg-canvas">
-      <div className="px-4 py-3 flex items-center gap-3 border-b border-line">
+      <div className="px-4 py-3 flex flex-wrap items-center gap-3 border-b border-line">
         <button onClick={onBack} className="p-1 rounded hover:bg-fill-hover text-ink-2" title={t.people.back}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

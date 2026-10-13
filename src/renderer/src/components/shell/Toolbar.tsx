@@ -6,6 +6,8 @@ import { t } from '../../../../shared/i18n'
 interface ToolbarProps {
   title: string
   subtitle?: string
+  /** 窄视口（手机 / 竖屏平板）：两行布局，第一行汉堡 + 标题 + 按钮，第二行通栏搜索框 */
+  compact?: boolean
   /** 侧边栏收起时要给红绿灯让位 */
   sidebarHidden: boolean
   onToggleSidebar: () => void
@@ -35,26 +37,74 @@ interface ToolbarProps {
 }
 
 export function Toolbar({
-  title, subtitle, sidebarHidden, onToggleSidebar, showSearch, query, onSearch, querySaved, saveQueryTitle, onToggleSaveQuery, titleAction, isSearching, resultCount,
+  title, subtitle, compact, sidebarHidden, onToggleSidebar, showSearch, query, onSearch, querySaved, saveQueryTitle, onToggleSaveQuery, titleAction, isSearching, resultCount,
   dateActive, onToggleDate, filterActive, filterCount, onToggleFilter, onOpenSettings, imageDrag, onImageDrop, queryImage, onClearImage,
 }: ToolbarProps): JSX.Element {
+  const searchBar = showSearch && (
+    <SearchBar
+      value={query}
+      onSearch={onSearch}
+      isSearching={isSearching}
+      resultCount={resultCount}
+      saved={querySaved}
+      saveTitle={saveQueryTitle}
+      onToggleSave={onToggleSaveQuery}
+      image={queryImage}
+      onPickImage={IS_WEB ? (f) => onImageDrop([f]) : undefined}
+      onClearImage={onClearImage}
+    />
+  )
+  const imageDropZone = showSearch && imageDrag && (
+    <div
+      data-image-drop
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
+      // 不 stopPropagation：窗口级 drop 监听还要跑（重置拖拽计数、阻止 Chromium 导航）
+      onDrop={(e) => { e.preventDefault(); onImageDrop(Array.from(e.dataTransfer.files)) }}
+      className="absolute inset-0 z-30 m-1.5 rounded-md border-2 border-dashed border-accent bg-raised/90 backdrop-blur-sm flex items-center justify-center gap-2 text-accent"
+    >
+      <svg className="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path strokeLinecap="round" d="M5 17l4.5-4.5 3 3L17 11l2 2" />
+      </svg>
+      <span className="text-callout font-medium pointer-events-none">{t.imagesearch.dropHint}</span>
+    </div>
+  )
+  const actionButtons = (
+    <div className="flex items-center gap-0.5">
+      {showSearch && (
+        <ToolButton icon="calendar" title={t.shell.dateFilter} active={dateActive} onClick={onToggleDate} />
+      )}
+      {showSearch && (
+        <ToolButton icon="filter" title={t.organize.filterTitle} active={filterActive} badge={filterCount} onClick={onToggleFilter} />
+      )}
+      <ToolButton icon="gear" title={t.shell.settingsTitle(kbd('⌘,'))} onClick={onOpenSettings} />
+    </div>
+  )
+
+  // 窄视口：第一行汉堡（抽屉开关）+ 标题 + 按钮，第二行通栏搜索框
+  if (compact) {
+    return (
+      <header className="relative flex-shrink-0 flex flex-col bg-bar border-b border-line">
+        {imageDropZone}
+        <div className="h-[52px] flex items-center gap-2 pl-2 pr-2">
+          <ToolButton icon="sidebar" title={t.shell.menuButton} onClick={onToggleSidebar} data-sidebar-toggle />
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            <div className="min-w-0 flex flex-col justify-center">
+              <h1 className="text-headline text-ink truncate">{title}</h1>
+              {subtitle && <p className="text-caption text-ink-3 truncate tabular-nums">{subtitle}</p>}
+            </div>
+            {titleAction}
+          </div>
+          {actionButtons}
+        </div>
+        {showSearch && <div className="px-2.5 pb-2">{searchBar}</div>}
+      </header>
+    )
+  }
+
   return (
     <header className={`titlebar relative h-[52px] flex-shrink-0 flex items-center gap-3 pr-3 bg-bar border-b border-line ${sidebarHidden ? 'pl-[84px]' : 'pl-4'}`}>
       {/* 拖入图片时的落点：盖住整条工具栏（含搜索框），松开即以图搜图；网格区保留给以后的导入 */}
-      {showSearch && imageDrag && (
-        <div
-          data-image-drop
-          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
-          // 不 stopPropagation：窗口级 drop 监听还要跑（重置拖拽计数、阻止 Chromium 导航）
-          onDrop={(e) => { e.preventDefault(); onImageDrop(Array.from(e.dataTransfer.files)) }}
-          className="absolute inset-0 z-30 m-1.5 rounded-md border-2 border-dashed border-accent bg-raised/90 backdrop-blur-sm flex items-center justify-center gap-2 text-accent"
-        >
-          <svg className="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path strokeLinecap="round" d="M5 17l4.5-4.5 3 3L17 11l2 2" />
-          </svg>
-          <span className="text-callout font-medium pointer-events-none">{t.imagesearch.dropHint}</span>
-        </div>
-      )}
+      {imageDropZone}
       {sidebarHidden && (
         <ToolButton icon="sidebar" title={t.shell.showSidebar(kbd('⌥⌘S'))} onClick={onToggleSidebar} />
       )}
@@ -67,49 +117,28 @@ export function Toolbar({
 
       <div className="flex-1" />
 
-      {showSearch && (
-        <div className="w-[clamp(240px,32vw,480px)]">
-          <SearchBar
-            value={query}
-            onSearch={onSearch}
-            isSearching={isSearching}
-            resultCount={resultCount}
-            saved={querySaved}
-            saveTitle={saveQueryTitle}
-            onToggleSave={onToggleSaveQuery}
-            image={queryImage}
-            onPickImage={IS_WEB ? (f) => onImageDrop([f]) : undefined}
-            onClearImage={onClearImage}
-          />
-        </div>
-      )}
+      {showSearch && <div className="w-[clamp(240px,32vw,480px)]">{searchBar}</div>}
 
-      <div className="flex items-center gap-0.5">
-        {showSearch && (
-          <ToolButton icon="calendar" title={t.shell.dateFilter} active={dateActive} onClick={onToggleDate} />
-        )}
-        {showSearch && (
-          <ToolButton icon="filter" title={t.organize.filterTitle} active={filterActive} badge={filterCount} onClick={onToggleFilter} />
-        )}
-        <ToolButton icon="gear" title={t.shell.settingsTitle(kbd('⌘,'))} onClick={onOpenSettings} />
-      </div>
+      {actionButtons}
     </header>
   )
 }
 
-function ToolButton({ icon, title, onClick, active, badge }: {
+function ToolButton({ icon, title, onClick, active, badge, ...rest }: {
   icon: Parameters<typeof Icon>[0]['name']
   title: string
   onClick: () => void
   active?: boolean
   badge?: number
+  'data-sidebar-toggle'?: boolean
 }): JSX.Element {
   return (
     <button
       onClick={onClick}
       title={title}
       aria-pressed={active}
-      className={`relative w-7 h-7 rounded-md flex items-center justify-center transition-colors duration-fast ${
+      {...rest}
+      className={`relative w-7 h-7 touch:w-10 touch:h-10 rounded-md flex items-center justify-center transition-colors duration-fast ${
         active ? 'bg-accent-fill text-accent' : 'text-ink-3 hover:text-ink hover:bg-fill-hover'
       }`}
     >
