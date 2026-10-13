@@ -375,7 +375,8 @@ const STEPS = [
       const ranged = page.net('/media/media/', 206)
       if (ranged < 1) throw new Error('no 206 (Range) response observed for /media/media/')
       await shot('video-detail')
-      // 手机：横扫到下一个结果再扫回来
+      // 手机：横扫翻页只对图片详情生效（视频面留给原生手势，见 favorite-toggle 里的图片滑动验证）——
+      // 这里在视频详情上只做一次非断言性的尝试并如实记录
       let swipeNote = ''
       if (mobile) {
         const before = await page.eval(`document.querySelector('[data-detail-pos]')?.textContent`)
@@ -385,10 +386,13 @@ const STEPS = [
           await page.swipe(330, 300, 60, 300)
           await sleep(800)
           const after = await page.eval(`document.querySelector('[data-detail-pos]')?.textContent`)
-          if (after === before) throw new Error(`swipe did not navigate (${before} -> ${after})`)
-          await page.swipe(60, 300, 330, 300)
-          await sleep(800)
-          swipeNote = `; swipe ${before} -> ${after} -> back`
+          if (after === before) {
+            swipeNote = `; swipe over the video surface left to native gestures (stays ${before})`
+          } else {
+            await page.swipe(60, 300, 330, 300)
+            await sleep(800)
+            swipeNote = `; swipe ${before} -> ${after} -> back`
+          }
         }
       }
       await page.key('Escape')
@@ -401,6 +405,7 @@ const STEPS = [
   {
     name: 'image-search-upload',
     async run({ page, cropFile, cropSource }) {
+      if (!cropFile) return { skip: 'no crop source (--live-dir has no jpg and no --crop-source given)' }
       await page.waitFor(`!!document.querySelector('[data-upload-image] input[type="file"]')`, 8000, 'upload button')
       await page.setFileInput('[data-upload-image] input[type="file"]', cropFile)
       await page.waitFor(`!!document.querySelector('[data-image-chip]')`, 15000, 'query image chip')
@@ -464,8 +469,22 @@ const STEPS = [
     async run(ctx) {
       const { page, mobile, S, shot } = ctx
       await goAll(ctx)
-      // 选第一张图片卡片（视频详情的滑动留给原生控件，图片上才能横扫翻页）
-      const name = await page.eval(`[...document.querySelectorAll('.photo-card')].map((c) => c.getAttribute('aria-label')).find((n) => /\\.(cr2|cr3|nef|arw|dng|jpe?g|png|webp|heic|tiff?)$/i.test(n || ''))`)
+      // 选第一张图片卡片（视频详情的滑动留给原生控件，图片上才能横扫翻页）。
+      // 网格是虚拟化的（react-window）：首屏没有图片时往下滚动找（视频多的混合库常见）
+      const findImage = `[...document.querySelectorAll('.photo-card')].map((c) => c.getAttribute('aria-label')).find((n) => /\\.(cr2|cr3|nef|arw|dng|jpe?g|png|webp|heic|tiff?)$/i.test(n || ''))`
+      let name = await page.eval(findImage)
+      for (let i = 0; i < 20 && !name; i++) {
+        const moved = await page.eval(`(() => {
+          const el = document.querySelector('[role="listbox"] > div')
+          if (!el) return false
+          const before = el.scrollTop
+          el.scrollTop = before + el.clientHeight
+          return el.scrollTop !== before
+        })()`)
+        if (!moved) break
+        await sleep(400)
+        name = await page.eval(findImage)
+      }
       if (!name) throw new Error('no image card found in browse grid')
       const cardSel = `.photo-card[aria-label=${JSON.stringify(name)}]`
       const heartSel = `!!document.querySelector(${JSON.stringify(`.photo-card[aria-label=${JSON.stringify(name)}] span[aria-label]`)})`
