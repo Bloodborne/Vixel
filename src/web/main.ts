@@ -9,6 +9,8 @@ import { createWebApi } from './api'
 createWebApi()
   .then(async (api) => {
     window.api = api
+    // 网页版专属的 CSS 钩子（globals.css 里按 [data-platform="web"] 限定的规则）
+    document.documentElement.dataset.platform = 'web'
     await import('../renderer/src/main')
   })
   .catch((err) => {

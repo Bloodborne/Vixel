@@ -330,13 +330,15 @@ body {
   animation: drawerIn 0.2s ease-out;
 }
 
-/* 设置页的行（标签 + 内容两栏）：手机上改为上下堆叠，内容不再被挤出屏幕 */
+/* 设置页的行（标签 + 内容两栏）：手机上改为上下堆叠，内容不再被挤出屏幕。
+   只作用于网页版（html[data-platform="web"]，见 src/web/main.ts）——
+   桌面的独立设置窗口本来就窄（~640px），要保持原有的 macOS 偏好设置两栏样式 */
 @media (max-width: 767px) {
-  .settings-row {
+  [data-platform='web'] .settings-row {
     flex-direction: column;
     gap: 8px;
   }
-  .settings-row > h3 {
+  [data-platform='web'] .settings-row > h3 {
     width: auto;
     text-align: left;
     padding-top: 0;
