@@ -88,8 +88,10 @@ function buildApi(ctx: ServiceContext, deps: {
 
   return {
     // ─── 搜索 ───────────────────────────────────────────────
-    search: async (query: string, limit?: number, options?: SearchOptions): Promise<SearchResult[]> => {
-      return searchEngine.search(query, limit, options)
+    // limit / options 可能以 null 到达（网页版 JSON 没有 undefined，中间参数的 undefined 发成 null）：
+    // null 会绕过引擎的默认值（limit ?? 50 不会生效，LIMIT NULL 直接 SQLITE_MISMATCH），这里归一化
+    search: async (query: string, limit?: number | null, options?: SearchOptions | null): Promise<SearchResult[]> => {
+      return searchEngine.search(query, limit ?? undefined, options ?? undefined)
     },
 
     findSimilar: async (photoId: number, limit?: number): Promise<SearchResult[]> => {
@@ -99,8 +101,8 @@ function buildApi(ctx: ServiceContext, deps: {
     },
 
     // 以图搜图：拖入 / 粘贴的查询图只在内存和临时文件里处理，不进资料库（见 core/imageSearch.ts）
-    searchByImage: async (input: ImageQueryInput, limit?: number, options?: MediaFilters): Promise<ImageSearchResponse> => {
-      return searchByImage(db, searchEngine, input, limit, options)
+    searchByImage: async (input: ImageQueryInput, limit?: number | null, options?: MediaFilters | null): Promise<ImageSearchResponse> => {
+      return searchByImage(db, searchEngine, input, limit ?? undefined, options ?? undefined)
     },
 
     getPhotosWithGPS: async () => db.getPhotosWithGPS(),

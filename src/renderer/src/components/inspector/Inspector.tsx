@@ -361,7 +361,8 @@ function FavoriteButton({ on, onClick }: { on: boolean; onClick: () => void }): 
       onClick={(e) => { e.stopPropagation(); onClick() }}
       aria-pressed={on}
       title={t.organize.favoriteTitle(on)}
-      className={`w-6 h-6 rounded-md flex-shrink-0 flex items-center justify-center transition-colors duration-fast ${
+      data-favorite-toggle
+      className={`w-6 h-6 touch:w-9 touch:h-9 rounded-md flex-shrink-0 flex items-center justify-center transition-colors duration-fast ${
         on ? 'text-accent hover:bg-fill-hover' : 'text-ink-3 hover:text-ink hover:bg-fill-hover'
       }`}
     >

@@ -33,7 +33,8 @@
     "build:server": "tsc -p tsconfig.server.json && node scripts/server-postbuild.mjs",
     "server": "npm run build:server && node dist/server/index.js",
     "server:deps": "npm --prefix server install --no-audit --no-fund",
-    "test:server:security": "npm run build:server && node scripts/server-security.mjs"
+    "test:server:security": "npm run build:server && node scripts/server-security.mjs",
+    "test:web": "node scripts/web-e2e.mjs"
   },
   "bin": {
     "vixel": "./dist/cli/cli/index.js"

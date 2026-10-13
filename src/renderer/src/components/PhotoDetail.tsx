@@ -159,7 +159,7 @@ export function PhotoDetail({ result, siblings, onSelect, onClose, onToggleFavor
 
         {/* 位置指示 "3 / 50" */}
         {siblings && currentIndex >= 0 && (
-          <div className="absolute top-4 left-4 px-2 py-1 rounded bg-black/40 backdrop-blur-sm text-ink text-caption tabular-nums pointer-events-none">
+          <div data-detail-pos className="absolute top-4 left-4 px-2 py-1 rounded bg-black/40 backdrop-blur-sm text-ink text-caption tabular-nums pointer-events-none">
             {currentIndex + 1} / {siblings.length}
           </div>
         )}
