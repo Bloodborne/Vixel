@@ -1,18 +1,15 @@
 /**
- * 标签的主进程部分：IPC、侧栏标签右键菜单。改动后广播 TAG_CHANNELS.CHANGED，各窗口刷新标签。
+ * 标签的主进程部分：IPC 转发到服务层（src/services/api.ts），侧栏标签右键菜单留在这里
+ * （原生菜单 / 确认框是桌面专属）。改动后服务层 emit tags-changed，index.ts 转发到各窗口。
  */
 import { BrowserWindow, Menu, dialog, ipcMain, type MenuItemConstructorOptions } from 'electron'
 import { TAG_CHANNELS, type TagMenuAction } from '../shared/tags'
 import { t } from '../shared/i18n'
-import type { DatabaseInstance } from '../core/db'
-import { TagStore } from '../core/tagStore'
+import type { TagStore } from '../core/tagStore'
+import type { VixelServices } from '../services/api'
 
 /** 合并到…子菜单最多列这么多个标签（按使用次数） */
 const MERGE_MENU_MAX = 30
-
-export function broadcastTagsChanged(): void {
-  for (const w of BrowserWindow.getAllWindows()) w.webContents.send(TAG_CHANNELS.CHANGED)
-}
 
 /** 侧栏标签右键菜单；删除先弹确认框，确认了才执行 */
 function popupTagMenu(win: BrowserWindow, store: TagStore, tagId: number): Promise<TagMenuAction | null> {
@@ -51,49 +48,24 @@ function popupTagMenu(win: BrowserWindow, store: TagStore, tagId: number): Promi
   })
 }
 
-export function registerTagIpc(db: DatabaseInstance): TagStore {
-  const store = new TagStore(db.raw)
-  const hashes = (v: unknown): string[] => (Array.isArray(v) ? v.filter((h): h is string => typeof h === 'string') : [])
+export function registerTagIpc(services: VixelServices): void {
+  const { api, tagStore, events } = services
 
-  ipcMain.handle(TAG_CHANNELS.LIST, async () => store.list())
-  ipcMain.handle(TAG_CHANNELS.FOR_HASHES, async (_e, list: unknown) => store.forHashes(hashes(list)))
-
-  ipcMain.handle(TAG_CHANNELS.ADD, async (_e, list: unknown, name: unknown) => {
-    if (typeof name !== 'string' || !name.trim()) return null
-    const id = store.add(hashes(list), name)
-    broadcastTagsChanged()
-    return id
-  })
-
-  ipcMain.handle(TAG_CHANNELS.REMOVE, async (_e, list: unknown, tagId: unknown) => {
-    if (typeof tagId !== 'number') return
-    store.remove(hashes(list), tagId)
-    broadcastTagsChanged()
-  })
-
+  ipcMain.handle(TAG_CHANNELS.LIST, async () => api.tags.list())
+  ipcMain.handle(TAG_CHANNELS.FOR_HASHES, async (_e, list: string[]) => api.tags.forHashes(list))
+  ipcMain.handle(TAG_CHANNELS.ADD, async (_e, list: string[], name: string) => api.tags.add(list, name))
+  ipcMain.handle(TAG_CHANNELS.REMOVE, async (_e, list: string[], tagId: number) => api.tags.remove(list, tagId))
   // 自动标签的 ✓：变成用户标签
-  ipcMain.handle(TAG_CHANNELS.CONFIRM_AUTO, async (_e, list: unknown, tagId: unknown) => {
-    if (typeof tagId !== 'number') return
-    store.confirmAuto(hashes(list), tagId)
-    broadcastTagsChanged()
-  })
-
-  ipcMain.handle(TAG_CHANNELS.RENAME, async (_e, tagId: unknown, name: unknown) => {
-    if (typeof tagId !== 'number' || typeof name !== 'string') return null
-    const id = store.rename(tagId, name)
-    broadcastTagsChanged()
-    return id
-  })
+  ipcMain.handle(TAG_CHANNELS.CONFIRM_AUTO, async (_e, list: string[], tagId: number) => api.tags.confirmAuto(list, tagId))
+  ipcMain.handle(TAG_CHANNELS.RENAME, async (_e, tagId: number, name: string) => api.tags.rename(tagId, name))
 
   // 合并 / 删除在主进程直接执行（删除已经过确认框）；改名由渲染进程进入行内编辑
   ipcMain.handle(TAG_CHANNELS.SHOW_MENU, async (event, tagId: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || typeof tagId !== 'number') return null
-    const action = await popupTagMenu(win, store, tagId)
-    if (action?.action === 'merge') { store.merge(tagId, action.intoId); broadcastTagsChanged() }
-    if (action?.action === 'delete') { store.delete(tagId); broadcastTagsChanged() }
+    const action = await popupTagMenu(win, tagStore, tagId)
+    if (action?.action === 'merge') { tagStore.merge(tagId, action.intoId); events.emit('tags-changed') }
+    if (action?.action === 'delete') { tagStore.delete(tagId); events.emit('tags-changed') }
     return action
   })
-
-  return store
 }

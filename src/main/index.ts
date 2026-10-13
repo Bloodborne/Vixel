@@ -1,42 +1,39 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net, nativeTheme, session } from 'electron'
 import { pathToFileURL } from 'url'
 import { join } from 'path'
-import { writeFile, unlink, mkdir, readdir, rm } from 'fs/promises'
-import { createHash } from 'crypto'
 import { existsSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase } from '../core/db'
 import { FileWatcher } from '../core/watcher'
 import { Indexer } from '../core/indexer'
 import { SearchEngine, type SearchOptions } from '../core/search'
-import { getEmbeddingService, initEmbeddingServicePath, isLiteRtInstalled } from '../core/embedding'
+import { initEmbeddingServicePath } from '../core/embedding'
 import { litertPlatformDir } from '../core/embedding/providers/litert/native'
-import { setFaceModelsDir, getFaceThumbnail, FACE_PIPELINE_VERSION } from '../core/face'
-import { suggestMerges } from '../core/face/cluster'
+import { setFaceModelsDir, FACE_PIPELINE_VERSION } from '../core/face'
 import { setOcrModelsDir } from '../core/ocr'
 import { preloadJieba } from '../core/text/tokenize'
-import { formatBackupName, selectExpired } from '../core/backup'
 import { serveMediaFile } from '../core/media/serve'
-import { parsePaletteJson } from '../core/color/palette'
-import { ensureSprite, SPRITE_MIN_DURATION_MS } from '../core/video/sprite'
-import { isFfmpegAvailable, probeMedia } from '../core/video/extract'
 import { installAppMenu, popupItemMenu, popupSmartAlbumMenu } from './menu'
 import { initQuickPanel, type QuickPanelController } from './quickPanel'
-import { searchByImage } from './imageSearch'
 import { initPowerPolicy, getPowerController } from './power'
 import { detectScreenshot } from '../core/screenshot'
-import type { AutoTagService } from './autotags'
+import type { AutoTagService } from '../services/autotags'
 import { locale, resolveLocale, setLocale, t, type LocaleSetting } from '../shared/i18n'
 import { InferenceProcess } from './inference-client'
 import { runCaptureTour, runRecording } from './capture'
 import { registerCleanupIpc } from './cleanup'
-import { broadcastTagsChanged, registerTagIpc } from './tags'
+import { registerTagIpc } from './tags'
 import { registerCollectIpc } from './collect'
 import { registerAutoTags } from './autotags'
 import { registerPdfRenderer, disposePdfRenderer, releasePdfWindowIfLast, PDF_ASSET_SCHEME } from './pdfRender'
 import { timed, watchEventLoop, perfSnapshot, PROFILE } from '../core/perf'
 import { setInferenceTransport } from '../core/inference/transport'
-import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type FaceBbox, type EmbeddingConfig, type PersonSuggestion, type PersonFace, type ImageQueryInput } from '../shared/types'
+import { createServices, META_KEY_INDEX_ON_BATTERY, type VixelServices } from '../services/api'
+import { createServiceEvents } from '../services/events'
+import { IPC_CHANNELS, type MediaFilters, type ThemeMode, type IndexProgress, type EmbeddingConfig, type ImageQueryInput } from '../shared/types'
+import { TAG_CHANNELS } from '../shared/tags'
+import { AUTOTAG_CHANNELS } from '../shared/autotags'
+import { CLEANUP_CHANNELS } from '../shared/cleanup'
 
 const APP_NAME = 'Vixel'
 
@@ -52,18 +49,8 @@ if (process.env.VIXEL_RECORD) app.commandLine.appendSwitch('force-device-scale-f
 }
 app.setAboutPanelOptions({ applicationName: APP_NAME, applicationVersion: app.getVersion() })
 
-// 备份配置：每 24h 一次，保留最近 3 份；可后续从 settings 暴露
-const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000
-const BACKUP_KEEP_COUNT = 3
-const META_KEY_LAST_BACKUP = 'last_backup_at'
-const META_KEY_THEME = 'ui.theme'
-const META_KEY_LOCALE = 'ui.locale'
-/** 设置："电池供电时也索引"（默认开）。关掉后电池供电时回填等待，少量新文件仍即时索引 */
-const META_KEY_INDEX_ON_BATTERY = 'power.index_on_battery'
 /** 截图标记回填完成的标记（老库一次性补 photos.is_screenshot） */
 const META_KEY_SCREENSHOT_BACKFILL = 'screenshot.backfill'
-let backupTimer: NodeJS.Timeout | null = null
-let backupInFlight = false
 /**
  * 显式退出已开始（before-quit 已发出）。退出流程里窗口逐个 close，各自的 closed 回调
  * （maybeBackgroundOrQuit）和 window-all-closed 会在 db.close() 之后触发 —— 这时再去读
@@ -77,11 +64,11 @@ let db: ReturnType<typeof initDatabase>
 let watcher: FileWatcher
 let indexer: Indexer
 let searchEngine: SearchEngine
+let services: VixelServices
 let inference: InferenceProcess | null = null
 let mainWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 let quickPanel: QuickPanelController | null = null
-let bundledModelsDir: string = ''
 
 /** 窗口底色：首帧渲染前露出来的颜色，要和当前外观的内容区一致，否则切换 / 打开时闪一下 */
 function windowBackground(): string {
@@ -94,16 +81,6 @@ function windowBackground(): string {
  */
 function applyTheme(mode: ThemeMode): void {
   nativeTheme.themeSource = mode
-}
-
-function loadTheme(): ThemeMode {
-  const v = db.getMetaState(META_KEY_THEME)
-  return v === 'light' || v === 'dark' ? v : 'system'
-}
-
-function loadLocaleSetting(): LocaleSetting {
-  const v = db.getMetaState(META_KEY_LOCALE)
-  return v === 'zh-CN' || v === 'en' ? v : 'system'
 }
 
 /** 界面语言：主进程文案（菜单、对话框、任务错误）立即切换；渲染进程由调用方 reload */
@@ -177,7 +154,7 @@ function createWindow(): void {
           const demoPath = join(folder.path, 'frames-export')
           if (on) db.addSkippedFolder(folder.id, demoPath, 250)
           else db.raw.prepare(`DELETE FROM skipped_folders WHERE path = ?`).run(demoPath)
-          broadcastLibraryChanged()
+          services.events.emit('library-changed')
         },
         // 快速搜索面板：同一个 show / hide（全局快捷键没法自动化，用钩子驱动）
         quickPanel: {
@@ -256,14 +233,8 @@ function openSettingsWindow(): BrowserWindow {
   return win
 }
 
-/** 文件夹增删后通知所有窗口：主窗口刷新侧边栏 / 网格，设置窗口刷新列表 */
-/** 智能相册增删改后通知所有窗口刷新侧栏 */
-function broadcastSmartAlbumsChanged(): void {
-  for (const w of BrowserWindow.getAllWindows()) w.webContents.send(IPC_CHANNELS.SMART_ALBUMS_CHANGED)
-}
-
-function broadcastLibraryChanged(): void {
-  for (const w of BrowserWindow.getAllWindows()) w.webContents.send(IPC_CHANNELS.LIBRARY_CHANGED)
+function broadcast(channel: string, ...args: unknown[]): void {
+  for (const w of BrowserWindow.getAllWindows()) w.webContents.send(channel, ...args)
 }
 
 /** 应用菜单：语言 / 快速搜索快捷键变化时重建（菜单里显示当前快捷键） */
@@ -285,7 +256,7 @@ async function initServices(): Promise<void> {
   // 模型目录：生产用 extraResources，开发用 resources/models
   const prodModelsDir = join(process.resourcesPath, 'models')
   const devModelsDir = join(process.cwd(), 'resources', 'models')
-  bundledModelsDir = existsSync(prodModelsDir) ? prodModelsDir : devModelsDir
+  const bundledModelsDir = existsSync(prodModelsDir) ? prodModelsDir : devModelsDir
 
   // 推理（embedding / 人脸 / OCR）放到独立进程，主进程事件循环不被模型前向占住
   inference = new InferenceProcess(join(__dirname, 'inference.js'))
@@ -305,16 +276,51 @@ async function initServices(): Promise<void> {
   // v2：修复对齐（之前送进模型的是黑图，embedding 全部无效）→ 清空重扫
   const staleFaces = db.resetFacesIfStale(FACE_PIPELINE_VERSION)
 
+  // 服务层事件总线 → 各窗口的 IPC 事件（频道与 renderer 的 window.api.on* 对应）
+  const events = createServiceEvents()
+  events.on((channel, payload) => {
+    switch (channel) {
+      case 'library-changed': return broadcast(IPC_CHANNELS.LIBRARY_CHANGED)
+      case 'smart-albums-changed': return broadcast(IPC_CHANNELS.SMART_ALBUMS_CHANGED)
+      case 'people-changed': return broadcast(IPC_CHANNELS.PEOPLE_CHANGED)
+      case 'tags-changed': return broadcast(TAG_CHANNELS.CHANGED)
+      case 'autotags-changed': return broadcast(AUTOTAG_CHANNELS.CHANGED, payload)
+      case 'cleanup-progress': return broadcast(CLEANUP_CHANNELS.PROGRESS, payload)
+      // 索引进度只发主窗口（和原行为一致；设置窗口不消费）
+      case 'index-progress': return mainWindow?.webContents.send(IPC_CHANNELS.INDEX_PROGRESS, payload)
+    }
+  })
+
   indexer = new Indexer(db, userDataPath)
   indexer.on('progress', (progress: IndexProgress) => {
-    mainWindow?.webContents.send(IPC_CHANNELS.INDEX_PROGRESS, progress)
+    events.emit('index-progress', progress)
   })
   indexer.on('people-changed', () => {
-    mainWindow?.webContents.send(IPC_CHANNELS.PEOPLE_CHANGED)
+    events.emit('people-changed')
   })
 
   watcher = new FileWatcher(db, indexer)
   searchEngine = new SearchEngine(db)
+
+  services = createServices({
+    db,
+    watcher,
+    indexer,
+    searchEngine,
+    dataDir: userDataPath,
+    modelsDir: bundledModelsDir,
+    events,
+    preferredLanguages: app.getPreferredSystemLanguages(),
+    hooks: {
+      onThemeChanged: (mode) => applyTheme(mode),
+      onLocaleChanged: (setting) => {
+        applyLocale(setting)
+        rebuildMenu()
+        for (const w of BrowserWindow.getAllWindows()) w.webContents.reload()
+      },
+      onIndexOnBatteryChanged: () => getPowerController()?.refresh(),
+    },
+  })
 
   // 电源策略（powerMonitor 事件驱动，无轮询）：电池 / 低电量模式 / 过热时回填等待，
   // watcher 实时事件（新文件、收集箱）照常索引。决策纯函数见 core/powerPolicy.ts
@@ -366,76 +372,14 @@ async function initServices(): Promise<void> {
   // VIXEL_PROFILE=1：主进程事件循环被同步工作占住 > 50ms 时打印，带上当前索引任务
   watchEventLoop('main', () => indexer.currentTaskLabel())
 
-  // 启动备份调度器
-  scheduleBackups()
-}
-
-/**
- * 备份调度：启动时检查上次备份距今 ≥ 24h 就立刻跑一次，
- * 之后每 24h 周期触发。重启不丢节奏 —— last_backup_at 在 meta_state。
- *
- * backupTo 走 SQLite Online Backup API，不阻塞读写，所以可以与 indexer 并行。
- */
-function scheduleBackups(): void {
-  // 启动时延后 60s 先做检查，避免抢启动期 IO
-  setTimeout(() => {
-    runBackupIfDue().catch((err) => console.warn('Initial backup check failed:', err))
-  }, 60_000)
-
-  if (backupTimer) clearInterval(backupTimer)
-  backupTimer = setInterval(() => {
-    runBackupIfDue().catch((err) => console.warn('Periodic backup failed:', err))
-  }, 60 * 60 * 1000) // 每小时检查一次"是否到点"，真正动作受 last_backup_at 节流
-}
-
-async function runBackupIfDue(): Promise<void> {
-  const last = parseInt(db.getMetaState(META_KEY_LAST_BACKUP) || '0', 10)
-  const now = Date.now()
-  if (now - last < BACKUP_INTERVAL_MS) return
-  await runBackup()
-}
-
-async function runBackup(): Promise<{ path: string; sizeBytes: number }> {
-  if (backupInFlight) {
-    throw new Error('A backup is already in progress')
-  }
-  backupInFlight = true
-  try {
-    const backupsDir = join(app.getPath('userData'), 'backups')
-    if (!existsSync(backupsDir)) {
-      await mkdir(backupsDir, { recursive: true })
-    }
-    const name = formatBackupName(new Date())
-    const dest = join(backupsDir, name)
-
-    await db.backupTo(dest)
-
-    // 写时间戳到 meta_state
-    db.setMetaState(META_KEY_LAST_BACKUP, String(Date.now()))
-
-    // 轮换：删除多余的旧备份（保留最近 BACKUP_KEEP_COUNT 份）
-    const entries = await readdir(backupsDir)
-    const expired = selectExpired(entries, BACKUP_KEEP_COUNT)
-    for (const old of expired) {
-      try {
-        await unlink(join(backupsDir, old))
-      } catch (err) {
-        console.warn(`Failed to delete old backup ${old}:`, err)
-      }
-    }
-
-    const { stat } = await import('fs/promises')
-    const sizeBytes = (await stat(dest)).size
-    return { path: dest, sizeBytes }
-  } finally {
-    backupInFlight = false
-  }
+  // 启动备份调度器（每 24h 一次，保留最近 3 份；见 services/backup.ts）
+  services.backup.schedule()
 }
 
 /**
  * 老库的截图标记回填：photos.is_screenshot 为 NULL 的存量图片补判一遍
  * （macOS xattr ~7 µs / 文件 + 文件名模式，5 万张约 1–2 s 的系统调用，分批让出事件循环）。
- * 新打上标记的 hash 通知自动标签重新判定（截图标签从标记来，见 main/autotags.ts）。
+ * 新打上标记的 hash 通知自动标签重新判定（截图标签从标记来，见 services/autotags.ts）。
  * 完成后写 meta 标记，下次启动一个查询就跳过。
  */
 async function backfillScreenshotFlags(autoTags: AutoTagService): Promise<void> {
@@ -456,35 +400,6 @@ async function backfillScreenshotFlags(autoTags: AutoTagService): Promise<void> 
   db.setMetaState(META_KEY_SCREENSHOT_BACKFILL, '1')
   if (done > 0) console.log(`[screenshot] backfilled flags for ${done} photos (${flagged.length} screenshots)`)
   autoTags.screenshotFlagged([...new Set(flagged)])
-}
-
-/**
- * 人脸裁剪缓存：<userData>/face_thumbs/<hash>-<bbox摘要>.jpg。
- * 原来每次请求都读整张原图再裁，人物页几十张脸就是几十次全图解码。
- * 键用内容 hash + bbox 而不是 faceId：重扫后 id 可能复用，内容键不会串。
- */
-const faceThumbInflight = new Map<string, Promise<string | null>>()
-
-async function ensureFaceThumb(faceId: number): Promise<string | null> {
-  const info = db.getFaceCoverInfo(faceId)
-  if (!info) return null
-  const key = `${info.fileHash}-${createHash('sha1').update(info.bbox).digest('hex').slice(0, 12)}`
-  const dest = join(app.getPath('userData'), 'face_thumbs', `${key}.jpg`)
-  if (existsSync(dest)) return dest
-  let p = faceThumbInflight.get(key)
-  if (!p) {
-    p = (async () => {
-      const photo = db.getRepresentativeByHash(info.fileHash)
-      if (!photo) return null
-      // 与检测同源：视频取全分辨率帧，照片取原图
-      const crop = await getFaceThumbnail(await indexer.analysisImage(photo), JSON.parse(info.bbox) as FaceBbox)
-      await mkdir(join(app.getPath('userData'), 'face_thumbs'), { recursive: true })
-      await writeFile(dest, crop)
-      return dest
-    })().finally(() => faceThumbInflight.delete(key))
-    faceThumbInflight.set(key, p)
-  }
-  return p
 }
 
 /** 缩略图 / 人脸裁剪 / sprite 都按内容寻址，不会变：让 Chromium 缓存，滚动重挂时不再回到主进程 */
@@ -520,30 +435,19 @@ function enforceOfflinePolicy(): void {
 }
 
 function registerIpcHandlers(): void {
+  const api = services.api
   // VIXEL_PROFILE=1 时每个 handler 计时：主进程同步工作 > 16ms 就会让界面掉帧
   const handle = (channel: string, fn: Parameters<typeof ipcMain.handle>[1]): void =>
     ipcMain.handle(channel, timed('ipc', channel, fn))
 
-  // 搜索
-  handle(IPC_CHANNELS.SEARCH, async (_event, query: string, limit?: number, options?: SearchOptions) => {
-    return searchEngine.search(query, limit, options)
-  })
+  // 搜索（逻辑在 src/services/api.ts，桌面与服务器共用）
+  handle(IPC_CHANNELS.SEARCH, async (_event, query: string, limit?: number, options?: SearchOptions) => api.search(query, limit, options))
+  handle(IPC_CHANNELS.GET_PHOTOS_WITH_GPS, async () => api.getPhotosWithGPS())
+  handle(IPC_CHANNELS.FIND_SIMILAR, async (_event, photoId: number, limit?: number) => api.findSimilar(photoId, limit))
+  // 以图搜图：拖入 / 粘贴的查询图只在内存和临时文件里处理，不进资料库（见 core/imageSearch.ts）
+  handle(IPC_CHANNELS.SEARCH_BY_IMAGE, async (_event, input: ImageQueryInput, limit?: number, options?: MediaFilters) => api.searchByImage(input, limit, options))
 
-  handle(IPC_CHANNELS.GET_PHOTOS_WITH_GPS, async () => {
-    return db.getPhotosWithGPS()
-  })
-
-  handle(IPC_CHANNELS.FIND_SIMILAR, async (_event, photoId: number, limit?: number) => {
-    const photo = db.getPhoto(photoId)
-    if (!photo?.fileHash) return []
-    return searchEngine.findSimilar(photo.fileHash, limit || 12)
-  })
-
-  // 以图搜图：拖入 / 粘贴的查询图只在内存和临时文件里处理，不进资料库（见 imageSearch.ts）
-  handle(IPC_CHANNELS.SEARCH_BY_IMAGE, async (_event, input: ImageQueryInput, limit?: number, options?: SearchOptions) => {
-    return searchByImage(db, searchEngine, input, limit, options)
-  })
-
+  // 文件夹选择对话框是桌面专属；增删文件夹在服务层
   handle(IPC_CHANNELS.SELECT_FOLDER, async () => {
     const result = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow() ?? mainWindow!, {
       properties: ['openDirectory'],
@@ -552,191 +456,49 @@ function registerIpcHandlers(): void {
     return result.filePaths[0]
   })
 
-  handle(IPC_CHANNELS.ADD_FOLDER, async (_event, folderPath: string) => {
-    const folder = db.addFolder(folderPath)
-    watcher.watchFolder(folder.id, folder.path)
-    broadcastLibraryChanged()
-    return folder
-  })
-
-  handle(IPC_CHANNELS.REMOVE_FOLDER, async (_event, folderId: number) => {
-    const folder = db.getFolder(folderId)
-    if (folder) {
-      watcher.unwatchFolder(folderId)
-      const orphanedHashes = db.deletePhotosByFolder(folderId)
-      const thumbnailsDir = join(app.getPath('userData'), 'thumbnails')
-      for (const hash of orphanedHashes) {
-        const thumbnailPath = join(thumbnailsDir, `${hash}.webp`)
-        try {
-          if (existsSync(thumbnailPath)) {
-            await unlink(thumbnailPath)
-          }
-        } catch (e) {
-          console.warn(`Failed to delete thumbnail: ${thumbnailPath}`, e)
-        }
-      }
-      // 视频的代表帧 photo 也挂在该文件夹下，上面已一并删掉；这里清视频本体 + 片段 + 抽帧目录
-      const videoHashes = db.deleteVideosByFolder(folderId)
-      for (const hash of videoHashes) {
-        await rm(indexer.getVideoFramesDir(hash), { recursive: true, force: true }).catch(() => {})
-      }
-      db.removeFolder(folderId)
-      broadcastLibraryChanged()
-      broadcastTagsChanged()
-    }
-    return true
-  })
+  handle(IPC_CHANNELS.ADD_FOLDER, async (_event, folderPath: string) => api.addFolder(folderPath))
+  handle(IPC_CHANNELS.REMOVE_FOLDER, async (_event, folderId: number) => api.removeFolder(folderId))
+  handle(IPC_CHANNELS.GET_FOLDERS, async () => api.getFolders())
+  handle(IPC_CHANNELS.GET_LIBRARY_COUNTS, async () => api.getLibraryCounts())
+  handle(IPC_CHANNELS.GET_FOLDER_STATS, async (_event, folderId: number) => api.getFolderStats(folderId))
 
   handle(IPC_CHANNELS.OPEN_SETTINGS, async () => { openSettingsWindow() })
 
-  handle(IPC_CHANNELS.GET_THEME, async () => loadTheme())
-
-  handle(IPC_CHANNELS.SET_THEME, async (_event, mode: ThemeMode) => {
-    const next: ThemeMode = mode === 'light' || mode === 'dark' ? mode : 'system'
-    db.setMetaState(META_KEY_THEME, next)
-    applyTheme(next)
-    return next
-  })
+  handle(IPC_CHANNELS.GET_THEME, async () => api.getTheme())
+  handle(IPC_CHANNELS.SET_THEME, async (_event, mode: ThemeMode) => api.setTheme(mode))
 
   // preload 在渲染前同步取语言，首帧就是对的文案
   ipcMain.on(IPC_CHANNELS.GET_LOCALE_SYNC, (event) => { event.returnValue = locale })
 
-  handle(IPC_CHANNELS.GET_LOCALE_SETTING, async () => loadLocaleSetting())
+  handle(IPC_CHANNELS.GET_LOCALE_SETTING, async () => api.getLocaleSetting())
+  handle(IPC_CHANNELS.SET_LOCALE_SETTING, async (_event, setting: LocaleSetting) => api.setLocaleSetting(setting))
 
-  handle(IPC_CHANNELS.SET_LOCALE_SETTING, async (_event, setting: LocaleSetting) => {
-    const next: LocaleSetting = setting === 'zh-CN' || setting === 'en' ? setting : 'system'
-    db.setMetaState(META_KEY_LOCALE, next)
-    applyLocale(next)
-    rebuildMenu()
-    for (const w of BrowserWindow.getAllWindows()) w.webContents.reload()
-    return next
-  })
-
-  handle(IPC_CHANNELS.GET_INDEX_PAUSED, async () => {
-    return indexer.isPaused()
-  })
-
-  handle(IPC_CHANNELS.SET_INDEX_PAUSED, async (_event, paused: boolean) => {
-    indexer.setPaused(paused)
-    return indexer.isPaused()
-  })
+  handle(IPC_CHANNELS.GET_INDEX_PAUSED, async () => api.getIndexPaused())
+  handle(IPC_CHANNELS.SET_INDEX_PAUSED, async (_event, paused: boolean) => api.setIndexPaused(paused))
 
   // 电源策略设置："电池供电时也索引"（默认开）
-  handle(IPC_CHANNELS.GET_INDEX_ON_BATTERY, async () => {
-    return db.getMetaState(META_KEY_INDEX_ON_BATTERY) !== '0'
-  })
-
-  handle(IPC_CHANNELS.SET_INDEX_ON_BATTERY, async (_event, on: boolean) => {
-    db.setMetaState(META_KEY_INDEX_ON_BATTERY, on ? '1' : '0')
-    getPowerController()?.refresh()
-    return db.getMetaState(META_KEY_INDEX_ON_BATTERY) !== '0'
-  })
+  handle(IPC_CHANNELS.GET_INDEX_ON_BATTERY, async () => api.getIndexOnBattery())
+  handle(IPC_CHANNELS.SET_INDEX_ON_BATTERY, async (_event, on: boolean) => api.setIndexOnBattery(on))
 
   // 跳过的数据集目录（设置 › 文件夹）
-  handle(IPC_CHANNELS.GET_SKIPPED_FOLDERS, async (_event, folderId?: number) => {
-    return db.listSkippedFolders(typeof folderId === 'number' ? folderId : undefined)
-  })
+  handle(IPC_CHANNELS.GET_SKIPPED_FOLDERS, async (_event, folderId?: number) => api.getSkippedFolders(folderId))
+  handle(IPC_CHANNELS.SET_SKIPPED_FOLDER_OVERRIDE, async (_event, path: string, override: boolean) => api.setSkippedFolderOverride(path, override))
 
-  handle(IPC_CHANNELS.SET_SKIPPED_FOLDER_OVERRIDE, async (_event, path: string, override: boolean) => {
-    const row = db.listSkippedFolders().find((r) => r.path === path)
-    if (!row) return false
-    db.setSkippedFolderOverride(path, !!override)
-    // "仍然索引"：整夹重扫把该目录补进索引（未变化的文件对账开销很小）
-    if (override) watcher.rescanAfterOverride(row.folderId)
-    return true
-  })
+  handle(IPC_CHANNELS.GET_TASK_OVERVIEW, async () => api.getTaskOverview())
+  handle(IPC_CHANNELS.RETRY_FAILED_TASKS, async (_event, ids?: number[]) => api.retryFailedTasks(ids))
+  handle(IPC_CHANNELS.CLEAR_FAILED_TASKS, async () => api.clearFailedTasks())
 
-  handle(IPC_CHANNELS.GET_TASK_OVERVIEW, async () => {
-    return db.getTaskOverview()
-  })
+  handle(IPC_CHANNELS.GET_MEDIA_DETAIL, async (_event, videoId: number) => api.getMediaDetail(videoId))
+  handle(IPC_CHANNELS.GET_PHOTO_DETAIL, async (_event, photoId: number) => api.getPhotoDetail(photoId))
+  handle(IPC_CHANNELS.GET_THUMBNAIL, async (_event, photoId: number) => api.getThumbnail(photoId))
+  handle(IPC_CHANNELS.GET_PHOTO_LOCATIONS, async (_event, photoId: number) => api.getPhotoLocations(photoId))
+  handle(IPC_CHANNELS.SET_FAVORITE, async (_event, fileHashes: string[], on: boolean) => api.setFavorite(fileHashes, on))
 
-  handle(IPC_CHANNELS.RETRY_FAILED_TASKS, async (_event, ids?: number[]) => {
-    const n = db.retryFailedTasks(ids)
-    if (n > 0) indexer.processNext()
-    indexer.emitProgressPublic()
-    return n
-  })
-
-  handle(IPC_CHANNELS.CLEAR_FAILED_TASKS, async () => {
-    const n = db.clearFailedTasks()
-    indexer.emitProgressPublic()
-    return n
-  })
-
-  handle(IPC_CHANNELS.GET_MEDIA_DETAIL, async (_event, videoId: number) => {
-    const detail = db.getMediaDetail(videoId)
-    // 老版本索引的视频没记分辨率：第一次打开时探一下补上（ffmpeg -i 只读文件头，几十毫秒）
-    if (detail && detail.kind === 'video' && detail.width == null && existsSync(detail.filePath) && isFfmpegAvailable()) {
-      const probe = await probeMedia(detail.filePath).catch(() => null)
-      if (probe?.width && probe.height) {
-        db.updateVideoMeta(videoId, { width: probe.width, height: probe.height })
-        return { ...detail, width: probe.width, height: probe.height }
-      }
-    }
-    return detail ?? null
-  })
-
-  handle(IPC_CHANNELS.GET_FOLDERS, async () => {
-    return db.getFoldersWithStats()
-  })
-
-  handle(IPC_CHANNELS.GET_LIBRARY_COUNTS, async () => {
-    return db.getLibraryCounts()
-  })
-
-  handle(IPC_CHANNELS.GET_FOLDER_STATS, async (_event, folderId: number) => {
-    return db.getFolderStats(folderId)
-  })
-
-  handle(IPC_CHANNELS.GET_PHOTO_DETAIL, async (_event, photoId: number) => {
-    const detail = db.getPhotoDetail(photoId)
-    if (!detail?.fileHash) return detail
-    // 色板（按内容 hash）：缩略图时提取，老内容由后台回填；空数组不往外传
-    const colors = db.getItemColors(detail.fileHash)
-    const palette = parsePaletteJson(colors?.palette)
-    return palette.length > 0 ? { ...detail, palette } : detail
-  })
-
-  handle(IPC_CHANNELS.GET_THUMBNAIL, async (_event, photoId: number) => {
-    const photo = db.getPhoto(photoId)
-    if (!photo?.fileHash) return null
-    return indexer.getThumbnailPath(photo.fileHash)
-  })
-
-  handle(IPC_CHANNELS.GET_PHOTO_LOCATIONS, async (_event, photoId: number) => {
-    const photo = db.getPhoto(photoId)
-    if (!photo?.fileHash) return []
-    return db.getPhotoLocations(photo.fileHash)
-  })
-
-  handle(IPC_CHANNELS.SET_FAVORITE, async (_event, fileHashes: string[], on: boolean) => {
-    db.setFavorite(fileHashes.filter((h) => typeof h === 'string' && h), !!on)
-    return !!on
-  })
-
-  handle(IPC_CHANNELS.GET_SMART_ALBUMS, async () => db.getSmartAlbums())
-
-  handle(IPC_CHANNELS.CREATE_SMART_ALBUM, async (_event, album: { name: string; query: string; filters: MediaFilters }) => {
-    const created = db.createSmartAlbum({ name: String(album?.name ?? ''), query: String(album?.query ?? ''), filters: album?.filters ?? {} })
-    broadcastSmartAlbumsChanged()
-    return created
-  })
-
-  handle(IPC_CHANNELS.UPDATE_SMART_ALBUM, async (_event, id: number, patch: { name?: string; query?: string; filters?: MediaFilters }) => {
-    const updated = db.updateSmartAlbum(id, patch ?? {})
-    broadcastSmartAlbumsChanged()
-    return updated ?? null
-  })
-
-  handle(IPC_CHANNELS.DELETE_SMART_ALBUM, async (_event, id: number) => {
-    db.deleteSmartAlbum(id)
-    broadcastSmartAlbumsChanged()
-  })
-
-  handle(IPC_CHANNELS.REORDER_SMART_ALBUMS, async (_event, ids: number[]) => {
-    db.reorderSmartAlbums(Array.isArray(ids) ? ids.filter((x) => typeof x === 'number') : [])
-    broadcastSmartAlbumsChanged()
-  })
+  handle(IPC_CHANNELS.GET_SMART_ALBUMS, async () => api.getSmartAlbums())
+  handle(IPC_CHANNELS.CREATE_SMART_ALBUM, async (_event, album: { name: string; query: string; filters: MediaFilters }) => api.createSmartAlbum(album))
+  handle(IPC_CHANNELS.UPDATE_SMART_ALBUM, async (_event, id: number, patch: { name?: string; query?: string; filters?: MediaFilters }) => api.updateSmartAlbum(id, patch))
+  handle(IPC_CHANNELS.DELETE_SMART_ALBUM, async (_event, id: number) => api.deleteSmartAlbum(id))
+  handle(IPC_CHANNELS.REORDER_SMART_ALBUMS, async (_event, ids: number[]) => api.reorderSmartAlbums(ids))
 
   handle(IPC_CHANNELS.SHOW_SMART_ALBUM_MENU, async (event, name: string) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -759,71 +521,22 @@ function registerIpcHandlers(): void {
     return true
   })
 
-  handle(IPC_CHANNELS.GET_APP_PATH, async () => {
-    return app.getPath('userData')
-  })
+  handle(IPC_CHANNELS.GET_APP_PATH, async () => api.getAppPath())
 
   // 模型状态（EmbeddingGemma 2 via LiteRT）
-  handle(IPC_CHANNELS.GET_MODEL_STATUS, async () => {
-    const embeddingService = getEmbeddingService()
-    return {
-      modelsDir: bundledModelsDir,
-      localModelExists: isLiteRtInstalled(),
-      embeddingReady: embeddingService.isReady(),
-      activeBackend: embeddingService.getActiveBackend(),
-      backend: embeddingService.getConfig().backend ?? 'auto',
-      initError: embeddingService.getInitError(),
-    }
-  })
-
-  handle(IPC_CHANNELS.GET_EMBEDDING_CONFIG, async () => ({ backend: getEmbeddingService().getConfig().backend ?? 'auto' }))
-
+  handle(IPC_CHANNELS.GET_MODEL_STATUS, async () => api.getModelStatus())
+  handle(IPC_CHANNELS.GET_EMBEDDING_CONFIG, async () => api.getEmbeddingConfig())
   // 改后端会丢弃已加载的 provider，下次 encode 时重新加载。CPU / GPU 后端向量一致，不用重建索引。
-  ipcMain.handle(
-    IPC_CHANNELS.SET_EMBEDDING_CONFIG,
-    async (_event, patch: EmbeddingConfig) => {
-      try {
-        const svc = getEmbeddingService()
-        svc.setConfig(patch)
-        await svc.init()
-        return { success: true, ready: svc.isReady() }
-      } catch (error) {
-        return { success: false, error: String(error) }
-      }
-    }
-  )
+  ipcMain.handle(IPC_CHANNELS.SET_EMBEDDING_CONFIG, async (_event, patch: EmbeddingConfig) => api.setEmbeddingConfig(patch))
 
   // 手动更新 caption（用户编辑）
-  handle(IPC_CHANNELS.UPDATE_CAPTION, async (_event, photoId: number, text: string) => {
-    try {
-      const photo = db.getPhoto(photoId)
-      if (!photo?.fileHash) return { success: false, error: 'Photo not found' }
-      db.saveCaption(photo.fileHash, text)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
-  })
+  handle(IPC_CHANNELS.UPDATE_CAPTION, async (_event, photoId: number, text: string) => api.updateCaption(photoId, text))
 
-  // 人脸识别
-  handle(IPC_CHANNELS.START_FACE_SCAN, async () => {
-    try {
-      return await indexer.startFaceScan()
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
-  })
+  // 人脸识别 / OCR
+  handle(IPC_CHANNELS.START_FACE_SCAN, async () => api.startFaceScan())
+  handle(IPC_CHANNELS.START_OCR_SCAN, async () => api.startOcrScan())
 
-  // OCR 扫描
-  handle(IPC_CHANNELS.START_OCR_SCAN, async () => {
-    try {
-      return await indexer.startOcrScan()
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
-  })
-
-  // 打开视频源文件（系统默认播放器）
+  // 打开视频源文件（系统默认播放器）—— 桌面专属
   handle(IPC_CHANNELS.OPEN_SOURCE_VIDEO, async (_event, videoId: number) => {
     try {
       const video = db.getVideoById(videoId)
@@ -838,90 +551,21 @@ function registerIpcHandlers(): void {
     }
   })
 
-  handle(IPC_CHANNELS.GET_PEOPLE, async () => {
-    return db.getPeople()
-  })
-
-  handle(IPC_CHANNELS.GET_PERSON_PHOTOS, async (_event, personId: number, limit?: number) => {
-    const photos = db.getPersonPhotos(personId, limit || 50)
-    return photos.map((p) => ({ photo: p, score: 1.0 }))
-  })
-
-  handle(IPC_CHANNELS.SET_PERSON_NAME, async (_event, personId: number, name: string) => {
-    db.updatePersonName(personId, name)
-    return { success: true }
-  })
-
-  handle(IPC_CHANNELS.MERGE_PEOPLE, async (_event, targetId: number, sourceIds: number[]) => {
-    db.mergePeople(targetId, sourceIds)
-    return { success: true }
-  })
-
-  handle(IPC_CHANNELS.GET_PERSON_SUGGESTIONS, async (): Promise<PersonSuggestion[]> => {
-    const people = new Map(db.getPeople().filter((p) => !p.hidden).map((p) => [p.id, p]))
-    const centroids = db.getPersonCentroids().filter((c) => people.has(c.id))
-    return suggestMerges(centroids, db.getDismissedPairs(), 10).map((s) => ({
-      a: people.get(s.a)!, b: people.get(s.b)!, similarity: s.similarity,
-    }))
-  })
-
-  handle(IPC_CHANNELS.DISMISS_PERSON_SUGGESTION, async (_event, a: number, b: number) => {
-    db.dismissPersonPair(a, b)
-    return { success: true }
-  })
-
-  handle(IPC_CHANNELS.GET_PERSON_FACES, async (_event, personId: number, limit?: number): Promise<PersonFace[]> => {
-    return db.getPersonFaces(personId, limit).map((f) => ({ id: f.id, quality: f.quality, assignedBy: f.assignedBy as PersonFace['assignedBy'] }))
-  })
-
-  handle(IPC_CHANNELS.REJECT_FACE, async (_event, faceId: number) => {
-    db.rejectFaceFromPerson(faceId)
-    return { success: true }
-  })
-
-  handle(IPC_CHANNELS.ASSIGN_FACE, async (_event, faceId: number, personId: number) => {
-    db.assignFaceManually(faceId, personId)
-    return { success: true }
-  })
-
-  handle(IPC_CHANNELS.SET_PERSON_HIDDEN, async (_event, personId: number, hidden: boolean) => {
-    db.setPersonHidden(personId, hidden)
-    return { success: true }
-  })
-
-  handle(IPC_CHANNELS.GET_PHOTO_FACES, async (_event, photoId: number) => {
-    const photo = db.getPhoto(photoId)
-    if (!photo?.fileHash) return []
-    return db.getFacesByHash(photo.fileHash)
-  })
+  handle(IPC_CHANNELS.GET_PEOPLE, async () => api.getPeople())
+  handle(IPC_CHANNELS.GET_PERSON_PHOTOS, async (_event, personId: number, limit?: number) => api.getPersonPhotos(personId, limit))
+  handle(IPC_CHANNELS.SET_PERSON_NAME, async (_event, personId: number, name: string) => api.setPersonName(personId, name))
+  handle(IPC_CHANNELS.MERGE_PEOPLE, async (_event, targetId: number, sourceIds: number[]) => api.mergePeople(targetId, sourceIds))
+  handle(IPC_CHANNELS.GET_PERSON_SUGGESTIONS, async () => api.getPersonSuggestions())
+  handle(IPC_CHANNELS.DISMISS_PERSON_SUGGESTION, async (_event, a: number, b: number) => api.dismissPersonSuggestion(a, b))
+  handle(IPC_CHANNELS.GET_PERSON_FACES, async (_event, personId: number, limit?: number) => api.getPersonFaces(personId, limit))
+  handle(IPC_CHANNELS.REJECT_FACE, async (_event, faceId: number) => api.rejectFace(faceId))
+  handle(IPC_CHANNELS.ASSIGN_FACE, async (_event, faceId: number, personId: number) => api.assignFace(faceId, personId))
+  handle(IPC_CHANNELS.SET_PERSON_HIDDEN, async (_event, personId: number, hidden: boolean) => api.setPersonHidden(personId, hidden))
+  handle(IPC_CHANNELS.GET_PHOTO_FACES, async (_event, photoId: number) => api.getPhotoFaces(photoId))
 
   // 备份：手动触发 + 状态查询
-  handle(IPC_CHANNELS.TRIGGER_BACKUP, async () => {
-    try {
-      const result = await runBackup()
-      return { success: true, ...result }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
-  })
-
-  handle(IPC_CHANNELS.GET_BACKUP_STATUS, async () => {
-    const last = parseInt(db.getMetaState(META_KEY_LAST_BACKUP) || '0', 10)
-    const backupsDir = join(app.getPath('userData'), 'backups')
-    let count = 0
-    if (existsSync(backupsDir)) {
-      const entries = await readdir(backupsDir)
-      count = entries.filter((n) => n.startsWith('library.db.bak.')).length
-    }
-    return {
-      lastBackupAt: last || null,
-      intervalMs: BACKUP_INTERVAL_MS,
-      keepCount: BACKUP_KEEP_COUNT,
-      currentCount: count,
-      inProgress: backupInFlight,
-      backupsDir,
-    }
-  })
+  handle(IPC_CHANNELS.TRIGGER_BACKUP, async () => api.triggerBackup())
+  handle(IPC_CHANNELS.GET_BACKUP_STATUS, async () => api.getBackupStatus())
 }
 
 /**
@@ -933,6 +577,8 @@ function registerIpcHandlers(): void {
  *   vixel://media/<videoId>           → 音视频源文件（手写 Range，供 <video>/<audio> seek）
  *   vixel://sprite/<videoId>          → 悬停拖动预览 sprite；老视频没有时按需生成
  *   vixel://face/<faceId>             → 人脸裁剪（磁盘缓存）
+ *
+ * 路径解析在 src/services/media.ts（服务器的 /media 路由用同一套）；这里只负责响应封装。
  *
  * 比 base64-over-IPC 显著省事：
  *   - 主进程不必把文件读进字符串再 base64
@@ -951,55 +597,39 @@ function registerVixelProtocol(): void {
       const url = new URL(request.url)
       const host = url.host
       const pathParts = url.pathname.split('/').filter(Boolean)
+      if (pathParts.length !== 1) return new Response('unknown vixel path', { status: 404 })
+      const id = parseInt(pathParts[0], 10)
+      if (Number.isNaN(id)) return new Response('bad id', { status: 400 })
+      const media = services.media
 
-      if (host === 'thumb' && pathParts.length === 1) {
-        const id = parseInt(pathParts[0], 10)
-        if (Number.isNaN(id)) return new Response('bad id', { status: 400 })
-        const photo = db.getPhoto(id)
-        if (!photo?.fileHash) return new Response('not found', { status: 404 })
+      if (host === 'thumb') {
         // 新导入的照片先进网格、缩略图稍后才生成：安静地 404（不缓存），卡片会自己重试
-        const thumbPath = indexer.getThumbnailPath(photo.fileHash)
-        if (!existsSync(thumbPath)) return new Response('not ready', { status: 404 })
+        const thumbPath = media.thumbPath(id)
+        if (!thumbPath) return new Response('not found', { status: 404 })
         return immutable(await net.fetch(pathToFileURL(thumbPath).toString()))
       }
 
-      if (host === 'face' && pathParts.length === 1) {
-        const id = parseInt(pathParts[0], 10)
-        if (Number.isNaN(id)) return new Response('bad id', { status: 400 })
-        const path = await ensureFaceThumb(id)
+      if (host === 'face') {
+        const path = await media.facePath(id)
         if (!path) return new Response('not found', { status: 404 })
         return immutable(await net.fetch(pathToFileURL(path).toString()))
       }
 
-      if (host === 'image' && pathParts.length === 1) {
-        const id = parseInt(pathParts[0], 10)
-        if (Number.isNaN(id)) return new Response('bad id', { status: 400 })
-        const photo = db.getPhoto(id)
-        if (!photo || !existsSync(photo.filePath)) return new Response('not found', { status: 404 })
-        return net.fetch(pathToFileURL(photo.filePath).toString())
+      if (host === 'image') {
+        const path = media.imagePath(id)
+        if (!path) return new Response('not found', { status: 404 })
+        return net.fetch(pathToFileURL(path).toString())
       }
 
-      if (host === 'media' && pathParts.length === 1) {
-        const id = parseInt(pathParts[0], 10)
-        if (Number.isNaN(id)) return new Response('bad id', { status: 400 })
-        const video = db.getVideoById(id)
-        if (!video || !existsSync(video.filePath)) return new Response('not found', { status: 404 })
-        return serveMediaFile(video.filePath, request.headers.get('range'))
+      if (host === 'media') {
+        const path = media.mediaPath(id)
+        if (!path) return new Response('not found', { status: 404 })
+        return serveMediaFile(path, request.headers.get('range'))
       }
 
-      if (host === 'sprite' && pathParts.length === 1) {
-        const id = parseInt(pathParts[0], 10)
-        if (Number.isNaN(id)) return new Response('bad id', { status: 400 })
-        const video = db.getVideoById(id)
-        if (!video || video.mediaKind !== 'video') return new Response('not found', { status: 404 })
-        const spritePath = indexer.getSpritePath(video.fileHash)
-        if (!existsSync(spritePath)) {
-          // 还没抽过帧（时长未知）的视频交给索引任务，这里不抢
-          if (!video.durationMs || video.durationMs < SPRITE_MIN_DURATION_MS || !existsSync(video.filePath) || !isFfmpegAvailable()) {
-            return new Response('not ready', { status: 404 })
-          }
-          await ensureSprite(video.filePath, video.durationMs, spritePath)
-        }
+      if (host === 'sprite') {
+        const spritePath = await media.spritePath(id)
+        if (!spritePath) return new Response('not ready', { status: 404 })
         return immutable(await net.fetch(pathToFileURL(spritePath).toString()))
       }
 
@@ -1077,8 +707,8 @@ app.whenReady().then(async () => {
     app.exit(1)
     return
   }
-  applyTheme(loadTheme())
-  applyLocale(loadLocaleSetting())
+  applyTheme(services.loadTheme())
+  applyLocale(services.loadLocaleSetting())
   nativeTheme.on('updated', () => {
     for (const w of BrowserWindow.getAllWindows()) w.setBackgroundColor(windowBackground())
   })
@@ -1090,11 +720,17 @@ app.whenReady().then(async () => {
   // PDF / AI 的 pdf.js 栅格化服务（隐藏窗口按需创建；Windows/Linux 主路径，macOS 兜底）
   registerPdfRenderer()
   registerIpcHandlers()
-  registerCleanupIpc(db, broadcastLibraryChanged)
-  registerTagIpc(db)
-  registerCollectIpc({ db, watcher, broadcastLibraryChanged, broadcastTagsChanged, getMainWindow: () => mainWindow })
+  registerCleanupIpc(services, db)
+  registerTagIpc(services)
+  registerCollectIpc({
+    db,
+    watcher,
+    broadcastLibraryChanged: () => services.events.emit('library-changed'),
+    broadcastTagsChanged: () => services.events.emit('tags-changed'),
+    getMainWindow: () => mainWindow,
+  })
   // 自动标签：新内容有了向量 / 视频片段做完就排一次判定
-  const autoTags = registerAutoTags(db, broadcastTagsChanged)
+  const autoTags = registerAutoTags(services)
   indexer.on('embedded', () => autoTags.kick())
   indexer.on('video-indexed', (videoId: number) => autoTags.videoUpdated(videoId))
   // 老库的截图标记回填（xattr + 文件名模式，分批；新库入库时就打好）
@@ -1150,9 +786,6 @@ app.on('before-quit', () => {
   // 先停 indexer（清掉节流中的进度定时器），否则它可能在 db.close() 之后触发并查询已关闭的库
   indexer?.stop()
   inference?.stop()
-  if (backupTimer) {
-    clearInterval(backupTimer)
-    backupTimer = null
-  }
+  services?.backup.stop()
   db?.close()
 })

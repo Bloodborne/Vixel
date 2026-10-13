@@ -1,11 +1,11 @@
 /**
- * 近重复清理的 IPC：扫描（带进度）、在 Vixel 中隐藏 / 取消隐藏、移到废纸篓。
- * 移到废纸篓只走 shell.trashItem（可从废纸篓恢复），且必须先过主进程的原生确认框。
+ * 近重复清理的 IPC：扫描 / 隐藏 / 取消隐藏走服务层（src/services/api.ts，与服务器共用）。
+ * 移到废纸篓是桌面专属：只走 shell.trashItem（可从废纸篓恢复），且必须先过主进程的原生确认框。
  */
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { CLEANUP_CHANNELS, type DupScanProgress, type TrashResult } from '../shared/cleanup'
-import { CleanupStore } from '../core/cleanupStore'
+import { CLEANUP_CHANNELS, type TrashResult } from '../shared/cleanup'
 import type { DatabaseInstance } from '../core/db'
+import type { VixelServices } from '../services/api'
 import { t } from '../shared/i18n'
 
 function formatBytes(bytes: number): string {
@@ -14,38 +14,17 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`
 }
 
-export function registerCleanupIpc(db: DatabaseInstance, onLibraryChanged: () => void): CleanupStore {
-  const store = new CleanupStore(db.raw)
+export function registerCleanupIpc(services: VixelServices, db: DatabaseInstance): void {
+  const { api, cleanupStore, events } = services
 
-  ipcMain.handle(CLEANUP_CHANNELS.SCAN, async (event) => {
-    let last = 0
-    return store.scan((done, total) => {
-      const now = Date.now()
-      if (now - last < 200 && done < total) return
-      last = now
-      const progress: DupScanProgress = { done, total }
-      if (!event.sender.isDestroyed()) event.sender.send(CLEANUP_CHANNELS.PROGRESS, progress)
-    })
-  })
-
-  ipcMain.handle(CLEANUP_CHANNELS.HIDE, async (_event, hashes: string[]) => {
-    store.hide(hashes.filter((h) => typeof h === 'string'))
-    onLibraryChanged()
-  })
-
-  ipcMain.handle(CLEANUP_CHANNELS.UNHIDE, async (_event, hashes: string[]) => {
-    store.unhide(hashes.filter((h) => typeof h === 'string'))
-    onLibraryChanged()
-  })
-
-  ipcMain.handle(CLEANUP_CHANNELS.LIST_HIDDEN, async () => store.listHidden())
-
-  ipcMain.handle(CLEANUP_CHANNELS.DISMISS, async (_event, groupIds: string[]) => {
-    store.dismiss(groupIds.filter((id) => typeof id === 'string'))
-  })
+  ipcMain.handle(CLEANUP_CHANNELS.SCAN, async () => api.cleanup.scan())
+  ipcMain.handle(CLEANUP_CHANNELS.HIDE, async (_event, hashes: string[]) => api.cleanup.hide(hashes))
+  ipcMain.handle(CLEANUP_CHANNELS.UNHIDE, async (_event, hashes: string[]) => api.cleanup.unhide(hashes))
+  ipcMain.handle(CLEANUP_CHANNELS.LIST_HIDDEN, async () => api.cleanup.listHidden())
+  ipcMain.handle(CLEANUP_CHANNELS.DISMISS, async (_event, groupIds: string[]) => api.cleanup.dismiss(groupIds))
 
   ipcMain.handle(CLEANUP_CHANNELS.TRASH, async (event, hashes: string[]): Promise<TrashResult> => {
-    const targets = store.trashTargets(hashes.filter((h) => typeof h === 'string'))
+    const targets = cleanupStore.trashTargets((Array.isArray(hashes) ? hashes : []).filter((h) => typeof h === 'string'))
     if (targets.length === 0) return { cancelled: false, trashed: 0, failed: 0 }
     const total = targets.reduce((s, x) => s + x.fileSize, 0)
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -73,9 +52,7 @@ export function registerCleanupIpc(db: DatabaseInstance, onLibraryChanged: () =>
         failed++
       }
     }
-    onLibraryChanged()
+    events.emit('library-changed')
     return { cancelled: false, trashed, failed }
   })
-
-  return store
 }
