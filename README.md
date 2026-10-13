@@ -14,7 +14,7 @@
 </div>
 
 <div align="center">
-<sub>48 秒演示 · 1080p · 真实界面录屏 · <a href="https://github.com/RGB-loop/Vixel/raw/main/docs/media/vixel-promo.mp4">下载 mp4</a></sub>
+<sub>演示视频 · 1080p · 真实界面录屏 · <a href="https://github.com/RGB-loop/Vixel/releases/download/v0.4.1/Vixel-0.4.1-demo-zh.mp4">中文版</a> · <a href="https://github.com/RGB-loop/Vixel/releases/download/v0.4.1/Vixel-0.4.1-demo-en.mp4">English</a></sub>
 </div>
 
 ---

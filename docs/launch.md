@@ -32,7 +32,7 @@
 D=~/workspace/dancer/vixel-demo
 # 宣传片：按脚本操作真实界面录屏（src/main/capture.ts 的 PROMO_SCENES），再合成片头 / 字幕 / 片尾
 VIXEL_RECORD=$D/promo/raw.mp4 npx electron . --user-data-dir=$D/data
-node scripts/make-promo.mjs $D/promo/raw.mp4 docs/media/vixel-promo.mp4
+node scripts/make-promo.mjs $D/promo/raw.mp4 $D/promo/vixel-promo.mp4   # 成片作为 release 附件发布，不进仓库
 # 截图：浅色 / 深色各一套
 VIXEL_CAPTURE=$D/shots VIXEL_CAPTURE_QUERIES="花,STARBUCKS,猫" npx electron . --user-data-dir=$D/data
 ```
