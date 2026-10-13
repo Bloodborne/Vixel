@@ -131,6 +131,8 @@ const api = {
 
   /** 当前界面语言（已按设置 / 系统解析），渲染前同步取 */
   locale: ipcRenderer.sendSync(IPC_CHANNELS.GET_LOCALE_SYNC) as Locale,
+  /** 运行平台：桌面（Electron + IPC）或网页（服务器版，src/web/api.ts 注入同签名实现） */
+  platform: 'desktop' as 'desktop' | 'web',
   getLocaleSetting: (): Promise<LocaleSetting> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_LOCALE_SETTING)
   },

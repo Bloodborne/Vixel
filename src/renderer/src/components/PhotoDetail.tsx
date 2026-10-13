@@ -4,7 +4,7 @@ import type { MediaDetail, SearchResult } from '../../../shared/types'
 import { MediaPlayer } from './media/MediaPlayer'
 import { Inspector } from './inspector/Inspector'
 import { mediaKindOf } from '../lib/format'
-import { thumbUrl } from '../lib/mediaUrl'
+import { imageUrl, thumbUrl } from '../lib/mediaUrl'
 
 interface PhotoDetailProps {
   /** 带 segment 的搜索结果：音视频打开时跳到命中片段 */
@@ -25,7 +25,7 @@ export function PhotoDetail({ result, siblings, onSelect, onClose, onToggleFavor
   const isMedia = kind !== 'image' && photo.videoId != null
   const [media, setMedia] = useState<MediaDetail | null>(null)
   const [resolution, setResolution] = useState<{ w: number; h: number } | null>(null)
-  const imageUrl = `vixel://image/${photo.id}`
+  const bigImageUrl = imageUrl(photo.id)
 
   useEffect(() => {
     setMedia(null)
@@ -100,9 +100,9 @@ export function PhotoDetail({ result, siblings, onSelect, onClose, onToggleFavor
           ) : (
             <img src={thumbUrl(photo)} alt={photo.fileName} className="max-w-full max-h-full object-contain opacity-60" />
           )
-        ) : imageUrl && (
+        ) : bigImageUrl && (
           <img
-            src={imageUrl}
+            src={bigImageUrl}
             alt={photo.fileName}
             className="max-w-full max-h-full object-contain animate-fade-in"
           />

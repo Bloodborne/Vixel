@@ -137,8 +137,8 @@ export const EVENT_METHODS = [
   'collect.onCollected',     // 桌面专属
 ] as const
 
-/** 非方法属性：当前语言（网页版登录后由 /api/getLocaleSetting 解析） */
-export const SPECIAL_PROPS = ['locale'] as const
+/** 非方法属性：当前语言（网页版登录后由 /api/getLocaleSetting 解析）、运行平台（desktop / web） */
+export const SPECIAL_PROPS = ['locale', 'platform'] as const
 
 export type ImplementedMethod = (typeof IMPLEMENTED_METHODS)[number]
 export type DesktopOnlyMethod = (typeof DESKTOP_ONLY_METHODS)[number]

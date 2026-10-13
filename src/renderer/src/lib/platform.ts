@@ -6,6 +6,9 @@ import { t } from '../../../shared/i18n'
 
 export const IS_MAC = /Mac/i.test(navigator.userAgent)
 
+/** 网页版（服务器版，src/web/api.ts 注入的 window.api）：桌面专属 UI 按此隐藏 / 降级 */
+export const IS_WEB = window.api.platform === 'web'
+
 /** "在访达中显示" / Windows 的 "打开所在位置"（按钮窄，用短说法） */
 export const revealLabel = IS_MAC ? t.common.revealMac : t.common.revealWin
 

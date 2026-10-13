@@ -13,6 +13,7 @@ import { Toolbar } from './components/shell/Toolbar'
 import { StatusBar, THUMB_MIN, THUMB_MAX } from './components/shell/StatusBar'
 import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
+import { thumbUrl } from './lib/mediaUrl'
 import { sourcePathOf } from './lib/resultActions'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
 import { t } from '../../shared/i18n'
@@ -825,7 +826,7 @@ function App(): JSX.Element {
 
   // 以此图搜索：直接用库里已存的向量（不再过模型），连视频片段一起搜；芯片缩略图用现成的 vixel://thumb
   const searchWithItem = useCallback((r: SearchResult) => {
-    startImageQuery({ fileHash: r.photo.fileHash }, r.photo.fileName, `vixel://thumb/${r.photo.id}`)
+    startImageQuery({ fileHash: r.photo.fileHash }, r.photo.fileName, thumbUrl(r.photo))
   }, [startImageQuery])
 
   // 收藏：有任何一项没收藏就全部收藏，否则全部取消（与访达标签、照片 App 一致）。

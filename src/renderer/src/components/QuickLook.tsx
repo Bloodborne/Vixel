@@ -3,7 +3,7 @@ import { t } from '../../../shared/i18n'
 import type { MediaDetail, SearchResult } from '../../../shared/types'
 import { MediaPlayer } from './media/MediaPlayer'
 import { mediaKindOf } from '../lib/format'
-import { thumbUrl } from '../lib/mediaUrl'
+import { imageUrl, thumbUrl } from '../lib/mediaUrl'
 
 interface QuickLookProps {
   result: SearchResult
@@ -66,7 +66,7 @@ export function QuickLook({ result, onClose, onNavigate, onOpen }: QuickLookProp
             )
           ) : (
             <img
-              src={`vixel://image/${photo.id}`}
+              src={imageUrl(photo.id)}
               alt={photo.fileName}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
             />

@@ -13,7 +13,7 @@ const THUMB_MAX_RETRIES = 20
 const MATCH_LABELS: Array<[MatchChannel, string]> = [
   ['tag', t.tags.matchTag], ['text', t.grid.matchText], ['filename', t.grid.matchFilename],
 ]
-import { spriteUrl, thumbUrl } from '../../lib/mediaUrl'
+import { mediaSrcUrl, spriteUrl, thumbUrl } from '../../lib/mediaUrl'
 
 /** 设计格式角标：扩展名 → 徽标文字（与 core/image/design.ts 的 DESIGN_BADGES 一致） */
 const DESIGN_BADGE: Record<string, string> = {
@@ -181,7 +181,7 @@ export const MediaCard = memo(function MediaCard({
 
       {previewing && !scrubbing && (
         <video
-          src={`vixel://media/${photo.videoId}#t=${startSec}`}
+          src={`${mediaSrcUrl(photo.videoId!)}#t=${startSec}`}
           className="absolute inset-0 w-full h-full object-cover animate-fade-in"
           muted
           autoPlay

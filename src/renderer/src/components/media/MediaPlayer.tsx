@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { t } from '../../../../shared/i18n'
 import type { MediaDetail } from '../../../../shared/types'
 import { SegmentTimeline } from './SegmentTimeline'
-import { thumbUrl } from '../../lib/mediaUrl'
+import { mediaSrcUrl, thumbUrl } from '../../lib/mediaUrl'
 
 interface MediaPlayerProps {
   media: MediaDetail
@@ -28,7 +28,7 @@ export function MediaPlayer({ media, posterPhotoId, posterHash, hit, onResolutio
   const ref = useRef<HTMLVideoElement & HTMLAudioElement>(null)
   const [currentMs, setCurrentMs] = useState(hit?.startMs ?? 0)
   const [failed, setFailed] = useState(false)
-  const src = `vixel://media/${media.id}`
+  const src = mediaSrcUrl(media.id)
   const poster = thumbUrl({ id: posterPhotoId, fileHash: posterHash })
 
   const seek = useCallback((ms: number) => {
