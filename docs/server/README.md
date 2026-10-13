@@ -76,8 +76,10 @@ volumes:
 索引分级推进：缩略图和文件信息先行，语义向量、图中文字、人物随后补齐 —— 期间可以正常
 浏览和搜索。进度条和预估显示在网页顶部；容器重启后从断点继续。
 
-**内存建议**：建议给容器 2 GB 以上可用内存（`mem_limit: 3g` 之类的上限是防护，不是占用——
-平时空闲时远低于此）。4 GB 内存的 NAS 建议把 `VIXEL_THREADS` 设为 `2`，索引慢一点但更稳。
+**内存建议**：语义模型常驻内存，建议 NAS 至少 4 GB 内存、给容器留出 3 GB 以上。
+如果要设上限（`mem_limit`），不要低于 `3g`：上限太紧时推理进程可能在索引高峰被系统结束，
+Vixel 会自动重启它，个别任务记为失败——在任务面板点"重试"即可补上。
+嫌索引吃 CPU 可以把 `VIXEL_THREADS` 调小（例如 `2`），索引会慢一些。
 
 ## 环境变量
 
@@ -175,9 +177,11 @@ For multiple photo folders, mount each one and list them in `VIXEL_LIBRARY_DIRS`
 file info first, then semantic vectors, OCR and faces — and the library stays browsable
 and searchable throughout. A progress bar with an estimate is shown in the web UI.
 
-**Memory guidance**: give the container at least 2 GB of headroom (a `mem_limit: 3g`
-style cap is protection, not steady-state usage — idle consumption is far lower).
-On a 4 GB NAS, set `VIXEL_THREADS: "2"` for a slower but gentler index.
+**Memory guidance**: the semantic model stays resident, so plan for a NAS with at
+least 4 GB RAM and leave the container 3 GB or more. If you set `mem_limit`, don't go
+below `3g`: with a tighter cap the inference process can be killed at indexing peaks —
+Vixel restarts it automatically and marks the affected tasks failed; hit "Retry" in the
+task panel to finish them. Lower `VIXEL_THREADS` (e.g. `2`) for a gentler, slower index.
 
 ## Environment variables
 
