@@ -10,6 +10,10 @@
 //
 // 需要先 npm run build:server（test:server:security 脚本里已串联）；
 // 本机（Electron ABI 的 node_modules）还需要一次性 npm run server:deps。
+//
+// 容器模式（plan.md 层级 9 在容器里重跑）：--docker <image>
+//   每个"启动服务器"的步骤换成 docker run --rm（临时数据目录 bind 到 /data，口令等走 -e），
+//   检查内容与本地模式完全一致 —— 包括"不设口令拒绝启动"（容器退出码 1）。
 
 import { spawn } from 'child_process'
 import { mkdtempSync, rmSync } from 'fs'
@@ -21,6 +25,14 @@ import { createRequire } from 'module'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(join(root, 'package.json'))
 const WebSocket = require('ws')
+
+const argv = process.argv.slice(2)
+const dockerIdx = argv.indexOf('--docker')
+const DOCKER_IMAGE = dockerIdx >= 0 ? argv[dockerIdx + 1] : null
+if (dockerIdx >= 0 && !DOCKER_IMAGE) {
+  console.error('usage: node scripts/server-security.mjs [--docker <image>]')
+  process.exit(2)
+}
 
 const PORT = 18090 + Math.floor(Math.random() * 1000)
 const BASE = `http://127.0.0.1:${PORT}`
@@ -44,7 +56,18 @@ const post = (path, { body, headers = {}, cookie } = {}) =>
     body: JSON.stringify(body ?? {}),
   })
 
+let dockerSeq = 0
 function startServer(env, dataDir) {
+  if (DOCKER_IMAGE) {
+    // 容器里 /data 固定、端口 8080 固定（映射到本机 PORT）；口令等配置照常走环境变量
+    return spawn('docker', [
+      'run', '--rm', '-i', '--name', `vixel-sec-${process.pid}-${dockerSeq++}`,
+      '-p', `127.0.0.1:${PORT}:8080`,
+      '-v', `${dataDir}:/data`,
+      ...Object.entries(env).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
+      DOCKER_IMAGE,
+    ], { stdio: ['ignore', 'pipe', 'pipe'] })
+  }
   return spawn(process.execPath, [join(root, 'dist/server/index.js')], {
     env: {
       ...process.env,

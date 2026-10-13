@@ -1,0 +1,36 @@
+# Vixel Server（Docker / NAS 版）compose 示例。
+# 群晖 Container Manager：项目 → 创建 → 粘贴本文件，改好口令和照片路径即可。
+# 详细说明（含群晖逐步截图说明、反代 HTTPS、备份）：docs/server/README.md
+services:
+  vixel:
+    # 本地构建：docker buildx build --platform linux/arm64 -t vixel:latest --load .
+    # （正式发布后换成 ghcr.io/rgb-loop/vixel:latest）
+    image: vixel:latest
+    container_name: vixel
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # 必填：网页登录口令（至少 4 位）
+      VIXEL_PASSWORD: "change-me"
+      # 媒体库目录（容器内路径，逗号分隔）。默认 /photos；多个库各挂各的再在这里列出
+      VIXEL_LIBRARY_DIRS: /photos
+      # 群晖/Unraid 习惯：照片文件夹属主的 UID/GID（File Station → 属性可查；ssh 里 id <用户名>）
+      PUID: "1000"
+      PGID: "1000"
+      # CPU 推理线程数，默认核数一半。NAS 上嫌索引吃 CPU 可调小
+      # VIXEL_THREADS: "2"
+      # HTTPS 反代（Synology 反向代理 / Nginx / Caddy）在前面时：
+      # VIXEL_TRUST_PROXY: "1"
+    volumes:
+      # 照片/视频：只读挂载（:ro），Vixel 永远不写原文件。多个库就多挂几行：
+      #   - /volume1/photo:/photos/photo:ro
+      #   - /volume1/video:/photos/video:ro
+      - /path/to/photos:/photos:ro
+      # 索引数据库、缩略图、人脸向量等（备份这个卷即可；原图不在里面）
+      - vixel-data:/data
+    # 可选：限制内存（首次索引大库时的峰值保护；正常运行远低于此）
+    # mem_limit: 3g
+
+volumes:
+  vixel-data:

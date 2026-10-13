@@ -1,0 +1,26 @@
+# 白名单式：默认全部排除，只放进 Docker 构建需要的东西（上下文里最大的是模型 ~560 MB）
+*
+
+# 构建配置
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.node.json
+!tsconfig.server.json
+!tsconfig.web.json
+!vite.web.config.ts
+!tailwind.config.js
+!postcss.config.js
+!scripts/server-postbuild.mjs
+!docker/package.json
+!docker/package-lock.json
+!docker/entrypoint.sh
+
+# 源码（测试文件 tsc/vite 不会编译进产物，体积小，不单独剔）
+!src
+
+# 模型 + LiteRT 原生库（只要 linux 平台的）
+!resources/models
+resources/models/README.md
+!resources/litert/linux-x64
+!resources/litert/linux-arm64
