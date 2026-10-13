@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-13
+
 ### Added
 - **System-wide Quick Search panel** (like Spotlight / Raycast). A global shortcut — default
   **⇧⌘Space** on macOS, **Alt+Shift+Space** on Windows — opens a frameless, always-on-top
