@@ -33,8 +33,9 @@ import imagesearch from './imagesearch'
 import collect from './collect'
 import design from './design'
 import quickpanel from './quickpanel'
+import web from './web'
 
-const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize, albums, cleanup, tags, autotags, imagesearch, collect, design, quickpanel }
+const DICTS = { common, shell, settings, menu, main, core, grid, inspector, detail, people, map, tasks, model, organize, albums, cleanup, tags, autotags, imagesearch, collect, design, quickpanel, web }
 
 export type Locale = 'zh-CN' | 'en'
 export type LocaleSetting = 'system' | Locale

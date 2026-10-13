@@ -18,6 +18,7 @@ import { readJsonBody, readRawBody, parseCookies, sendJson, clientIp, HttpError 
 import { ApiDispatcher } from './api'
 import { createEventHub } from './events'
 import { handleMediaRequest } from './media'
+import { handleWebRequest } from './webapp'
 import { createServerInference } from './inference'
 import { initDatabase } from '../core/db'
 import { FileWatcher } from '../core/watcher'
@@ -195,6 +196,15 @@ async function handleRequest(state: ServerState, req: IncomingMessage, res: Serv
       allowedRoots: state.allowedRoots,
     })
     if (!handled) sendJson(res, 404, { ok: false, error: 'not found' })
+    return
+  }
+
+  // ─ 网页前端（dist/web 静态文件 + /login + SPA fallback）─
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    await handleWebRequest(pathname, req, res, {
+      webDir: state.config.webDir,
+      isAuthed: (r) => isAuthed(state, r),
+    })
     return
   }
 

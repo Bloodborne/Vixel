@@ -10,6 +10,7 @@
  *   VIXEL_PASSWORD       单用户口令；不设则拒绝启动（本机开发可 VIXEL_ALLOW_NO_AUTH=1）
  *   VIXEL_ALLOW_NO_AUTH  =1 允许无口令启动（仅本地开发）
  *   VIXEL_THREADS        CPU 推理线程数（透传给 LiteRT，见 litertProvider）
+ *   VIXEL_WEB_DIR        网页前端构建产物目录（默认 <repo>/dist/web，npm run build:web）
  */
 import { isAbsolute, join, resolve } from 'path'
 
@@ -22,6 +23,7 @@ export interface ServerConfig {
   host: string
   password: string | null
   allowNoAuth: boolean
+  webDir: string
 }
 
 export class ConfigError extends Error {}
@@ -62,5 +64,6 @@ export function parseServerConfig(env: Record<string, string | undefined>, repoR
     host: env.VIXEL_HOST?.trim() || '0.0.0.0',
     password,
     allowNoAuth,
+    webDir: env.VIXEL_WEB_DIR?.trim() || join(repoRoot, 'dist', 'web'),
   }
 }
