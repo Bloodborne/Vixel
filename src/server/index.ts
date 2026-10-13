@@ -59,9 +59,23 @@ interface ServerState {
 
 // ─── 认证 ──────────────────────────────────────────────────────────────────
 
-function sessionCookie(token: string): string {
-  // Secure 不加：NAS 场景常见纯 HTTP 内网 + 可选反代 TLS；SameSite=Strict + HttpOnly + 自定义头已经双保险
-  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`
+/**
+ * 会话 cookie 要不要加 Secure：
+ *   - VIXEL_COOKIE_SECURE=1 → 永远加（只在全程 HTTPS 时用，纯 HTTP 下浏览器会丢弃 cookie）
+ *   - VIXEL_TRUST_PROXY=1  → 看反代头 X-Forwarded-Proto 是否 https（HTTPS 反代 + 内网 HTTP 直连并存时自动分流）
+ *   - 默认不加：NAS 场景常见纯 HTTP 内网；SameSite=Strict + HttpOnly + 自定义头已经双保险
+ */
+function cookieSecure(state: ServerState, req: IncomingMessage): boolean {
+  if (state.config.cookieSecure) return true
+  if (!state.config.trustProxy) return false
+  const proto = req.headers['x-forwarded-proto']
+  const first = (Array.isArray(proto) ? proto[0] : proto)?.split(',')[0].trim().toLowerCase()
+  return first === 'https'
+}
+
+function sessionCookie(state: ServerState, req: IncomingMessage, token: string): string {
+  const secure = cookieSecure(state, req) ? '; Secure' : ''
+  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`
 }
 
 function isAuthed(state: ServerState, req: IncomingMessage): boolean {
@@ -70,7 +84,7 @@ function isAuthed(state: ServerState, req: IncomingMessage): boolean {
 }
 
 async function handleLogin(state: ServerState, req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const ip = clientIp(req)
+  const ip = clientIp(req, state.config.trustProxy)
   if (state.rateLimiter.isLimited(ip)) {
     sendJson(res, 429, { ok: false, error: 'Too many failed login attempts, try again later' })
     return
@@ -82,7 +96,7 @@ async function handleLogin(state: ServerState, req: IncomingMessage, res: Server
     return
   }
   state.rateLimiter.recordSuccess(ip)
-  res.setHeader('Set-Cookie', sessionCookie(state.sessions.issue()))
+  res.setHeader('Set-Cookie', sessionCookie(state, req, state.sessions.issue()))
   sendJson(res, 200, { ok: true, result: { authenticated: true } })
 }
 
@@ -167,7 +181,8 @@ async function handleRequest(state: ServerState, req: IncomingMessage, res: Serv
       return
     }
     if (method === 'logout') {
-      res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`)
+      const secure = cookieSecure(state, req) ? '; Secure' : ''
+      res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=0`)
       sendJson(res, 200, { ok: true, result: null })
       return
     }

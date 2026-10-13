@@ -80,6 +80,15 @@ export async function sendWebResponse(res: ServerResponse, webRes: Response): Pr
   res.on('close', () => nodeStream.destroy())
 }
 
-export function clientIp(req: IncomingMessage): string {
+/**
+ * 客户端 IP（登录限速用）。trustProxy 时取 X-Forwarded-For 最左侧条目（最初的客户端；
+ * 只有反代在前面时才可信 —— 直连时该头可伪造，所以默认不看）。
+ */
+export function clientIp(req: IncomingMessage, trustProxy = false): string {
+  if (trustProxy) {
+    const fwd = req.headers['x-forwarded-for']
+    const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0].trim()
+    if (first) return first
+  }
   return req.socket.remoteAddress ?? 'unknown'
 }

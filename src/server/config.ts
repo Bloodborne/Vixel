@@ -11,6 +11,9 @@
  *   VIXEL_ALLOW_NO_AUTH  =1 允许无口令启动（仅本地开发）
  *   VIXEL_THREADS        CPU 推理线程数（透传给 LiteRT，见 litertProvider）
  *   VIXEL_WEB_DIR        网页前端构建产物目录（默认 <repo>/dist/web，npm run build:web）
+ *   VIXEL_COOKIE_SECURE  =1 会话 cookie 加 Secure（仅 HTTPS 反代场景；纯 HTTP 下登录会失效）
+ *   VIXEL_TRUST_PROXY    =1 信任反代头：X-Forwarded-Proto=https 时自动加 Secure，
+ *                        登录限速按 X-Forwarded-For 的客户端 IP 计
  */
 import { isAbsolute, join, resolve } from 'path'
 
@@ -24,6 +27,10 @@ export interface ServerConfig {
   password: string | null
   allowNoAuth: boolean
   webDir: string
+  /** 会话 cookie 始终带 Secure（VIXEL_COOKIE_SECURE=1） */
+  cookieSecure: boolean
+  /** 信任反代头（VIXEL_TRUST_PROXY=1）：X-Forwarded-Proto → Secure；X-Forwarded-For → 限速 IP */
+  trustProxy: boolean
 }
 
 export class ConfigError extends Error {}
@@ -65,5 +72,7 @@ export function parseServerConfig(env: Record<string, string | undefined>, repoR
     password,
     allowNoAuth,
     webDir: env.VIXEL_WEB_DIR?.trim() || join(repoRoot, 'dist', 'web'),
+    cookieSecure: env.VIXEL_COOKIE_SECURE === '1',
+    trustProxy: env.VIXEL_TRUST_PROXY === '1',
   }
 }

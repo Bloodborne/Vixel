@@ -38,6 +38,18 @@ describe('parseServerConfig', () => {
     expect(() => parseServerConfig({ ...base, VIXEL_PORT: '70000' }, repoRoot)).toThrow(/VIXEL_PORT/)
   })
 
+  it('cookie Secure / trust proxy are opt-in via =1', () => {
+    const def = parseServerConfig(base, repoRoot)
+    expect(def.cookieSecure).toBe(false)
+    expect(def.trustProxy).toBe(false)
+    const on = parseServerConfig({ ...base, VIXEL_COOKIE_SECURE: '1', VIXEL_TRUST_PROXY: '1' }, repoRoot)
+    expect(on.cookieSecure).toBe(true)
+    expect(on.trustProxy).toBe(true)
+    const off = parseServerConfig({ ...base, VIXEL_COOKIE_SECURE: '0', VIXEL_TRUST_PROXY: 'yes' }, repoRoot)
+    expect(off.cookieSecure).toBe(false)
+    expect(off.trustProxy).toBe(false)
+  })
+
   it('honours explicit overrides', () => {
     const c = parseServerConfig({
       ...base,
