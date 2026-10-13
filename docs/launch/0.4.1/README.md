@@ -1,9 +1,9 @@
 # v0.4.1 发布包 · Launch kit
 
 所有帖子由作者本人发布、本人回复；这里只是可直接粘贴的草稿。
-**发帖前置条件**：v0.4.1 Release 已发布且安装包可下载
-（https://github.com/RGB-loop/Vixel/releases/tag/v0.4.1 —— 写稿时尚未发布，发帖前务必确认），
-README 顶部新 GIF / 截图已在 main 分支可见。
+**发帖前置条件（已满足，2026-10-13）**：v0.4.1 Release 已发布，macOS 和 Windows 安装包均可下载
+（https://github.com/RGB-loop/Vixel/releases/tag/v0.4.1，两个安装包的校验和已在两台机器上核对一致）；
+README 顶部新 GIF / 截图已在 main 分支可见；GitHub 社交预览图已换成 0.4.1 版。
 
 ## 文件索引
 
