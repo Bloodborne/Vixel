@@ -30,6 +30,7 @@ import { setOcrModelsDir } from '../core/ocr'
 import { preloadJieba } from '../core/text/tokenize'
 import { setInferenceTransport } from '../core/inference/transport'
 import { restrictDesignExts } from '../core/image/design'
+import { registerServerPdfRenderer } from './pdfRender'
 import { detectScreenshot } from '../core/screenshot'
 import { resolveLocale, setLocale } from '../shared/i18n'
 import { createServices, type VixelServices } from '../services/api'
@@ -241,9 +242,13 @@ async function main(): Promise<void> {
   }
 
   // PDF / AI 预览：桌面版靠隐藏 BrowserWindow 里的 pdf.js（Win/Linux）或 sips/qlmanage（macOS）。
-  // 服务器版没有 Electron：macOS 本机开发仍有 sips 可用，Linux（Docker/NAS）阶段 1 明确不支持
-  // PDF/AI —— 从支持格式里拿掉，这两类文件不入库（阶段 3 评估 pdfjs-dist + @napi-rs/canvas）。
-  if (process.platform !== 'darwin') restrictDesignExts(['.svg', '.psd', '.psb'])
+  // 服务器版用纯 Node 的 pdf.js（pdfjs-dist legacy + @napi-rs/canvas，见 ./pdfRender）：
+  // macOS 本机开发仍以 sips 为主、pdf.js 兜底（与桌面一致）；Linux（Docker/NAS）pdf.js 是主路径。
+  // 依赖没装（源码跑服务器但没装 devDependencies）→ 与阶段 1 相同，.pdf/.ai 不入库。
+  if (!registerServerPdfRenderer() && process.platform !== 'darwin') {
+    console.warn('[server] pdfjs-dist/@napi-rs/canvas unavailable — PDF/AI files will not be indexed')
+    restrictDesignExts(['.svg', '.psd', '.psb'])
+  }
 
   mkdirSync(config.dataDir, { recursive: true })
   const secret = loadOrCreateSecret(config.dataDir)
