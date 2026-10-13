@@ -59,6 +59,10 @@ README 顶部新 GIF / 截图已在 main 分支可见。
 | `vixel-0.4.1-zh-16x9.mp4` | 1920×1080 · 79 s · 中文字幕 | 即刻、微博、B 站素材、知乎 |
 | `vixel-0.4.1-en-16x9.mp4` | 1920×1080 · 87 s · 英文字幕 · 英文界面 | PH 视频位、X、LinkedIn、Reddit |
 | `vixel-0.4.1-zh-9x16.mp4` | 1080×1920 · 75 s | 小红书、抖音、视频号、Shorts |
+| `voiced/vixel-0.4.1-zh-16x9-voice.mp4` | 同上 + AI 男声旁白（Seed Audio 1.0，≈-16 LUFS） | 优先用这版：B 站、知乎、微博 |
+| `voiced/vixel-0.4.1-en-16x9-voice.mp4` | 同上 + 英文男声旁白 | 优先用这版：PH、X、LinkedIn、Reddit |
+| `voiced/vixel-0.4.1-zh-9x16-voice.mp4` | 同上 + 竖版男声旁白（开头 3 s 钩子） | 优先用这版：抖音、小红书、视频号 |
+| `voiced/narration-*.txt` + `voiced/lines-*/` | 台词 + 起始时间 + 单句 mp3 | 校对 / 重混音 |
 | `vixel-0.4.1-demo.gif` | 720 px · 15 s · 5.8 MB | V2EX、X、知乎、HN 评论区（图床） |
 | `hero-0.4.1.gif` | 640 px · 4.7 MB | 已提交为 `docs/media/hero.gif`（README） |
 | `cover-xiaohongshu-0.4.1.png` | 1080×1440 | 小红书封面 |
@@ -71,6 +75,13 @@ README 顶部新 GIF / 截图已在 main 分支可见。
 （`PROMO_PRESET=video`、`PROMO_LANG=en`）、`scripts/make-vertical.mjs`、`scripts/make-cover.mjs`、
 `scripts/make-social-preview.mjs`。演示库在 `/Users/Shared/Vixel Demo/`（检查器里只显示中性路径），
 数据目录 `~/workspace/dancer/vixel-demo/{footage,photos}-data-shared`。
+
+旁白：`node scripts/make-voiceover.mjs <video.mp4> <narration.json> <out.mp4> [--lines-dir d] [--reference ref.mp3]`
+—— narration.json 是 `{voice, lines:[{start,text}]}`（voice 为自然语言音色描述，以「说：」结尾）；
+逐句调 Seed Audio 1.0（按 voice+text 缓存，重跑不重复计费），检查每句放不放得下，adelay 定位 →
+loudnorm ≈ -16 LUFS → AAC 192k，视频流原样 copy。凭据读环境变量 `SEEDAUDIO_*`
+（或 `~/.config/vixel/seedaudio.env`），仓库里不存任何密钥。三个 narration JSON 在
+`promo-0.4.1/voiced/` 下，16:9 版场景时间 = timeline.json + 2.8 s（片头 3.4 s − 交叉淡化 0.6 s），竖版不加偏移。
 
 ## 共用 FAQ（各平台用自己的话说）
 
