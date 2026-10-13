@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LibraryCounts, SmartAlbum, SmartAlbumMenuAction, WatchedFolder } from '../../../../shared/types'
 import type { Tag, TagMenuAction } from '../../../../shared/tags'
-import { folderName, kbd } from '../../lib/platform'
+import { folderName, IS_WEB, kbd } from '../../lib/platform'
 import { Icon, type IconName } from './icons'
 import { t } from '../../../../shared/i18n'
 
@@ -247,7 +247,7 @@ export function Sidebar({
 
         <Group
           title={t.shell.groupFolders}
-          action={
+          action={IS_WEB ? undefined : ( // 网页版：文件夹由服务器配置（VIXEL_LIBRARY_DIRS），没有本地目录选择器
             <button
               onClick={onAddFolder}
               title={t.shell.addFolderTitle(kbd('⌘O'))}
@@ -255,7 +255,7 @@ export function Sidebar({
             >
               <Icon name="plus" className="w-3.5 h-3.5" />
             </button>
-          }
+          )}
         >
           {folders.length === 0 ? (
             <p className="px-2 py-1 text-caption text-ink-3">{t.shell.noFolders}</p>

@@ -50,7 +50,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --surface-0: #fafaf9;
     --surface-1: #f3f2f0;
     --surface-2: #e9e8e5;
@@ -86,6 +86,45 @@
     --shimmer-b: #f3f2f0;
     color-scheme: light;
   }
+}
+
+/* 网页版的外观设置：没有 nativeTheme 可控 prefers-color-scheme，由 src/web/api.ts 在 <html> 上
+   设 data-theme 强制深 / 浅（desktop 永远不设该属性，不受影响）。令牌与上面的浅色块保持一致。 */
+:root[data-theme="light"] {
+  --surface-0: #fafaf9;
+  --surface-1: #f3f2f0;
+  --surface-2: #e9e8e5;
+  --surface-3: #dfdedb;
+  --surface-4: #d3d2ce;
+  --canvas: #ffffff;
+  --sidebar: #f1efec;
+  --bar: #f6f5f3;
+  --raised: #ffffff;
+  --accent: 168 110 56;
+  --accent-dim: 138 88 42;
+  --accent-bright: 196 140 86;
+  --accent-fill: rgb(168 110 56 / 0.16);
+  --ink: rgb(0 0 0 / 0.85);
+  --ink-2: rgb(0 0 0 / 0.58);
+  --ink-3: rgb(0 0 0 / 0.42);
+  --ink-4: rgb(0 0 0 / 0.26);
+  --ink-ghost: rgb(0 0 0 / 0.12);
+  --line: rgb(0 0 0 / 0.08);
+  --line-strong: rgb(0 0 0 / 0.13);
+  --line-heavy: rgb(0 0 0 / 0.24);
+  --fill: rgb(0 0 0 / 0.04);
+  --fill-hover: rgb(0 0 0 / 0.065);
+  --fill-active: rgb(0 0 0 / 0.10);
+  --fill-strong: rgb(0 0 0 / 0.18);
+  --ok: 36 138 61;
+  --warn: 178 80 0;
+  --bad: 215 0 21;
+  --info: 0 113 164;
+  --scrollbar: rgb(0 0 0 / 0.15);
+  --scrollbar-hover: rgb(0 0 0 / 0.28);
+  --shimmer-a: #e9e8e5;
+  --shimmer-b: #f3f2f0;
+  color-scheme: light;
 }
 
 .theme-dark {

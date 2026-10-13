@@ -13,6 +13,7 @@ import { Toolbar } from './components/shell/Toolbar'
 import { StatusBar, THUMB_MIN, THUMB_MAX } from './components/shell/StatusBar'
 import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
+import { IS_WEB } from './lib/platform'
 import { thumbUrl } from './lib/mediaUrl'
 import { sourcePathOf } from './lib/resultActions'
 import { useSearchHistory, normalizeQuery } from './lib/searchHistory'
@@ -369,7 +370,7 @@ function App(): JSX.Element {
     const onEnter = (e: DragEvent): void => {
       if (!collectible(e)) return
       depth++
-      setCollectDrag(true)
+      if (!IS_WEB) setCollectDrag(true) // 网页版没有收集箱，不出"松开收集"层
       if (hasImage(e)) setImageDrag(true)
     }
     const onLeave = (): void => {
@@ -706,6 +707,12 @@ function App(): JSX.Element {
     const dt = e.dataTransfer
     if (!dt) return
     const files = Array.from(dt.files)
+    // 网页版：收集箱整体桌面专属；拖到任意位置的图片当作以图搜图（与工具栏落点一致）
+    if (IS_WEB) {
+      const img = files.find(isImageFile)
+      if (img) void queryWithFile(img)
+      return
+    }
     // getData 只能在 drop 事件里同步读
     const uri = dt.getData('text/uri-list').split('\n').map((s) => s.trim()).find((s) => s && !s.startsWith('#'))
     void (async () => {
@@ -720,6 +727,11 @@ function App(): JSX.Element {
     })()
   }
   collectPasteRef.current = (file: File): void => {
+    if (IS_WEB) {
+      // 网页版没有收集箱：焦点外粘贴的图片也作以图搜图
+      if (isImageFile(file)) void queryWithFile(file)
+      return
+    }
     void file.arrayBuffer().then((buf) => window.api.collect.importBytes(new Uint8Array(buf), '', 'paste')).then(handleCollectResult)
   }
 
@@ -874,6 +886,7 @@ function App(): JSX.Element {
       selectOnly(r.photo.id)
       items = [r]
     }
+    if (IS_WEB) return // 原生右键菜单是桌面专属；操作都在检查器 / 快捷键里
     const isMedia = items.length === 1 && mediaKindOf(r.photo) !== 'image' && r.photo.videoId != null
     // 音频的代表图是封面 / 波形，没有图片向量，不给"以此图搜索"
     const canImageSearch = items.length === 1 && mediaKindOf(r.photo) !== 'audio'
@@ -1266,8 +1279,8 @@ function App(): JSX.Element {
             <EmptyState
               icon="image"
               title={t.shell.emptyLibraryTitle}
-              hint={t.shell.emptyLibraryHint}
-              action={{ label: t.shell.addFolderEllipsis, onClick: handleAddFolder }}
+              hint={IS_WEB ? t.web.serverFoldersNote : t.shell.emptyLibraryHint}
+              action={IS_WEB ? undefined : { label: t.shell.addFolderEllipsis, onClick: handleAddFolder }}
             />
           ) : counts === null || isSearching ? null : source.type === 'favorites' && !hasSearchQuery && !hasDateFilter && !hasExtraFilters(extraFilters) ? (
             <EmptyState icon="image" title={t.organize.favoritesEmptyTitle} hint={t.organize.favoritesEmptyHint} />

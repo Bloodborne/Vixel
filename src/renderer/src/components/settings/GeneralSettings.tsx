@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ThemeMode } from '../../../../shared/types'
 import { t, type LocaleSetting } from '../../../../shared/i18n'
 import { defaultShortcut, eventToAccelerator, formatShortcut, type QuickPanelSettings } from '../../../../shared/quickpanel'
-import { IS_MAC } from '../../lib/platform'
+import { IS_MAC, IS_WEB } from '../../lib/platform'
 import { AutoTagSettings } from './AutoTagSettings'
 import { CollectSettings } from './CollectSettings'
 
@@ -110,7 +110,8 @@ export function GeneralSettings(): JSX.Element {
         </div>
       </section>
 
-      <QuickSearchSettings />
+      {/* 快速搜索面板（全局快捷键 + 常驻窗口 + 托盘）与浏览器扩展收集：桌面专属 */}
+      {!IS_WEB && <QuickSearchSettings />}
 
       <section className="flex gap-6" data-power-settings>
         <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.indexingSection}</h3>
@@ -130,8 +131,38 @@ export function GeneralSettings(): JSX.Element {
 
       <AutoTagSettings />
 
-      <CollectSettings />
+      {!IS_WEB && <CollectSettings />}
+
+      {IS_WEB && <WebAccessSettings />}
     </div>
+  )
+}
+
+/** 网页版 › 访问：退出登录（清会话 cookie 后回登录页） */
+function WebAccessSettings(): JSX.Element {
+  const [busy, setBusy] = useState(false)
+  const logout = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await fetch('/api/logout', { method: 'POST', headers: { 'content-type': 'application/json', 'x-vixel': '1' }, body: '{}' })
+    } catch { /* 网络错误也照样回登录页 */ }
+    window.location.replace('/login')
+  }
+  return (
+    <section className="flex gap-6" data-web-access>
+      <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.web.accessSection}</h3>
+      <div className="flex flex-col gap-2 min-w-0">
+        <button
+          onClick={() => { void logout() }}
+          disabled={busy}
+          data-logout
+          className="w-fit h-7 px-3 rounded-md bg-fill-hover hover:bg-fill-active text-ink text-callout transition-colors duration-fast disabled:opacity-50"
+        >
+          {t.web.logout}
+        </button>
+        <p className="text-caption text-ink-4">{t.web.logoutNote}</p>
+      </div>
+    </section>
   )
 }
 

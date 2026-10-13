@@ -1,5 +1,5 @@
 import { SearchBar } from '../SearchBar'
-import { kbd } from '../../lib/platform'
+import { IS_WEB, kbd } from '../../lib/platform'
 import { Icon } from './icons'
 import { t } from '../../../../shared/i18n'
 
@@ -78,6 +78,7 @@ export function Toolbar({
             saveTitle={saveQueryTitle}
             onToggleSave={onToggleSaveQuery}
             image={queryImage}
+            onPickImage={IS_WEB ? (f) => onImageDrop([f]) : undefined}
             onClearImage={onClearImage}
           />
         </div>

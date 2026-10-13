@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { t } from '../../../../shared/i18n'
 import type { MediaDetail } from '../../../../shared/types'
 import { SegmentTimeline } from './SegmentTimeline'
-import { mediaSrcUrl, thumbUrl } from '../../lib/mediaUrl'
+import { downloadOriginal, mediaSrcUrl, thumbUrl } from '../../lib/mediaUrl'
+import { IS_WEB } from '../../lib/platform'
 
 interface MediaPlayerProps {
   media: MediaDetail
@@ -92,10 +93,10 @@ export function MediaPlayer({ media, posterPhotoId, posterHash, hit, onResolutio
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
               <p className="text-body text-ink">{t.grid.cannotPlay}</p>
               <button
-                onClick={() => window.api.openSourceVideo(media.id)}
+                onClick={() => (IS_WEB ? downloadOriginal(mediaSrcUrl(media.id), media.fileName) : void window.api.openSourceVideo(media.id))}
                 className="px-3 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent text-callout rounded-md transition-colors"
               >
-                {t.grid.openInSystemPlayer}
+                {IS_WEB ? t.web.downloadOriginal : t.grid.openInSystemPlayer}
               </button>
             </div>
           </div>

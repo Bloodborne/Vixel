@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import type { MediaDetail, PhotoDetail, PhotoLocation, SearchResult } from '../../../../shared/types'
 import type { ItemSource } from '../../../../shared/collect'
 import { formatDuration, formatFileSize, mediaKindOf } from '../../lib/format'
-import { thumbUrl } from '../../lib/mediaUrl'
-import { revealLabel } from '../../lib/platform'
+import { downloadOriginal, imageUrl, mediaSrcUrl, thumbUrl } from '../../lib/mediaUrl'
+import { IS_WEB, revealLabel } from '../../lib/platform'
 import { Icon } from '../shell/icons'
 import { TagEditor } from './TagEditor'
 import { designBadgeOf } from '../media/MediaCard'
@@ -253,11 +253,23 @@ export function Inspector({ result, onSelect, showPreview, onClose, resolution: 
             ))}
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
-            <ActionButton icon="folder" onClick={() => sourcePath && window.api.showInFinder(sourcePath)}>{revealLabel}</ActionButton>
-            {isMedia && (
-              <ActionButton icon="video" onClick={() => photo.videoId != null && window.api.openSourceVideo(photo.videoId)}>
-                {t.inspector.systemPlayer}
+            {IS_WEB ? (
+              // 网页版："在访达中显示"换成下载原文件；系统播放器不可用，隐藏
+              <ActionButton
+                icon="folder"
+                onClick={() => downloadOriginal(isMedia ? mediaSrcUrl(photo.videoId!) : imageUrl(photo.id), media?.fileName ?? photo.fileName)}
+              >
+                {t.web.downloadOriginal}
               </ActionButton>
+            ) : (
+              <>
+                <ActionButton icon="folder" onClick={() => sourcePath && window.api.showInFinder(sourcePath)}>{revealLabel}</ActionButton>
+                {isMedia && (
+                  <ActionButton icon="video" onClick={() => photo.videoId != null && window.api.openSourceVideo(photo.videoId)}>
+                    {t.inspector.systemPlayer}
+                  </ActionButton>
+                )}
+              </>
             )}
           </div>
         </Section>
@@ -335,7 +347,7 @@ export function SelectionSummary({ results, breakdown, onReveal, onCopyPaths, on
         <TagEditor hashes={hashes} focusKey={tagFocusKey} />
       </Section>
       <div className="flex flex-wrap gap-1.5">
-        <ActionButton icon="folder" onClick={onReveal}>{revealLabel}</ActionButton>
+        {!IS_WEB && <ActionButton icon="folder" onClick={onReveal}>{revealLabel}</ActionButton>}
         <ActionButton icon="all" onClick={onCopyPaths}>{t.common.copyPath}</ActionButton>
       </div>
     </div>
@@ -418,8 +430,22 @@ function hostOf(url: string): string {
   try { return new URL(url).hostname } catch { return url }
 }
 
-/** 点击经主进程 shell.openExternal 打开（只放行 http/https），不在应用内导航 */
+/** 桌面：经主进程 shell.openExternal 打开（只放行 http/https）；网页版：普通新标签页链接 */
 function SourceLink({ url, label }: { url: string; label: string }): JSX.Element {
+  if (IS_WEB) {
+    const safe = /^https?:/i.test(url)
+    return (
+      <a
+        href={safe ? url : undefined}
+        target="_blank"
+        rel="noreferrer noopener"
+        title={url}
+        className="max-w-full truncate text-accent hover:underline text-right"
+      >
+        {label}
+      </a>
+    )
+  }
   return (
     <button
       onClick={() => { void window.api.collect.openSource(url) }}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { folderName, revealLabel } from '../../lib/platform'
+import { folderName, revealLabel, IS_WEB } from '../../lib/platform'
 import type { SkippedFolder, WatchedFolder } from '../../../../shared/types'
 import type { InboxInfo } from '../../../../shared/collect'
 import { t } from '../../../../shared/i18n'
@@ -21,7 +21,7 @@ export function FolderSettings(): JSX.Element {
         setIsLoading(false)
       })
       window.api.getSkippedFolders().then(setSkipped).catch(() => {})
-      window.api.collect.getInbox().then(setInbox).catch(() => {})
+      if (!IS_WEB) window.api.collect.getInbox().then(setInbox).catch(() => {})
     }
     load()
     return window.api.onLibraryChanged(load)
@@ -68,6 +68,13 @@ export function FolderSettings(): JSX.Element {
 
   return (
     <>
+      {/* 网页版：媒体库目录来自服务器环境变量（VIXEL_LIBRARY_DIRS），只读展示 */}
+      {IS_WEB && (
+        <div className="p-5 pb-0" data-server-folders-note>
+          <p className="px-0.5 text-caption text-ink-4">{t.web.serverFoldersNote}</p>
+        </div>
+      )}
+      {!IS_WEB && (
       <div className="p-5 pb-0" data-inbox-settings>
         <div className="flex items-center gap-3 p-2.5 rounded-lg bg-fill">
           <svg className="w-4 h-4 text-accent/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -100,6 +107,7 @@ export function FolderSettings(): JSX.Element {
         </div>
         <p className="mt-1.5 px-0.5 text-micro text-ink-4">{t.collect.inboxNote}</p>
       </div>
+      )}
 
       <div className="p-5">
         {isLoading ? (
@@ -144,6 +152,7 @@ export function FolderSettings(): JSX.Element {
                     )}
                   </div>
                 </div>
+                {!IS_WEB && (
                 <button
                   onClick={() => handleRequestRemove(folder)}
                   className="p-1 rounded hover:bg-fill-hover transition-colors text-ink-4 hover:text-bad"
@@ -153,6 +162,7 @@ export function FolderSettings(): JSX.Element {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </button>
+                )}
                 </div>
                 {/* 用户选的根目录本身是"照片"图库包：根目录不自动跳过，但提示它由 Photos 管理 */}
                 {isPhotosLibrary && (
@@ -189,6 +199,7 @@ export function FolderSettings(): JSX.Element {
         )}
       </div>
 
+      {!IS_WEB && (
       <div className="px-5 pb-5">
         <button
           onClick={handleAddFolder}
@@ -200,6 +211,7 @@ export function FolderSettings(): JSX.Element {
           {t.settings.addFolder}
         </button>
       </div>
+      )}
 
     {/* 删除确认对话框 */}
     {deleteConfirm?.isOpen && (

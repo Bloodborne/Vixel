@@ -3,7 +3,7 @@ import { t } from '../../../../shared/i18n'
 import type { DupGroup, DupItem, DupScanProgress, DupScanResult, HiddenItem } from '../../../../shared/cleanup'
 import { formatFileSize } from '../../lib/format'
 import { thumbUrl } from '../../lib/mediaUrl'
-import { IS_MAC } from '../../lib/platform'
+import { IS_MAC, IS_WEB } from '../../lib/platform'
 import { Icon } from '../shell/icons'
 
 const bin = (): string => (IS_MAC ? t.cleanup.binMac : t.cleanup.binWin)
@@ -164,7 +164,7 @@ export function CleanupView({ onOpenPhoto }: { onOpenPhoto: (photoId: number) =>
             <span className="flex-1" />
             <span className="text-caption text-ink-2">{t.cleanup.applyAll(groups.length)}</span>
             <ActionButton onClick={() => void hideExtras(groups)} disabled={busy} title={t.cleanup.hideExtrasTitle}>{t.cleanup.hideExtras}</ActionButton>
-            <ActionButton onClick={() => void trashExtras(groups)} disabled={busy} danger>{t.cleanup.trashExtras(bin())}</ActionButton>
+            {!IS_WEB && <ActionButton onClick={() => void trashExtras(groups)} disabled={busy} danger>{t.cleanup.trashExtras(bin())}</ActionButton>}
           </div>
           <div className="flex-1 overflow-auto p-4 flex flex-col gap-3" data-cleanup-groups>
             {groups.map((g) => (
@@ -244,7 +244,7 @@ function GroupCard({ group, keep, busy, onToggle, onOpen, onHide, onTrash, onDis
         <span className="flex-1" />
         <button onClick={onDismiss} className="px-2 py-1 text-caption text-ink-3 hover:text-ink">{t.cleanup.dismiss}</button>
         <ActionButton onClick={onHide} disabled={busy || keep.size === group.items.length} title={t.cleanup.hideExtrasTitle}>{t.cleanup.hideExtras}</ActionButton>
-        <ActionButton onClick={onTrash} disabled={busy || keep.size === group.items.length} danger>{t.cleanup.trashExtras(bin())}</ActionButton>
+        {!IS_WEB && <ActionButton onClick={onTrash} disabled={busy || keep.size === group.items.length} danger>{t.cleanup.trashExtras(bin())}</ActionButton>}
       </div>
     </section>
   )
