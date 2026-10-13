@@ -25,6 +25,7 @@
   "include": [
     "src/renderer/**/*",
     "src/shared/**/*",
-    "src/preload/index.ts"
+    "src/preload/index.ts",
+    "src/web/**/*"
   ]
 }
