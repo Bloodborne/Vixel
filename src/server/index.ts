@@ -14,7 +14,7 @@ import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { parseServerConfig, ConfigError, type ServerConfig } from './config'
 import { loadOrCreateSecret, passwordMatches, LoginRateLimiter, SessionManager, SESSION_COOKIE, SESSION_TTL_MS } from './auth'
-import { readJsonBody, readRawBody, parseCookies, sendJson, clientIp, HttpError } from './http'
+import { readJsonBody, readRawBody, parseCookies, sendJson, clientIp, acceptLanguages, HttpError } from './http'
 import { ApiDispatcher } from './api'
 import { createEventHub } from './events'
 import { handleMediaRequest } from './media'
@@ -56,6 +56,19 @@ interface ServerState {
   requireAuth: boolean
   /** 媒体路由允许读取的根：数据目录 + 监视文件夹（每次现取，增删文件夹立即生效） */
   allowedRoots: () => string[]
+  /** "跟随系统"时用的语言：最近一个 API 请求的浏览器语言（单用户，原地更新，服务层共用同一个数组） */
+  preferredLanguages: string[]
+}
+
+/**
+ * 界面语言"跟随系统"在服务器上 = 跟随浏览器：服务端生成的文案（自动标签名等）要和网页界面同语言。
+ * 浏览器语言变了才重新解析（同一台设备的请求不做任何事）。
+ */
+function syncClientLocale(state: ServerState, req: IncomingMessage): void {
+  const langs = acceptLanguages(req.headers['accept-language'])
+  if (langs.length === 0 || langs[0] === state.preferredLanguages[0]) return
+  state.preferredLanguages.splice(0, state.preferredLanguages.length, ...langs)
+  setLocale(resolveLocale(state.services.loadLocaleSetting(), state.preferredLanguages))
 }
 
 // ─── 认证 ──────────────────────────────────────────────────────────────────
@@ -191,6 +204,7 @@ async function handleRequest(state: ServerState, req: IncomingMessage, res: Serv
       await handleSearchByImage(state, req, res, url)
       return
     }
+    syncClientLocale(state, req)
     const body = await readJsonBody<{ args?: unknown[] }>(req, JSON_BODY_LIMIT)
     const outcome = await state.dispatcher.call(method, body.args ?? [])
     sendJson(res, outcome.status, outcome.body)
@@ -280,14 +294,15 @@ async function main(): Promise<void> {
   const watcher = new FileWatcher(db, indexer)
   const searchEngine = new SearchEngine(db)
 
+  const preferredLanguages: string[] = []
   const services = createServices({
     db, watcher, indexer, searchEngine,
     dataDir: config.dataDir,
     modelsDir: config.modelsDir,
     events,
-    preferredLanguages: [],
+    preferredLanguages,
   })
-  setLocale(resolveLocale(services.loadLocaleSetting(), []))
+  setLocale(resolveLocale(services.loadLocaleSetting(), preferredLanguages))
   // VIXEL_LIBRARY_DIRS：登记成监视文件夹（已有的保持原样，路径一致即不动）
   const known = new Set(db.getFolders().map((f) => f.path))
   for (const dir of config.libraryDirs) {
@@ -359,7 +374,7 @@ async function main(): Promise<void> {
   // ─ HTTP + WebSocket ─
   const dispatcher = new ApiDispatcher(services.api)
   const state: ServerState = {
-    config, services, dispatcher, sessions, rateLimiter, secret, requireAuth,
+    config, services, dispatcher, sessions, rateLimiter, secret, requireAuth, preferredLanguages,
     allowedRoots: () => [config.dataDir, ...db.getFolders().map((f) => f.path)],
   }
   const hub = createEventHub(sessions, requireAuth)

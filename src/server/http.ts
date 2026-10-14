@@ -92,3 +92,22 @@ export function clientIp(req: IncomingMessage, trustProxy = false): string {
   }
   return req.socket.remoteAddress ?? 'unknown'
 }
+
+/**
+ * Accept-Language → 按 q 值排好的语言标签（`zh-CN,zh;q=0.9,en;q=0.8` → ['zh-CN', 'zh', 'en']）。
+ * 服务器没有"系统语言"，界面语言设为"跟随系统"时用发请求的浏览器的语言。
+ */
+export function acceptLanguages(header: string | string[] | undefined): string[] {
+  const raw = Array.isArray(header) ? header.join(',') : header
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map((part, i) => {
+      const [tag, ...params] = part.trim().split(';')
+      const q = params.map((p) => p.trim()).find((p) => p.startsWith('q='))
+      return { tag: tag.trim(), q: q ? Number(q.slice(2)) : 1, i }
+    })
+    .filter((x) => x.tag && x.tag !== '*' && Number.isFinite(x.q) && x.q > 0)
+    .sort((a, b) => b.q - a.q || a.i - b.i)
+    .map((x) => x.tag)
+}

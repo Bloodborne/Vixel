@@ -681,8 +681,11 @@ const STEPS = [
   {
     name: 'logout',
     async run({ page, S }) {
-      await page.click(`button[title^=${JSON.stringify(S.settingsPrefix)}]`)
-      await page.waitFor(`location.hash === '#settings'`, 8000)
+      // 没给 --live-dir 时上一步跳过，页面还停在设置里
+      if (await page.eval(`location.hash`) !== '#settings') {
+        await page.click(`button[title^=${JSON.stringify(S.settingsPrefix)}]`)
+        await page.waitFor(`location.hash === '#settings'`, 8000)
+      }
       await page.eval(`(() => { [...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === ${JSON.stringify(S.tabGeneral)})?.click() })()`)
       await page.waitFor(`!!document.querySelector('[data-logout]')`, 8000, 'logout button')
       await page.click('[data-logout]')

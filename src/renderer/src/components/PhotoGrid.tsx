@@ -64,6 +64,20 @@ interface PhotoGridProps {
   onUserScroll?: () => void
 }
 
+
+let scrollbarW: number | null = null
+/** 经典滚动条的宽度（受 globals.css 的 ::-webkit-scrollbar 影响；浮动滚动条为 0），量一次缓存 */
+function scrollbarWidth(): number {
+  if (scrollbarW === null) {
+    const probe = document.createElement('div')
+    probe.style.cssText = 'position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll'
+    document.body.appendChild(probe)
+    scrollbarW = probe.offsetWidth - probe.clientWidth
+    probe.remove()
+  }
+  return scrollbarW
+}
+
 export function PhotoGrid({
   results, isSearching, density, thumbSize, selectedIds, focusIndex, scrollResetKey,
   onItemClick, onItemOpen, onItemContextMenu, onColsChange, onBackgroundClick, onUserScroll,
@@ -89,8 +103,15 @@ export function PhotoGrid({
   }, [])
 
   const cols = useMemo(() => Math.max(2, Math.round(size.w / thumbSize)), [size.w, thumbSize])
-  // 列宽必须是整数否则 react-window 会出现亚像素抖动
-  const cellSize = useMemo(() => (size.w > 0 ? Math.floor(size.w / cols) : 0), [size.w, cols])
+  // 竖向滚动条占在 grid 宽度里面（macOS 浮动滚动条宽 0；Windows / 浏览器是经典滚动条），
+  // 要滚动时列宽按扣掉滚动条后的宽度算，否则多出几像素横向滚动条
+  const cellSize = useMemo(() => {
+    if (size.w <= 0) return 0
+    // 列宽必须是整数否则 react-window 会出现亚像素抖动
+    const full = Math.floor(size.w / cols)
+    const scrolls = Math.ceil(results.length / cols) * full > size.h
+    return scrolls ? Math.floor((size.w - scrollbarWidth()) / cols) : full
+  }, [size.w, size.h, cols, results.length])
   const rowCount = Math.ceil(results.length / cols)
 
   // 列数变化（侧栏拖动跨过阈值、缩略图滑块、窗口缩放）时网格按 key 重新挂载；

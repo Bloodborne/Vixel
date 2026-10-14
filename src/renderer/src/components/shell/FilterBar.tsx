@@ -328,9 +328,10 @@ function ColorPicker({ selected, onChange }: {
   onChange: (bucket: string | null) => void
 }): JSX.Element {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-caption text-ink-3">{t.design.color}</span>
-      <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="text-caption text-ink-3 flex-shrink-0">{t.design.color}</span>
+      {/* 触屏色块放大后一行放不下（手机宽 390），允许折行 */}
+      <div className="flex flex-wrap items-center gap-1">
         {COLOR_BUCKETS.map((b) => {
           const on = selected === b
           const name = t.design.colorNames[b] ?? b

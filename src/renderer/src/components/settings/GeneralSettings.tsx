@@ -113,21 +113,24 @@ export function GeneralSettings(): JSX.Element {
       {/* 快速搜索面板（全局快捷键 + 常驻窗口 + 托盘）与浏览器扩展收集：桌面专属 */}
       {!IS_WEB && <QuickSearchSettings />}
 
-      <section className="settings-row flex gap-6" data-power-settings>
-        <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.indexingSection}</h3>
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">
-            <input
-              type="checkbox"
-              checked={indexOnBattery ?? true}
-              onChange={toggleIndexOnBattery}
-              className="accent-[var(--accent)]"
-            />
-            {t.settings.indexOnBattery}
-          </label>
-          <p className="text-caption text-ink-4">{t.settings.indexOnBatteryNote}</p>
-        </div>
-      </section>
+      {/* 电源策略：服务器没有电池，网页版不显示 */}
+      {!IS_WEB && (
+        <section className="settings-row flex gap-6" data-power-settings>
+          <h3 className="w-24 flex-shrink-0 text-right text-body text-ink-2 pt-1">{t.settings.indexingSection}</h3>
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="flex items-center gap-2 text-callout text-ink cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={indexOnBattery ?? true}
+                onChange={toggleIndexOnBattery}
+                className="accent-[var(--accent)]"
+              />
+              {t.settings.indexOnBattery}
+            </label>
+            <p className="text-caption text-ink-4">{t.settings.indexOnBatteryNote}</p>
+          </div>
+        </section>
+      )}
 
       <AutoTagSettings />
 

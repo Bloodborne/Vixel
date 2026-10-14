@@ -101,7 +101,7 @@ export function MediaPlayer({ media, posterPhotoId, posterHash, hit, onResolutio
             </div>
           </div>
         ) : media.kind === 'video' ? (
-          <video {...common} poster={poster} className="max-w-full max-h-full rounded bg-black" />
+          <video {...common} poster={poster} playsInline className="max-w-full max-h-full rounded bg-black" />
         ) : (
           <div className="flex flex-col items-center gap-5 w-full max-w-2xl">
             <img src={poster} alt={media.fileName} className="max-h-[50vh] max-w-full object-contain rounded-lg shadow-2xl" />

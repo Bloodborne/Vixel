@@ -77,6 +77,8 @@ export async function extractAudioTrack(
 
   const { buffer, exitCode, stderr } = await runFfmpegToBuffer(ffmpeg, args)
 
+  // 无音轨：-vn 之后没有任何流可输出，ffmpeg 以非 0 退出（"does not contain any stream"）
+  if (exitCode !== 0 && /does not contain any stream/i.test(stderr)) return new Float32Array(0)
   if (exitCode !== 0) {
     throw new Error(`ffmpeg exited ${exitCode}: ${stderr.slice(0, 500) || 'no stderr'}`)
   }
