@@ -66,7 +66,8 @@ ENV NODE_ENV=production \
     MALLOC_TRIM_THRESHOLD_=131072 \
     MALLOC_MMAP_THRESHOLD_=131072 \
     VIXEL_ORT_MEM_ARENA=0 \
-    VIXEL_LOW_MEMORY=1
+    VIXEL_LOW_MEMORY=1 \
+    VIXEL_BACKEND=cpu
 WORKDIR /app
 
 # 非 root 运行：基础镜像自带的 node(1000) 改名为 vixel；root 启动时 entrypoint 按 PUID/PGID
@@ -81,6 +82,7 @@ WORKDIR /app
 # VIXEL_LOW_MEMORY=1：推理 worker 不让语义模型和 OCR / 人脸会话同时驻留，索引器按模型组
 #   分批取任务，空闲几分钟后卸掉全部模型（搜索时按需重载，付一次冷启动延迟）。
 #   内存紧张优先，NAS 常态；要换回"模型常驻"可在 compose 里设 VIXEL_LOW_MEMORY=0。
+# VIXEL_BACKEND=cpu：容器里一般没有可用 GPU，启动时不空试 WebGPU（设置页选过后端的以设置为准）。
 RUN usermod -l vixel -d /app -s /usr/sbin/nologin node && groupmod -n vixel node \
  && mkdir -p /data /photos && chown vixel:vixel /data
 

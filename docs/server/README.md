@@ -93,6 +93,7 @@ volumes:
 | `PUID` / `PGID` | `1000` / `1000` | 运行身份（root 启动时 entrypoint 降权；只 chown `/data`，从不动照片挂载） |
 | `VIXEL_THREADS` | 核数一半 | CPU 推理线程数 |
 | `VIXEL_LOW_MEMORY` | `1`（镜像默认） | 低内存模式：语义模型与 OCR / 人脸模型不同时驻留，空闲后卸载（搜索时按需重载）。设 `0` 换回模型常驻（建议给容器 4 GB+） |
+| `VIXEL_BACKEND` | `cpu`（镜像默认） | 语义模型推理后端：`cpu` / `gpu` / `auto`（GPU 优先，失败退 CPU）。设置页里选过的以设置为准 |
 | `VIXEL_PORT` | `8080` | 容器内监听端口 |
 | `VIXEL_COOKIE_SECURE` | 关 | `=1` 会话 cookie 永远带 `Secure`（全程 HTTPS 时用） |
 | `VIXEL_TRUST_PROXY` | 关 | `=1` 信任反代头：`X-Forwarded-Proto` 为 https 时自动加 `Secure`，登录限速按 `X-Forwarded-For` 计 |
@@ -200,6 +201,7 @@ search instant. Lower `VIXEL_THREADS` (e.g. `2`) for a gentler, slower index.
 | `PUID` / `PGID` | `1000` / `1000` | Runtime identity (entrypoint drops privileges when started as root; chowns `/data` only) |
 | `VIXEL_THREADS` | half the cores | CPU inference threads |
 | `VIXEL_LOW_MEMORY` | `1` (image default) | Low-memory mode: semantic and OCR/face models are never resident together and unload when idle (reloaded on demand for search). Set `0` to keep models resident (give the container 4 GB+) |
+| `VIXEL_BACKEND` | `cpu` (image default) | Inference backend for the semantic model: `cpu` / `gpu` / `auto` (GPU first, fall back to CPU). A choice made in Settings takes precedence |
 | `VIXEL_PORT` | `8080` | Port inside the container |
 | `VIXEL_COOKIE_SECURE` | off | `=1` always sets `Secure` on the session cookie (all-HTTPS setups) |
 | `VIXEL_TRUST_PROXY` | off | `=1` trusts proxy headers: `Secure` cookie when `X-Forwarded-Proto` is https, login rate limit keyed by `X-Forwarded-For` |

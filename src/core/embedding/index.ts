@@ -63,13 +63,21 @@ function readPersisted(): Record<string, unknown> {
   }
 }
 
+/**
+ * 设置页里选过的后端优先；没选过用 VIXEL_BACKEND（Docker 镜像默认 cpu：容器里通常没有 GPU，
+ * 免得每次启动先空试一遍 WebGPU、打出一串吓人的 ERROR）；都没有 = auto（GPU 优先，失败退 CPU）
+ */
+function parseBackend(v: unknown): 'auto' | 'gpu' | 'cpu' | undefined {
+  return v === 'auto' || v === 'gpu' || v === 'cpu' ? v : undefined
+}
+
 function loadConfig(): EmbeddingProviderConfig {
   const raw = readPersisted()
   return {
     type: 'litert',
     modelsDir: _bundledModelsDir,
     libDir: _litertLibDir,
-    backend: raw.backend === 'gpu' || raw.backend === 'cpu' ? raw.backend : 'auto',
+    backend: parseBackend(raw.backend) ?? parseBackend(process.env.VIXEL_BACKEND) ?? 'auto',
     cacheDir: _userDataPath ? join(_userDataPath, 'litert-cache') : undefined,
   }
 }
