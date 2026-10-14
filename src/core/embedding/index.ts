@@ -42,30 +42,49 @@ export function initEmbeddingServicePath(
 }
 
 /**
- * 这颗 CPU 跑不了语义模型：LiteRT-LM 的 x86 预编译库以 AVX 为基线，在没有 AVX 的 CPU 上
- * 一加载就 fail-fast 退出（"This binary was compiled with avx enabled"）—— 群晖 DS920+ / DS720+ /
- * DS420+（J4125）、DS220+（J4025）、DS918+（J3455）、N5105 等 NAS 都属于这类。
- * 这时整个语义通道停用（不加载、不重试），OCR / 人脸 / 文件名 / 标签照常。只在 Linux x64 上判断
- * （/proc/cpuinfo 的 flags）；读不到就当支持，免得误伤。结果缓存。
+ * LiteRT-LM 预编译库的 CPU 基线（库里 "This binary was compiled with X enabled" 的 fail-fast 检查，
+ * 缺任何一项加载即退出），换成 /proc/cpuinfo 里的 flag 名：
+ *   x64：AVX 是实际门槛 —— 群晖 DS920+ / DS720+ / DS420+（J4125）、DS220+（J4025）、DS918+（J3455）、
+ *        N5105 等 NAS 都没有 AVX（qemu 实测：Denverton 退出，SandyBridge 即只有 AVX 也能跑）
+ *   arm64：要 ARMv8.2（dotprod / fp16 / lse …）—— RTD1296（Cortex-A53）的 DS218 / DS418 / DS220j 不行，
+ *        RTD1619B（Cortex-A55）可以
+ * 升级 LiteRT 运行时后用 `strings liblitert-lm.so | grep "compiled with"` 核对这张表。
+ */
+const LITERT_CPU_FLAGS: Record<string, string[]> = {
+  x64: ['aes', 'avx', 'cx16', 'mmx', 'pclmulqdq', 'popcnt', 'sse', 'sse2', 'pni', 'sse4_1', 'sse4_2', 'ssse3'],
+  arm64: ['aes', 'crc32', 'asimddp', 'fphp', 'asimdhp', 'atomics', 'lrcpc', 'asimdrdm', 'sha2'],
+}
+
+/** cpuinfo 里缺了哪些 LiteRT 需要的 flag；读不懂格式就当不缺（免得误伤）。导出给测试 */
+export function missingCpuFlags(cpuinfo: string, arch: string): string[] {
+  const required = LITERT_CPU_FLAGS[arch]
+  if (!required) return []
+  // x86 是 "flags : …"，ARM 是 "Features : …"；取第一颗核
+  const line = cpuinfo.match(/^(?:flags|Features)\s*:(.*)$/m)?.[1]
+  if (line === undefined) return []
+  const have = new Set(line.trim().split(/\s+/))
+  return required.filter((f) => !have.has(f))
+}
+
+/**
+ * 这颗 CPU 跑不了语义模型（只在 Linux 上判断：服务器版 / Docker）。这时整个语义通道停用 ——
+ * 不加载、不重试，OCR / 人脸 / 文件名 / 标签照常。结果缓存。
  */
 let _cpuUnsupported: boolean | undefined
 export function semanticCpuUnsupported(): boolean {
   if (_cpuUnsupported === undefined) {
     _cpuUnsupported = false
-    if (process.platform === 'linux' && process.arch === 'x64') {
+    if (process.platform === 'linux') {
       try {
-        _cpuUnsupported = !cpuFlagsHaveAvx(readFileSync('/proc/cpuinfo', 'utf8'))
+        const missing = missingCpuFlags(readFileSync('/proc/cpuinfo', 'utf8'), process.arch)
+        if (missing.length > 0) {
+          _cpuUnsupported = true
+          console.warn(`[embedding] CPU lacks ${missing.join(', ')} — semantic model can't run here`)
+        }
       } catch { /* 读不到就当支持 */ }
     }
   }
   return _cpuUnsupported
-}
-
-/** /proc/cpuinfo 的第一组 flags 里有没有 avx（导出给测试） */
-export function cpuFlagsHaveAvx(cpuinfo: string): boolean {
-  const flags = cpuinfo.match(/^flags\s*:(.*)$/m)?.[1]
-  if (flags === undefined) return true
-  return flags.trim().split(/\s+/).includes('avx')
 }
 
 /** LiteRT 运行时 + 模型是否都在 */

@@ -286,8 +286,8 @@ async function main(): Promise<void> {
   db.recoverStuckTasks()
   db.pruneDoneTasks()
   if (semanticCpuUnsupported()) {
-    // 无 AVX：语义通道整体停用，不补排向量任务（换到支持的 CPU 上启动时会自动补齐）
-    console.warn('[server] this CPU has no AVX — semantic search is disabled; OCR, faces, filename and tag search still work')
+    // CPU 跑不了语义模型（x86 无 AVX / ARMv8.0）：语义通道整体停用，不补排向量任务（换到支持的 CPU 上启动时会自动补齐）
+    console.warn('[server] semantic search is disabled on this CPU; OCR, faces, filename and tag search still work')
   } else {
     db.requeueMissingEmbeddings()
   }

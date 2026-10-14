@@ -432,7 +432,7 @@ export class Indexer extends EventEmitter {
       }
     }
 
-    // 无 AVX 的 CPU：只要代表图，不记错误（frame_count 留空，换到支持的 CPU 上启动时会自动补片段）
+    // CPU 跑不了语义模型：只要代表图，不记错误（frame_count 留空，换到支持的 CPU 上启动时会自动补片段）
     if (!modelReady && semanticCpuUnsupported()) return
     if (!modelReady) {
       throw new Error(`${MODEL_NOT_READY_PREFIX}: ${embeddingService.getInitError() ?? 'unknown'}`)
@@ -765,7 +765,7 @@ export class Indexer extends EventEmitter {
       if (!existsSync(this.getThumbnailPath(fileHash))) {
         await this.processThumbnail(fileHash, filePath, photoId)
       }
-      // CPU 跑不了语义模型（无 AVX）：安静跳过，不记错误；启动时也不补排（见 requeueMissingEmbeddings 调用处）
+      // CPU 跑不了语义模型（x86 无 AVX / ARMv8.0）：安静跳过，不记错误；启动时也不补排（见 requeueMissingEmbeddings 调用处）
       if (semanticCpuUnsupported()) return
 
       // 先确认模型可用再解码：模型不在时别把整个图库白解码一遍
