@@ -66,7 +66,8 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
   useEffect(() => {
     window.api.getModelStatus().then((s) => {
       setModelIssue(
-        s.initError ? t.shell.modelInitFailed
+        s.cpuUnsupported ? t.shell.cpuUnsupported
+          : s.initError ? t.shell.modelInitFailed
           : !s.localModelExists ? t.shell.modelMissing
           : !s.embeddingReady ? t.shell.modelNotReady
           : null

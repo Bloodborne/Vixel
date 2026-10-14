@@ -19,6 +19,7 @@ import { LiteRtEmbeddingProvider, LITERT_MODEL_FILE } from './providers/litert/l
 import { LITERT_LIB_NAME } from './providers/litert/native'
 import { RemoteEmbeddingProvider } from './providers/remoteProvider'
 import { getInferenceTransport } from '../inference/transport'
+import { t } from '../../shared/i18n'
 
 export * from './types'
 
@@ -38,6 +39,33 @@ export function initEmbeddingServicePath(
   _userDataPath = userDataPath
   if (bundledModelsDir) _bundledModelsDir = bundledModelsDir
   if (litertLibDir) _litertLibDir = litertLibDir
+}
+
+/**
+ * 这颗 CPU 跑不了语义模型：LiteRT-LM 的 x86 预编译库以 AVX 为基线，在没有 AVX 的 CPU 上
+ * 一加载就 fail-fast 退出（"This binary was compiled with avx enabled"）—— 群晖 DS920+ / DS720+ /
+ * DS420+（J4125）、DS220+（J4025）、DS918+（J3455）、N5105 等 NAS 都属于这类。
+ * 这时整个语义通道停用（不加载、不重试），OCR / 人脸 / 文件名 / 标签照常。只在 Linux x64 上判断
+ * （/proc/cpuinfo 的 flags）；读不到就当支持，免得误伤。结果缓存。
+ */
+let _cpuUnsupported: boolean | undefined
+export function semanticCpuUnsupported(): boolean {
+  if (_cpuUnsupported === undefined) {
+    _cpuUnsupported = false
+    if (process.platform === 'linux' && process.arch === 'x64') {
+      try {
+        _cpuUnsupported = !cpuFlagsHaveAvx(readFileSync('/proc/cpuinfo', 'utf8'))
+      } catch { /* 读不到就当支持 */ }
+    }
+  }
+  return _cpuUnsupported
+}
+
+/** /proc/cpuinfo 的第一组 flags 里有没有 avx（导出给测试） */
+export function cpuFlagsHaveAvx(cpuinfo: string): boolean {
+  const flags = cpuinfo.match(/^flags\s*:(.*)$/m)?.[1]
+  if (flags === undefined) return true
+  return flags.trim().split(/\s+/).includes('avx')
 }
 
 /** LiteRT 运行时 + 模型是否都在 */
@@ -101,7 +129,7 @@ class EmbeddingService {
   }
 
   isConfigured(): boolean {
-    return isLiteRtInstalled()
+    return isLiteRtInstalled() && !semanticCpuUnsupported()
   }
 
   getInitError(): string | null {
@@ -109,6 +137,10 @@ class EmbeddingService {
   }
 
   async init(): Promise<void> {
+    if (semanticCpuUnsupported()) {
+      this.initError = t.model.cpuUnsupported
+      return
+    }
     if (!this.isConfigured()) {
       this.initError = 'LiteRT runtime or EmbeddingGemma 2 model missing — run `npm run models:download`'
       return

@@ -411,6 +411,8 @@ export interface ModelStatus {
   /** 后端偏好 */
   backend: 'auto' | 'gpu' | 'cpu'
   initError: string | null
+  /** CPU 没有 AVX，语义模型跑不了（服务器版 / Linux x64），见 semanticCpuUnsupported */
+  cpuUnsupported: boolean
 }
 
 export interface EmbeddingConfig {

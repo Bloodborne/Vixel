@@ -16,7 +16,7 @@ import type { DatabaseInstance } from '../core/db'
 import type { FileWatcher } from '../core/watcher'
 import type { Indexer } from '../core/indexer'
 import type { SearchEngine, SearchOptions } from '../core/search'
-import { getEmbeddingService, isLiteRtInstalled } from '../core/embedding'
+import { getEmbeddingService, isLiteRtInstalled, semanticCpuUnsupported } from '../core/embedding'
 import { suggestMerges } from '../core/face/cluster'
 import { searchByImage } from '../core/imageSearch'
 import { parsePaletteJson } from '../core/color/palette'
@@ -305,6 +305,7 @@ function buildApi(ctx: ServiceContext, deps: {
         activeBackend: embeddingService.getActiveBackend(),
         backend: embeddingService.getConfig().backend ?? 'auto',
         initError: embeddingService.getInitError(),
+        cpuUnsupported: semanticCpuUnsupported(),
       }
     },
 

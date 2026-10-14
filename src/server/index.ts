@@ -25,7 +25,7 @@ import { initDatabase } from '../core/db'
 import { FileWatcher } from '../core/watcher'
 import { Indexer } from '../core/indexer'
 import { SearchEngine } from '../core/search'
-import { initEmbeddingServicePath } from '../core/embedding'
+import { initEmbeddingServicePath, semanticCpuUnsupported } from '../core/embedding'
 import { setFaceModelsDir, FACE_PIPELINE_VERSION } from '../core/face'
 import { setOcrModelsDir } from '../core/ocr'
 import { preloadJieba } from '../core/text/tokenize'
@@ -285,7 +285,12 @@ async function main(): Promise<void> {
   const db = initDatabase(join(config.dataDir, 'library.db'))
   db.recoverStuckTasks()
   db.pruneDoneTasks()
-  db.requeueMissingEmbeddings()
+  if (semanticCpuUnsupported()) {
+    // 无 AVX：语义通道整体停用，不补排向量任务（换到支持的 CPU 上启动时会自动补齐）
+    console.warn('[server] this CPU has no AVX — semantic search is disabled; OCR, faces, filename and tag search still work')
+  } else {
+    db.requeueMissingEmbeddings()
+  }
   const staleFaces = db.resetFacesIfStale(FACE_PIPELINE_VERSION)
 
   const events = createServiceEvents()

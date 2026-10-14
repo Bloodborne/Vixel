@@ -8,7 +8,7 @@ import xxhash from 'xxhash-wasm'
 import type { DatabaseInstance } from './db'
 import type { CurrentTask, IndexProgress, PowerWaitReason, TaskOrigin, TaskType } from '../shared/types'
 import { LIVE_TASK_BURST_MAX } from './powerPolicy'
-import { getEmbeddingService } from './embedding'
+import { getEmbeddingService, semanticCpuUnsupported } from './embedding'
 import { initFaceService, isFaceServiceReady, processPhotoFaces, assignFaceToPerson } from './face'
 import { initOcrService, isOcrReady, processPhotoOcr, OCR_PIPELINE_VERSION } from './ocr'
 import { decodeImage, type DecodedImage } from './image/decode'
@@ -432,6 +432,8 @@ export class Indexer extends EventEmitter {
       }
     }
 
+    // 无 AVX 的 CPU：只要代表图，不记错误（frame_count 留空，换到支持的 CPU 上启动时会自动补片段）
+    if (!modelReady && semanticCpuUnsupported()) return
     if (!modelReady) {
       throw new Error(`${MODEL_NOT_READY_PREFIX}: ${embeddingService.getInitError() ?? 'unknown'}`)
     }
@@ -763,14 +765,17 @@ export class Indexer extends EventEmitter {
       if (!existsSync(this.getThumbnailPath(fileHash))) {
         await this.processThumbnail(fileHash, filePath, photoId)
       }
-      const decoded = await this.decode(fileHash, filePath)
+      // CPU 跑不了语义模型（无 AVX）：安静跳过，不记错误；启动时也不补排（见 requeueMissingEmbeddings 调用处）
+      if (semanticCpuUnsupported()) return
 
+      // 先确认模型可用再解码：模型不在时别把整个图库白解码一遍
       // 失败要抛出：吞掉的话任务记 done、没有向量，下次启动又被 requeueMissingEmbeddings 悄悄重排
       const embeddingService = getEmbeddingService()
       await embeddingService.init()
       if (!embeddingService.isReady()) {
         throw new Error(`${MODEL_NOT_READY_PREFIX}: ${embeddingService.getInitError() ?? 'unknown'}`)
       }
+      const decoded = await this.decode(fileHash, filePath)
       const embedding = await embeddingService.encodeImage(decoded.buffer)
       this.db.saveImageVec(fileHash, embedding)
     } catch (error) {

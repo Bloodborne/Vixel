@@ -121,7 +121,8 @@ export function ModelStatus(): JSX.Element {
   }
 
   const localReady = status.localModelExists && status.embeddingReady
-  const localMissing = !status.localModelExists
+  const localMissing = !status.localModelExists && !status.cpuUnsupported
+  const warn = localMissing || status.cpuUnsupported
 
   return (
     <div className="p-5 space-y-5">
@@ -131,9 +132,9 @@ export function ModelStatus(): JSX.Element {
       </div>
 
       {/* 主状态 */}
-      <div className={`p-3 rounded-lg ${localReady ? 'bg-ok/10' : localMissing ? 'bg-warn/10' : 'bg-fill'}`}>
+      <div className={`p-3 rounded-lg ${localReady ? 'bg-ok/10' : warn ? 'bg-warn/10' : 'bg-fill'}`}>
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${localReady ? 'bg-ok' : localMissing ? 'bg-warn' : 'bg-fill-active'}`} />
+          <span className={`w-2 h-2 rounded-full ${localReady ? 'bg-ok' : warn ? 'bg-warn' : 'bg-fill-active'}`} />
           <div className="flex-1">
             {localReady && (
               <p className="text-caption text-ok/80">
@@ -148,7 +149,9 @@ export function ModelStatus(): JSX.Element {
                 </p>
               </>
             )}
-            {status.initError && (
+            {status.cpuUnsupported ? (
+              <p className="text-caption text-warn/80">{t.model.cpuUnsupported}</p>
+            ) : status.initError && (
               <p className="text-micro text-bad/80 mt-1">{status.initError}</p>
             )}
           </div>
