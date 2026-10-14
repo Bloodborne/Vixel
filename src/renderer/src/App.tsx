@@ -1296,6 +1296,12 @@ function App(): JSX.Element {
               title={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeTitle : t.imagesearch.errorModelTitle}
               hint={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeHint : t.imagesearch.errorModelHint}
             />
+          ) : libraryEmpty && folders.some((f) => f.unreadable) ? (
+            <EmptyState
+              icon="image"
+              title={t.shell.folderUnreadable}
+              hint={IS_WEB ? t.settings.folderUnreadableServer : t.settings.folderUnreadableDesktop}
+            />
           ) : libraryEmpty ? (
             <EmptyState
               icon="image"
