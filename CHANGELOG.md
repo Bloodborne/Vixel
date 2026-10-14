@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tasks by model group so swaps happen between batches, and all models unload after a few
   idle minutes (the next search transparently reloads them). A container capped at
   `mem_limit: 2g` now completes a full index with zero failed tasks and no OOM kill
-  (previously ≥ 3 GB was required); search results are identical to desktop. Desktop
+  (previously ≥ 3 GB was required); search results are identical to the resident mode. Desktop
   behaviour is unchanged (the mode is off unless the env var is set). Set
   `VIXEL_LOW_MEMORY=0` to keep models resident when the container has 4 GB+.
 

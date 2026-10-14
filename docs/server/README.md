@@ -79,7 +79,7 @@ volumes:
 **内存建议**：建议 NAS 至少 4 GB 内存、给容器留出 2 GB 以上。镜像默认开低内存模式
 （`VIXEL_LOW_MEMORY=1`）：语义模型和 OCR / 人脸模型从不同时驻留，索引按模型分组分批跑，
 空闲几分钟后全部卸载 —— 设 `mem_limit: 2g` 也能完整索引（实测不触发 OOM、零失败任务），
-搜索结果与桌面版完全一致。代价是模型闲置后的第一次搜索要等模型重新加载（之后恢复即时）。
+搜索结果与常驻模式相同。代价是模型闲置后的第一次搜索要等模型重新加载（之后恢复即时）。
 内存充裕（给容器 4 GB+）想要模型常驻、搜索永远即时，可设 `VIXEL_LOW_MEMORY=0`。
 嫌索引吃 CPU 可以把 `VIXEL_THREADS` 调小（例如 `2`），索引会慢一些。
 
@@ -121,7 +121,8 @@ WebSocket（索引进度实时推送）需要反代支持 Upgrade：群晖反向
 ## 限制（当前版本）
 
 - **单用户**：一个口令，所有人看到同一个库。多用户 / 权限分级还没有。
-- **CPU 推理**：容器里不用 GPU。索引比桌面版（Apple Silicon GPU）慢，搜索结果一致。
+- **CPU 推理**：容器里不用 GPU。索引比桌面版（Apple Silicon GPU）慢。同一种 CPU 架构上搜索结果与桌面版完全一致；
+  x86（多数群晖）和 ARM 的浮点运算有细微差别，得分几乎相同的结果偶尔会互换名次，整体准确度不变。
 - **浏览器播不了的视频编码**（如部分 HEVC / ProRes）提供下载，暂不在线转码。
 - **EPS 不支持**（桌面版同样不支持）；PDF / AI（PDF 兼容存储）、SVG、PSD/PSB 正常索引。
 - 桌面专属能力（在访达中显示、系统播放器、收集箱、快速搜索面板等）在网页版隐藏或降级为下载。
@@ -131,7 +132,7 @@ WebSocket（索引进度实时推送）需要反代支持 Upgrade：群晖反向
 # Vixel Server · Docker / NAS deployment guide
 
 The server edition brings the desktop "find" experience to the browser: same indexing
-pipeline, same models, identical search results — running on your own NAS or server,
+pipeline, same models, the same search quality — running on your own NAS or server,
 reachable from any phone or desktop browser. Fully offline: all models are baked into
 the image, nothing ever phones home; your originals are mounted read-only and never touched.
 
@@ -186,7 +187,7 @@ or more. The image ships with low-memory mode on (`VIXEL_LOW_MEMORY=1`): the sem
 model and the OCR / face models are never resident at the same time, indexing batches
 tasks by model group, and all models are unloaded after a few idle minutes — a
 `mem_limit: 2g` cap completes a full index (measured: no OOM kill, zero failed tasks)
-with search results identical to desktop. The trade-off: the first search after the
+with search results identical to the resident mode. The trade-off: the first search after the
 models have gone idle waits for a reload (instant again afterwards). With plenty of RAM
 (4 GB+ for the container), set `VIXEL_LOW_MEMORY=0` to keep models resident and every
 search instant. Lower `VIXEL_THREADS` (e.g. `2`) for a gentler, slower index.
@@ -230,8 +231,10 @@ internet exposure.
 ## Limitations (current release)
 
 - **Single user**: one password, everyone sees the same library.
-- **CPU-only inference**: indexing is slower than the desktop app on Apple Silicon;
-  search results are identical.
+- **CPU-only inference**: indexing is slower than the desktop app on Apple Silicon. On the
+  same CPU architecture search results are identical to desktop; between x86 (most Synology
+  models) and ARM, tiny floating-point differences can swap near-tied results — overall
+  accuracy is unchanged.
 - Video codecs the browser can't decode (some HEVC / ProRes) get a download button;
   no server-side transcoding yet.
 - **EPS is not supported** (same as desktop). PDF / AI (PDF-compatible), SVG and
