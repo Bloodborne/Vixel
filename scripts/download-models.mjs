@@ -150,13 +150,24 @@ async function downloadLiteRtRuntime() {
     console.error(`${colors.red}  sha256 mismatch for ${basename(wheel)}: ${actual}${colors.reset}`)
     return false
   }
-  // wheel 就是 zip；macOS / Windows 10+ 自带的 bsdtar 都能解
+  // wheel 就是 zip：macOS / Windows 10+ 自带的 bsdtar 能解；Linux 的 GNU tar 不认 zip，
+  // 依次退到 unzip、python3 zipfile（Docker 构建前在 Linux 上准备时走这里）
   const extractDir = join(tmpdir(), `litert-runtime-${platform}`)
-  await rm(extractDir, { recursive: true, force: true })
-  mkdirSync(extractDir, { recursive: true })
-  const r = spawnSync('tar', ['-xf', wheel, '-C', extractDir, ...spec.files.map((f) => `litert_lm/${f}`)], { stdio: 'inherit' })
-  if (r.status !== 0) {
-    console.error(`${colors.red}  failed to extract ${basename(wheel)}${colors.reset}`)
+  const members = spec.files.map((f) => `litert_lm/${f}`)
+  const extractors = [
+    ['tar', ['-xf', wheel, '-C', extractDir, ...members]],
+    ['unzip', ['-q', '-o', wheel, ...members, '-d', extractDir]],
+    ['python3', ['-c', 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2], sys.argv[3:])', wheel, extractDir, ...members]],
+  ]
+  let ok = false
+  for (const [cmd, args] of extractors) {
+    await rm(extractDir, { recursive: true, force: true })
+    mkdirSync(extractDir, { recursive: true })
+    const r = spawnSync(cmd, args, { stdio: ['ignore', 'ignore', 'pipe'] })
+    if (r.status === 0 && spec.files.every((f) => existsSync(join(extractDir, 'litert_lm', f)))) { ok = true; break }
+  }
+  if (!ok) {
+    console.error(`${colors.red}  failed to extract ${basename(wheel)} (needs bsdtar, unzip or python3)${colors.reset}`)
     return false
   }
   mkdirSync(targetDir, { recursive: true })
