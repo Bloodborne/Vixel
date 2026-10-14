@@ -3,6 +3,7 @@
  * （服务器版的 child_process.fork worker 也用同一份），这里只接 process.parentPort。
  */
 
+import '../core/inference/noTelemetry' // 必须第一个：在加载 onnxruntime 之前关掉它的遥测
 import { createInferenceWorker } from '../core/inference/worker'
 import type { InferenceRequest } from '../core/inference/transport'
 

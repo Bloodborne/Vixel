@@ -3,6 +3,7 @@
  * （core/inference/worker.ts），这里只接 process.send / process.on('message')。
  * 父进程用 serialization: 'advanced' fork，消息是结构化克隆，协议不变。
  */
+import '../core/inference/noTelemetry' // 必须第一个：在加载 onnxruntime 之前关掉它的遥测
 import { createInferenceWorker } from '../core/inference/worker'
 import type { InferenceRequest } from '../core/inference/transport'
 

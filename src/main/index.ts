@@ -1,3 +1,4 @@
+import '../core/inference/noTelemetry' // 必须第一个：在加载 onnxruntime 之前关掉它的遥测
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net, nativeTheme, session } from 'electron'
 import { pathToFileURL } from 'url'
 import { join } from 'path'

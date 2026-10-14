@@ -9,6 +9,7 @@
  * 桌面版唯一的联网点 —— 收集箱按 URL 下载 —— 是桌面专属，不在服务器 API 面上）。
  */
 import './bootstrap' // 必须第一个 import：普通 Node 下重定向 better-sqlite3 到 Node ABI 构建
+import '../core/inference/noTelemetry' // 在加载 onnxruntime 之前关掉它的遥测
 import { createServer, type IncomingMessage, type ServerResponse } from 'http'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'

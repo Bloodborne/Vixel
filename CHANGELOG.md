@@ -31,6 +31,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behaviour is unchanged (the mode is off unless the env var is set). Set
   `VIXEL_LOW_MEMORY=0` to keep models resident when the container has 4 GB+.
 
+### Fixed
+- **Privacy: onnxruntime telemetry is now disabled.** onnxruntime 1.30 (used for OCR and
+  face models) ships Microsoft's 1DS telemetry client on macOS and Linux and opened an
+  HTTPS connection to a Microsoft collector when the first OCR / face session was created.
+  Every process that loads onnxruntime now sets `ORT_DISABLE_TELEMETRY=1` before any session
+  exists (verified: no outbound connection). Affects all earlier macOS releases; the
+  Windows build has no bundled uploader (ETW only).
+- Server: auto-tag names follow the browser's language when the UI language is "system";
+  silent videos no longer log an ffmpeg stack trace per segment; the image defaults to the
+  CPU backend (`VIXEL_BACKEND`, no doomed WebGPU attempt and error spam on start).
+- Web UI: no horizontal scrollbar under the grid with classic scrollbars (also the Windows
+  desktop app); color swatches wrap on phones; videos play inline on iOS Safari; the
+  battery-indexing setting is hidden on the server.
+- `scripts/download-models.mjs` extracts the LiteRT runtime wheel on Linux (GNU tar can't
+  read zip; falls back to `unzip` / `python3`).
+
 ## [0.4.1] - 2026-10-13
 
 ### Added
