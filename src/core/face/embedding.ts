@@ -20,6 +20,13 @@ export function isEmbeddingReady(): boolean {
   return session !== null
 }
 
+/** 释放 ONNX 会话（服务器低内存模式用） */
+export async function disposeFaceEmbedding(): Promise<void> {
+  const s = session
+  session = null
+  if (s) await s.release().catch(() => {})
+}
+
 /**
  * 从对齐的人脸 raw buffer (112×112×3 RGB) 生成 512D embedding
  */

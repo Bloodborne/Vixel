@@ -62,13 +62,20 @@ FROM node:22-bookworm-slim
 ENV NODE_ENV=production \
     VIXEL_DATA_DIR=/data \
     VIXEL_LIBRARY_DIRS=/photos \
-    MALLOC_ARENA_MAX=2
+    MALLOC_ARENA_MAX=2 \
+    VIXEL_ORT_MEM_ARENA=0 \
+    VIXEL_LOW_MEMORY=1
 WORKDIR /app
 
 # 非 root 运行：基础镜像自带的 node(1000) 改名为 vixel；root 启动时 entrypoint 按 PUID/PGID
 # 调整后降权（群晖习惯）。setpriv（util-linux）/ usermod 都在基础镜像里，无需额外安装。
 # MALLOC_ARENA_MAX=2：glibc 多线程 arena 在 XNNPACK 推理下碎片化严重 —— 实测索引
 # demo+footage 库峰值 3.38→2.79 GiB、索引后常驻 3.26→2.02 GiB（8 vCPU、默认线程数）。
+# VIXEL_ORT_MEM_ARENA=0：OCR / 人脸的 onnxruntime 会话不用只增不减的 CPU 内存池，
+#   大图过后按需释放（数值结果不变，见 src/core/inference/session-options.ts）。
+# VIXEL_LOW_MEMORY=1：推理 worker 不让语义模型和 OCR / 人脸会话同时驻留，索引器按模型组
+#   分批取任务，空闲几分钟后卸掉全部模型（搜索时按需重载，付一次冷启动延迟）。
+#   内存紧张优先，NAS 常态；要换回"模型常驻"可在 compose 里设 VIXEL_LOW_MEMORY=0。
 RUN usermod -l vixel -d /app -s /usr/sbin/nologin node && groupmod -n vixel node \
  && mkdir -p /data /photos && chown vixel:vixel /data
 

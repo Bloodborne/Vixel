@@ -55,6 +55,14 @@ export function isRecognitionReady(): boolean {
   return session !== null && charset !== null
 }
 
+/** 释放 ONNX 会话（服务器低内存模式用；字典一并清掉，重新 init 时重读 + 重新探测类别数） */
+export async function disposeRecognition(): Promise<void> {
+  const s = session
+  session = null
+  charset = null
+  if (s) await s.release().catch(() => {})
+}
+
 /**
  * 对一组文本框运行识别。返回每个框对应的识别结果（按输入顺序）。
  */

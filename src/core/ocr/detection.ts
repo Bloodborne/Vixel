@@ -37,6 +37,13 @@ export function isDetectionReady(): boolean {
   return session !== null
 }
 
+/** 释放 ONNX 会话（服务器低内存模式在模型组切换 / 空闲时调用；下次 init 重新加载） */
+export async function disposeDetection(): Promise<void> {
+  const s = session
+  session = null
+  if (s) await s.release().catch(() => {})
+}
+
 export async function detectTextBoxes(imageBuffer: Buffer): Promise<TextBox[]> {
   if (!session) throw new Error('OCR detection not initialized')
 

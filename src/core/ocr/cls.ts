@@ -29,6 +29,13 @@ export function isClsReady(): boolean {
   return session !== null
 }
 
+/** 释放 ONNX 会话（服务器低内存模式用；cls 可选，卸掉后不重载也只是少了 180° 检测） */
+export async function disposeCls(): Promise<void> {
+  const s = session
+  session = null
+  if (s) await s.release().catch(() => {})
+}
+
 /**
  * 对一组框做方向判断；返回与输入同长度的布尔数组，true = 该框需要 180° 翻转。
  *

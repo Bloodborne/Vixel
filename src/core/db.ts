@@ -539,7 +539,7 @@ export interface DatabaseInstance {
   /** 有排队中 / 进行中 / 失败的任务：启动对账据此跳过，失败的留给任务面板重试，不每次启动重跑 */
   hasOpenOrFailedTask: (photoId: number, taskType: string) => boolean
   /** liveOnly：只取 origin='live' 的任务（电源策略挡住回填时用） */
-  getNextTask: (liveOnly?: boolean) => { id: number; photoId: number; taskType: string; origin: TaskOrigin } | undefined
+  getNextTask: (liveOnly?: boolean, groupByModel?: boolean) => { id: number; photoId: number; taskType: string; origin: TaskOrigin } | undefined
   /** 排队中的 live 任务数：≤ LIVE_TASK_BURST_MAX 才在回填等待期间放行 */
   countLivePendingTasks: () => number
   peekNextTask: () => { id: number; photoId: number; taskType: string } | undefined
@@ -1123,6 +1123,26 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
       SELECT id, photo_id as photoId, task_type as taskType, origin FROM index_queue
       WHERE status = 'pending'
       ORDER BY priority DESC, id ASC
+      LIMIT 1
+    `),
+    /**
+     * 低内存模式（服务器）的取任务顺序：先按"模型组"再按优先级 —— 缩略图（不占模型）照旧最先，
+     * 然后 embedding 组（embed + extract_frames 都走 EmbeddingGemma），再人脸、最后 OCR。
+     * 默认顺序里 face(8) 插在 embed(10) 和 extract_frames(6) 之间，视频多的库每个视频都要
+     * 换一次模型组；分组后换组只发生在批与批之间（推理 worker 卸载/重载模型才便宜得起）。
+     * 组内仍按 priority DESC, id ASC，与默认顺序一致。
+     */
+    getNextTaskGrouped: db.prepare(`
+      SELECT id, photo_id as photoId, task_type as taskType, origin FROM index_queue
+      WHERE status = 'pending'
+      ORDER BY CASE task_type
+        WHEN 'thumbnail' THEN 0
+        WHEN 'embed' THEN 1
+        WHEN 'extract_frames' THEN 1
+        WHEN 'face' THEN 2
+        WHEN 'ocr' THEN 3
+        ELSE 0 END ASC,
+        priority DESC, id ASC
       LIMIT 1
     `),
     getNextLiveTask: db.prepare(`
@@ -1808,8 +1828,9 @@ export function initDatabase(dbPath: string, options?: { runCleanup?: boolean; r
     hasOpenTask: (photoId: number, taskType: string): boolean => {
       return stmts.hasOpenTask.get(photoId, taskType) !== undefined
     },
-    getNextTask: (liveOnly = false) => {
-      const task = (liveOnly ? stmts.getNextLiveTask : stmts.getNextTask).get() as
+    getNextTask: (liveOnly = false, groupByModel = false) => {
+      const stmt = liveOnly ? stmts.getNextLiveTask : groupByModel ? stmts.getNextTaskGrouped : stmts.getNextTask
+      const task = stmt.get() as
         | { id: number; photoId: number; taskType: string; origin: TaskOrigin }
         | undefined
       if (task) {

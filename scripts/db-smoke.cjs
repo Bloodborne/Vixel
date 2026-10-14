@@ -178,6 +178,23 @@ assert(db.getNextTask(true) === undefined, 'no more live tasks')
 const bfTask = db.getNextTask()
 assert(bfTask && bfTask.photoId === s2 && bfTask.origin === 'backfill', 'backfill task still reachable without liveOnly')
 db.completeTask(liveTask.id); db.completeTask(bfTask.id)
+// 低内存模式的分组取任务顺序（getNextTask(false, true)）：缩略图 → embed+extract_frames → face → ocr，
+// 与默认顺序（priority DESC：face(8) 插在 embed(10) / extract_frames(6) 之间）对比
+db.addToQueue(s1, 'ocr', 4)
+db.addToQueue(s1, 'face', 8)
+db.addToQueue(s2, 'extract_frames', 6)
+db.addToQueue(s2, 'embed', 10)
+db.addToQueue(s1, 'thumbnail', 20)
+const grouped = []
+for (;;) { const t = db.getNextTask(false, true); if (!t) break; grouped.push(t.taskType); db.completeTask(t.id) }
+assert(grouped.join() === 'thumbnail,embed,extract_frames,face,ocr', `grouped order batches by model group (got ${grouped.join()})`)
+db.addToQueue(s1, 'ocr', 4)
+db.addToQueue(s1, 'face', 8)
+db.addToQueue(s2, 'extract_frames', 6)
+db.addToQueue(s2, 'embed', 10)
+const plain = []
+for (;;) { const t = db.getNextTask(); if (!t) break; plain.push(t.taskType); db.completeTask(t.id) }
+assert(plain.join() === 'embed,face,extract_frames,ocr', `default order is pure priority (got ${plain.join()})`)
 // 跳过的数据集目录：登记 / 列出 / override / 随文件夹删除
 db.addSkippedFolder(sf.id, '/tmp/vx-shot-smoke/frames', 250)
 db.addSkippedFolder(sf.id, '/tmp/vx-shot-smoke/frames', 260) // upsert 更新计数

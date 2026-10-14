@@ -52,6 +52,14 @@ const PROGRESS_MIN_INTERVAL_MS = 250
 /** 模型未就绪导致的失败以此开头；requeueMissingEmbeddings 只自动重排这类，坏文件留给任务面板 */
 export const MODEL_NOT_READY_PREFIX = 'Embedding model not ready'
 
+/**
+ * 低内存模式（服务器 / NAS：VIXEL_LOW_MEMORY=1，Docker 镜像默认开；桌面不设 → 行为不变）：
+ * 推理 worker 不让 EmbeddingGemma 引擎和 OCR / 人脸会话同时驻留（见 core/inference/worker.ts），
+ * 换组要卸载 / 重载模型 —— 取任务时按模型组分批（embed + 视频片段一批、人脸一批、OCR 一批），
+ * 让换组只发生在批与批之间，而不是每个文件一次。
+ */
+const LOW_MEMORY = process.env.VIXEL_LOW_MEMORY === '1'
+
 /** 电源策略在视频片段断点打断了回填任务：任务放回队列，不算失败 */
 class BackfillInterrupt extends Error {
   constructor() {
@@ -597,7 +605,7 @@ export class Indexer extends EventEmitter {
     const liveOnly = this.powerBlock !== null
     const task = liveOnly
       ? (this.db.countLivePendingTasks() <= LIVE_TASK_BURST_MAX ? this.db.getNextTask(true) : undefined)
-      : this.db.getNextTask()
+      : this.db.getNextTask(false, LOW_MEMORY)
     if (!task) {
       this.current = null
       this.emitProgress('idle')

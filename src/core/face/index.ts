@@ -8,8 +8,8 @@
 
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { initDetection, isDetectionReady, detectFaces } from './detection'
-import { initFaceEmbedding, isEmbeddingReady, embedFace } from './embedding'
+import { initDetection, isDetectionReady, detectFaces, disposeDetection } from './detection'
+import { initFaceEmbedding, isEmbeddingReady, embedFace, disposeFaceEmbedding } from './embedding'
 import { alignFace, cropFace, type RawImage } from './alignment'
 import { faceQuality } from './quality'
 import { dot, l2ToCosineDistance } from './distance'
@@ -82,6 +82,15 @@ export function isFaceServiceReady(): boolean {
   const t = getInferenceTransport()
   if (t) return remote.isReady(t)
   return initialized && isDetectionReady() && isEmbeddingReady()
+}
+
+/**
+ * 释放本进程里的人脸会话（SCRFD + MobileFaceNet），模型目录保留 —— 下次 initFaceService 重新加载。
+ * 只针对进程本地会话（推理 worker 的低内存模式）；有 transport 的宿主侧本来就没有本地会话。
+ */
+export async function disposeFaceService(): Promise<void> {
+  initialized = false
+  await Promise.all([disposeDetection(), disposeFaceEmbedding()])
 }
 
 export interface DetectedFaceResult {

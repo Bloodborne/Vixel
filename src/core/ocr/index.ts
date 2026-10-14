@@ -15,9 +15,9 @@
 
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { initDetection, isDetectionReady, detectTextBoxes } from './detection'
-import { initRecognition, isRecognitionReady, recognizeBoxes } from './recognition'
-import { initCls, isClsReady, detectFlips } from './cls'
+import { initDetection, isDetectionReady, detectTextBoxes, disposeDetection } from './detection'
+import { initRecognition, isRecognitionReady, recognizeBoxes, disposeRecognition } from './recognition'
+import { initCls, isClsReady, detectFlips, disposeCls } from './cls'
 import type { OcrResult } from './types'
 import { getInferenceTransport, RemoteReady } from '../inference/transport'
 
@@ -96,6 +96,15 @@ export function isOcrReady(): boolean {
   const t = getInferenceTransport()
   if (t) return remote.isReady(t)
   return initialized && isDetectionReady() && isRecognitionReady()
+}
+
+/**
+ * 释放本进程里的 OCR 会话（det/rec/cls），模型目录保留 —— 下次 processPhotoOcr 会按需重新 init。
+ * 只针对进程本地会话（推理 worker 的低内存模式）；有 transport 的宿主侧本来就没有本地会话。
+ */
+export async function disposeOcrService(): Promise<void> {
+  initialized = false
+  await Promise.all([disposeDetection(), disposeRecognition(), disposeCls()])
 }
 
 /**
