@@ -2,12 +2,25 @@
 
 > English version below: [Deployment guide (English)](#vixel-server--docker--nas-deployment-guide)
 
-Vixel 服务器版把桌面版的"找"搬进浏览器：同一套索引、同一套模型、同样的搜索结果，
+Vixel 服务器版把桌面版的"找"搬进浏览器：同一套索引、同一套模型、同样的搜索质量，
 跑在你自己的 NAS / 服务器上，手机和电脑网页直接访问。完全离线 —— 模型内置在镜像里，
 运行时不发任何对外请求；照片原文件只读挂载，Vixel 永远不写、不动、不删它们。
 
 支持架构：`linux/amd64`（Intel/AMD 群晖、威联通、x86 服务器）和 `linux/arm64`
 （ARM 群晖、树莓派 5 等 ≥4 GB 内存的 ARM 设备）。
+
+### CPU 要求（装之前先看）
+
+语义搜索（用一句话找照片 / 视频片段 / 声音、以图搜图）需要较新的 CPU 指令集：
+
+| | 能用语义搜索 | 不能（其余功能照常） |
+|---|---|---|
+| x86 | 支持 **AVX** 的 CPU：AMD Ryzen（DS923+ / DS723+ / DS1522+）、V1500B（DS1621+）、Intel N100 / N305、酷睿、至强 | 没有 AVX 的 Celeron / Atom：**J4125**（DS224+ / DS423+ / DS920+ / DS720+ / DS420+）、**J4025**（DS220+）、J3455（DS918+ / DS718+）、N5105 / N5095、Atom C3538 |
+| ARM | ARMv8.2 及以上：RTD1619B（DS223j / DS124 / DS223）、树莓派 5 | ARMv8.0：RTD1296（DS218 / DS418 / DS220j / DS118） |
+
+在"不能"的机器上，Vixel 会在设置 › AI 模型 和状态栏里说明，语义搜索停用；**图内文字（OCR）、
+人脸、文件名、标签、筛选、地图、收藏都正常可用**，也不会反复报错。不确定的话，在 NAS 上执行
+`grep -o -w avx /proc/cpuinfo | head -1`：有输出就能用（ARM 机型看 `grep -o asimddp /proc/cpuinfo`）。
 
 ## 快速开始（docker run）
 
@@ -138,6 +151,21 @@ the image, nothing ever phones home; your originals are mounted read-only and ne
 
 Architectures: `linux/amd64` (Intel/AMD Synology, QNAP, x86 servers) and `linux/arm64`
 (ARM Synology models, Raspberry Pi 5 and other ARM boxes with ≥4 GB RAM).
+
+### CPU requirements (check before installing)
+
+Semantic search (describe a photo / video moment / sound, search by image) needs a recent
+instruction set:
+
+| | Semantic search works | Not supported (everything else works) |
+|---|---|---|
+| x86 | CPUs with **AVX**: AMD Ryzen (DS923+ / DS723+ / DS1522+), V1500B (DS1621+), Intel N100 / N305, Core, Xeon | Celeron / Atom without AVX: **J4125** (DS224+ / DS423+ / DS920+ / DS720+ / DS420+), **J4025** (DS220+), J3455 (DS918+ / DS718+), N5105 / N5095, Atom C3538 |
+| ARM | ARMv8.2 or newer: RTD1619B (DS223j / DS124 / DS223), Raspberry Pi 5 | ARMv8.0: RTD1296 (DS218 / DS418 / DS220j / DS118) |
+
+On unsupported machines Vixel says so in Settings › AI Models and the status bar and turns
+semantic search off; **text-in-image (OCR), faces, filename, tags, filters, map and favorites
+all keep working**, with no error loops. To check, run `grep -o -w avx /proc/cpuinfo | head -1`
+on the NAS — any output means it's supported (ARM: `grep -o asimddp /proc/cpuinfo`).
 
 ## Quick start (docker run)
 
