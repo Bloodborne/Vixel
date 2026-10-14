@@ -85,6 +85,16 @@ export function isFaceServiceReady(): boolean {
 }
 
 /**
+ * 模型文件是否齐备（不加载会话）：推理 worker 的低内存模式用它回答 face.init ——
+ * 真正的会话加载推迟到第一次 face.process（那时 embedding 引擎已让位），
+ * 避免 init 阶段和引擎短暂共存。
+ */
+export function faceModelsAvailable(): boolean {
+  const modelsDir = getModelsDir()
+  return existsSync(join(modelsDir, 'scrfd_2.5g_kps.onnx')) && existsSync(join(modelsDir, 'mobilefacenet.onnx'))
+}
+
+/**
  * 释放本进程里的人脸会话（SCRFD + MobileFaceNet），模型目录保留 —— 下次 initFaceService 重新加载。
  * 只针对进程本地会话（推理 worker 的低内存模式）；有 transport 的宿主侧本来就没有本地会话。
  */

@@ -28,6 +28,7 @@ vi.mock('../face', () => ({
   setFaceModelsDir: vi.fn(),
   initFaceService: vi.fn(async () => { face.loaded = true; face.initCalls++; return true }),
   isFaceServiceReady: vi.fn(() => face.loaded),
+  faceModelsAvailable: vi.fn(() => true),
   processPhotoFaces: vi.fn(async () => {
     if (!face.loaded) throw new Error('Face service not ready')
     return []
@@ -39,6 +40,7 @@ const ocr = vi.hoisted(() => ({ loaded: false, initCalls: 0, disposeCalls: 0 }))
 vi.mock('../ocr', () => ({
   setOcrModelsDir: vi.fn(),
   initOcrService: vi.fn(async () => { ocr.loaded = true; ocr.initCalls++; return true }),
+  ocrModelsAvailable: vi.fn(() => true),
   // 与真实 processPhotoOcr 一致：未加载时自带懒 init
   processPhotoOcr: vi.fn(async () => {
     if (!ocr.loaded) { ocr.loaded = true; ocr.initCalls++ }
@@ -111,8 +113,13 @@ describe('inference worker · 低内存模式（VIXEL_LOW_MEMORY=1）', () => {
     await call('ocr.init', '/m')
     await call('face.init', '/m')
     expect(engine(0).ready).toBe(true)
+    // init 只校验模型文件，不加载会话 —— 启动序列不会让两组短暂共存
+    expect(ocr.initCalls).toBe(0)
+    expect(face.initCalls).toBe(0)
+    expect(ocr.loaded).toBe(false)
+    expect(face.loaded).toBe(false)
 
-    // OCR 跑之前：引擎让位
+    // OCR 跑之前：引擎让位；会话此时才懒加载
     await call('ocr.process', new Uint8Array(4))
     expect(engine(0).disposed).toBe(true)
     expect(ocr.loaded).toBe(true)
@@ -158,5 +165,32 @@ describe('inference worker · 低内存模式（VIXEL_LOW_MEMORY=1）', () => {
     await call('embed.init', embedCfg)
     await call('embed.dispose')
     await expect(call('embed.encode', { type: 'text', content: 'hi' })).rejects.toThrow('Embedding model not initialized')
+  })
+
+  it('重建配置固定实际后端：auto 初始化落到 cpu 后，换组重建不再重试 GPU', async () => {
+    const call = await startWorker(true)
+    await call('embed.init', { ...embedCfg, backend: 'auto' })
+    expect((litert.instances[0].config as { backend?: string }).backend).toBe('auto')
+    // 换到 ONNX 组再回来 → 重建用固定的 cpu（mock 的 activeBackend 是 cpu）
+    await call('ocr.init', '/m')
+    await call('ocr.process', new Uint8Array(4))
+    await call('embed.encode', { type: 'text', content: 'hi' })
+    expect(litert.instances).toHaveLength(2)
+    expect((litert.instances[1].config as { backend?: string }).backend).toBe('cpu')
+  })
+
+  it('引擎 dispose 抛异常不杀 worker：换组照常完成，下次 encode 重建', async () => {
+    const call = await startWorker(true)
+    await call('embed.init', embedCfg)
+    ;(engine(0) as unknown as { dispose: () => Promise<void> }).dispose = async () => { throw new Error('native boom') }
+    // 换组：unloadEmbedder 把 dispose 失败兜住，OCR 照常跑
+    await call('ocr.init', '/m')
+    const r = await call('ocr.process', new Uint8Array(4))
+    expect(r).toBeDefined()
+    // 回 embedding 组：按原配置重建出第二代引擎
+    const vec = await call<Float32Array>('embed.encode', { type: 'text', content: 'hi' })
+    expect(vec).toHaveLength(4)
+    expect(litert.instances).toHaveLength(2)
+    expect(engine(1).ready).toBe(true)
   })
 })

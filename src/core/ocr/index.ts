@@ -99,6 +99,16 @@ export function isOcrReady(): boolean {
 }
 
 /**
+ * 模型文件是否齐备（不加载会话）：推理 worker 的低内存模式用它回答 ocr.init ——
+ * 真正的会话加载推迟到第一次 ocr.process（processPhotoOcr 自带懒 init），
+ * 避免 init 阶段和 embedding 引擎短暂共存。
+ */
+export function ocrModelsAvailable(): boolean {
+  const base = join(_modelsDir, 'paddleocr')
+  return existsSync(join(base, 'ppocr_v5_det.onnx')) && existsSync(join(base, 'ppocr_v5_rec.onnx')) && existsSync(join(base, OCR_DICT_FILE))
+}
+
+/**
  * 释放本进程里的 OCR 会话（det/rec/cls），模型目录保留 —— 下次 processPhotoOcr 会按需重新 init。
  * 只针对进程本地会话（推理 worker 的低内存模式）；有 transport 的宿主侧本来就没有本地会话。
  */

@@ -63,6 +63,8 @@ ENV NODE_ENV=production \
     VIXEL_DATA_DIR=/data \
     VIXEL_LIBRARY_DIRS=/photos \
     MALLOC_ARENA_MAX=2 \
+    MALLOC_TRIM_THRESHOLD_=131072 \
+    MALLOC_MMAP_THRESHOLD_=131072 \
     VIXEL_ORT_MEM_ARENA=0 \
     VIXEL_LOW_MEMORY=1
 WORKDIR /app
@@ -71,6 +73,9 @@ WORKDIR /app
 # 调整后降权（群晖习惯）。setpriv（util-linux）/ usermod 都在基础镜像里，无需额外安装。
 # MALLOC_ARENA_MAX=2：glibc 多线程 arena 在 XNNPACK 推理下碎片化严重 —— 实测索引
 # demo+footage 库峰值 3.38→2.79 GiB、索引后常驻 3.26→2.02 GiB（8 vCPU、默认线程数）。
+# MALLOC_TRIM_THRESHOLD_ / MALLOC_MMAP_THRESHOLD_=128 KB：视频片段前向在推理 worker 里
+#   有大量大块瞬时分配，默认（动态）阈值下 glibc 攒着不还内核 —— 固定小阈值让大块走 mmap、
+#   释放即归还，压低视频批次的 RSS 峰值（速度略有代价，数值结果不变）。
 # VIXEL_ORT_MEM_ARENA=0：OCR / 人脸的 onnxruntime 会话不用只增不减的 CPU 内存池，
 #   大图过后按需释放（数值结果不变，见 src/core/inference/session-options.ts）。
 # VIXEL_LOW_MEMORY=1：推理 worker 不让语义模型和 OCR / 人脸会话同时驻留，索引器按模型组

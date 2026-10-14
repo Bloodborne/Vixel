@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HTTPS reverse-proxy support for the server session cookie**: `VIXEL_COOKIE_SECURE=1`
   always sets `Secure`; `VIXEL_TRUST_PROXY=1` sets it when `X-Forwarded-Proto` is https
   and keys the login rate limiter by `X-Forwarded-For`.
+- **Low-memory mode for the server (`VIXEL_LOW_MEMORY=1`, default in the Docker image).**
+  The semantic embedding model and the OCR / face models are never resident in memory at
+  the same time: the inference worker swaps model groups on demand, the indexer batches
+  tasks by model group so swaps happen between batches, and all models unload after a few
+  idle minutes (the next search transparently reloads them). A container capped at
+  `mem_limit: 2g` now completes a full index with zero failed tasks and no OOM kill
+  (previously ≥ 3 GB was required); search results are identical to desktop. Desktop
+  behaviour is unchanged (the mode is off unless the env var is set). Set
+  `VIXEL_LOW_MEMORY=0` to keep models resident when the container has 4 GB+.
 
 ## [0.4.1] - 2026-10-13
 

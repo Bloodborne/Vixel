@@ -20,6 +20,10 @@ services:
       PGID: "1000"
       # CPU 推理线程数（语义模型 + OCR / 人脸），默认核数一半。NAS 上嫌索引吃 CPU 可调小
       # VIXEL_THREADS: "2"
+      # 低内存模式（镜像默认开）：语义模型和 OCR / 人脸模型不同时驻留、空闲后卸载，
+      # mem_limit: 2g 即可完整索引；代价是模型闲置后的第一次搜索要等重载。
+      # 内存充裕（给容器 4 GB+）想要模型常驻、搜索永远即时：
+      # VIXEL_LOW_MEMORY: "0"
       # HTTPS 反代（Synology 反向代理 / Nginx / Caddy）在前面时：
       # VIXEL_TRUST_PROXY: "1"
     volumes:
@@ -29,8 +33,9 @@ services:
       - /path/to/photos:/photos:ro
       # 索引数据库、缩略图、人脸向量等（备份这个卷即可；原图不在里面）
       - vixel-data:/data
-    # 可选：限制内存。不要低于 3g（语义模型常驻；太紧会在索引高峰触发推理进程重启）
-    # mem_limit: 3g
+    # 可选：限制内存。低内存模式（镜像默认）下 2g 即可完整索引；
+    # 设了 VIXEL_LOW_MEMORY=0（模型常驻）则不要低于 3g
+    # mem_limit: 2g
 
 volumes:
   vixel-data:

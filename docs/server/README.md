@@ -76,9 +76,11 @@ volumes:
 索引分级推进：缩略图和文件信息先行，语义向量、图中文字、人物随后补齐 —— 期间可以正常
 浏览和搜索。进度条和预估显示在网页顶部；容器重启后从断点继续。
 
-**内存建议**：语义模型常驻内存，建议 NAS 至少 4 GB 内存、给容器留出 3 GB 以上。
-如果要设上限（`mem_limit`），不要低于 `3g`：上限太紧时推理进程可能在索引高峰被系统结束，
-Vixel 会自动重启它，个别任务记为失败——在任务面板点"重试"即可补上。
+**内存建议**：建议 NAS 至少 4 GB 内存、给容器留出 2 GB 以上。镜像默认开低内存模式
+（`VIXEL_LOW_MEMORY=1`）：语义模型和 OCR / 人脸模型从不同时驻留，索引按模型分组分批跑，
+空闲几分钟后全部卸载 —— 设 `mem_limit: 2g` 也能完整索引（实测不触发 OOM、零失败任务），
+搜索结果与桌面版完全一致。代价是模型闲置后的第一次搜索要等模型重新加载（之后恢复即时）。
+内存充裕（给容器 4 GB+）想要模型常驻、搜索永远即时，可设 `VIXEL_LOW_MEMORY=0`。
 嫌索引吃 CPU 可以把 `VIXEL_THREADS` 调小（例如 `2`），索引会慢一些。
 
 ## 环境变量
@@ -90,6 +92,7 @@ Vixel 会自动重启它，个别任务记为失败——在任务面板点"重�
 | `VIXEL_DATA_DIR` | `/data` | 索引数据库、缩略图、人脸向量等 |
 | `PUID` / `PGID` | `1000` / `1000` | 运行身份（root 启动时 entrypoint 降权；只 chown `/data`，从不动照片挂载） |
 | `VIXEL_THREADS` | 核数一半 | CPU 推理线程数 |
+| `VIXEL_LOW_MEMORY` | `1`（镜像默认） | 低内存模式：语义模型与 OCR / 人脸模型不同时驻留，空闲后卸载（搜索时按需重载）。设 `0` 换回模型常驻（建议给容器 4 GB+） |
 | `VIXEL_PORT` | `8080` | 容器内监听端口 |
 | `VIXEL_COOKIE_SECURE` | 关 | `=1` 会话 cookie 永远带 `Secure`（全程 HTTPS 时用） |
 | `VIXEL_TRUST_PROXY` | 关 | `=1` 信任反代头：`X-Forwarded-Proto` 为 https 时自动加 `Secure`，登录限速按 `X-Forwarded-For` 计 |
@@ -177,11 +180,15 @@ For multiple photo folders, mount each one and list them in `VIXEL_LIBRARY_DIRS`
 file info first, then semantic vectors, OCR and faces — and the library stays browsable
 and searchable throughout. A progress bar with an estimate is shown in the web UI.
 
-**Memory guidance**: the semantic model stays resident, so plan for a NAS with at
-least 4 GB RAM and leave the container 3 GB or more. If you set `mem_limit`, don't go
-below `3g`: with a tighter cap the inference process can be killed at indexing peaks —
-Vixel restarts it automatically and marks the affected tasks failed; hit "Retry" in the
-task panel to finish them. Lower `VIXEL_THREADS` (e.g. `2`) for a gentler, slower index.
+**Memory guidance**: plan for a NAS with at least 4 GB RAM and leave the container 2 GB
+or more. The image ships with low-memory mode on (`VIXEL_LOW_MEMORY=1`): the semantic
+model and the OCR / face models are never resident at the same time, indexing batches
+tasks by model group, and all models are unloaded after a few idle minutes — a
+`mem_limit: 2g` cap completes a full index (measured: no OOM kill, zero failed tasks)
+with search results identical to desktop. The trade-off: the first search after the
+models have gone idle waits for a reload (instant again afterwards). With plenty of RAM
+(4 GB+ for the container), set `VIXEL_LOW_MEMORY=0` to keep models resident and every
+search instant. Lower `VIXEL_THREADS` (e.g. `2`) for a gentler, slower index.
 
 ## Environment variables
 
@@ -192,6 +199,7 @@ task panel to finish them. Lower `VIXEL_THREADS` (e.g. `2`) for a gentler, slowe
 | `VIXEL_DATA_DIR` | `/data` | Index database, thumbnails, face vectors |
 | `PUID` / `PGID` | `1000` / `1000` | Runtime identity (entrypoint drops privileges when started as root; chowns `/data` only) |
 | `VIXEL_THREADS` | half the cores | CPU inference threads |
+| `VIXEL_LOW_MEMORY` | `1` (image default) | Low-memory mode: semantic and OCR/face models are never resident together and unload when idle (reloaded on demand for search). Set `0` to keep models resident (give the container 4 GB+) |
 | `VIXEL_PORT` | `8080` | Port inside the container |
 | `VIXEL_COOKIE_SECURE` | off | `=1` always sets `Secure` on the session cookie (all-HTTPS setups) |
 | `VIXEL_TRUST_PROXY` | off | `=1` trusts proxy headers: `Secure` cookie when `X-Forwarded-Proto` is https, login rate limit keyed by `X-Forwarded-For` |

@@ -10,8 +10,8 @@
 
 import { LiteRtEmbeddingProvider } from '../embedding/providers/litert/litertProvider'
 import type { EmbeddingInput, EmbeddingProviderConfig } from '../embedding/types'
-import { initFaceService, isFaceServiceReady, processPhotoFaces, setFaceModelsDir, disposeFaceService } from '../face'
-import { initOcrService, processPhotoOcr, setOcrModelsDir, disposeOcrService } from '../ocr'
+import { initFaceService, isFaceServiceReady, processPhotoFaces, setFaceModelsDir, disposeFaceService, faceModelsAvailable } from '../face'
+import { initOcrService, processPhotoOcr, setOcrModelsDir, disposeOcrService, ocrModelsAvailable } from '../ocr'
 import type { InferenceRequest, InferenceResponse } from './transport'
 
 /**
@@ -35,9 +35,10 @@ let embedderKey = ''
 let embedderConfig: EmbeddingProviderConfig | null = null
 
 async function unloadEmbedder(): Promise<void> {
-  if (!embedder) return
-  await embedder.dispose()
+  const e = embedder
   embedder = null
+  // dispose 失败（原生层异常）不让 worker 死掉：引擎句柄已置空，下次按配置重建
+  if (e) await e.dispose().catch((err) => console.warn('[inference] embedder dispose failed:', err))
 }
 
 async function unloadOnnxSessions(): Promise<void> {
@@ -96,8 +97,13 @@ const handlers: Record<InferenceRequest['method'], (...args: any[]) => Promise<u
       await embedder?.dispose()
       embedder = new LiteRtEmbeddingProvider(config)
       embedderKey = key
-      embedderConfig = config
       await embedder.init()
+      // 重建用配置：GPU 已证明不可用（auto → cpu）就固定 cpu，低内存模式每次换组重建
+      // 不再空试一遍 GPU（省一次注定失败的 createEngine + 日志噪音）。embedderKey 仍按
+      // 原配置比较，宿主重发同样的 embed.init 不会触发重建。
+      embedderConfig = embedder.activeBackend === 'cpu' && config.backend !== 'cpu'
+        ? { ...config, backend: 'cpu' }
+        : config
     }
     // 告诉宿主实际用上的后端（gpu 不可用时退到 cpu）
     return { backend: embedder.activeBackend ?? undefined }
@@ -114,6 +120,9 @@ const handlers: Record<InferenceRequest['method'], (...args: any[]) => Promise<u
   },
   'face.init': async (modelsDir: string) => {
     setFaceModelsDir(modelsDir)
+    // 低内存模式：init 只记目录 + 校验模型文件在不在，不加载会话（process 时懒加载）——
+    // 否则启动序列 ocr.init → embed.init → face.init 会让引擎和人脸会话短暂共存
+    if (LOW_MEMORY) return faceModelsAvailable()
     return initFaceService()
   },
   'face.process': async (buf: Uint8Array) => {
@@ -126,6 +135,8 @@ const handlers: Record<InferenceRequest['method'], (...args: any[]) => Promise<u
   },
   'ocr.init': async (modelsDir: string) => {
     setOcrModelsDir(modelsDir)
+    // 同 face.init：低内存模式只校验，不把会话和 embedding 引擎放到一起
+    if (LOW_MEMORY) return ocrModelsAvailable()
     return initOcrService()
   },
   'ocr.process': async (buf: Uint8Array) => {
@@ -168,7 +179,8 @@ export function createInferenceWorker(post: (res: InferenceResponse) => void): (
   function armIdleUnload(): void {
     if (!LOW_MEMORY) return
     if (idleTimer) clearTimeout(idleTimer)
-    idleTimer = setTimeout(() => { void idleUnload() }, IDLE_UNLOAD_MS)
+    // dispose 内部已各自兜错；这里再兜一层，定时器回调绝不能变成未处理 rejection（会杀掉 worker）
+    idleTimer = setTimeout(() => { idleUnload().catch((err) => console.warn('[inference] idle unload failed:', err)) }, IDLE_UNLOAD_MS)
     idleTimer.unref?.()
   }
 
