@@ -14,6 +14,7 @@ import { StatusBar, THUMB_MIN, THUMB_MAX } from './components/shell/StatusBar'
 import { Icon } from './components/shell/icons'
 import { countLine, mediaKindOf } from './lib/format'
 import { IS_WEB } from './lib/platform'
+import { useSemanticOff } from './lib/semantic'
 import { useViewport, isTouch } from './lib/viewport'
 import { thumbUrl } from './lib/mediaUrl'
 import { sourcePathOf } from './lib/resultActions'
@@ -111,10 +112,7 @@ function App(): JSX.Element {
   const [counts, setCounts] = useState<LibraryCounts | null>(null)
   const [folders, setFolders] = useState<WatchedFolder[]>([])
   // CPU 跑不了语义模型（服务器版 / 老 NAS）：无结果时的提示要说清楚，别让人"换种说法"
-  const [semanticOff, setSemanticOff] = useState(false)
-  useEffect(() => {
-    window.api.getModelStatus().then((s) => setSemanticOff(!!s.cpuUnsupported)).catch(() => {})
-  }, [])
+  const semanticOff = useSemanticOff()
   // 以图搜图：查询图 + 返回的提示（查询图在库里 / 解码或模型错误）；拖拽悬停时工具栏显示落点
   const [imageQuery, setImageQuery] = useState<ImageQueryState | null>(null)
   const [imageNotice, setImageNotice] = useState<{ inLibrary?: boolean; error?: 'decode-failed' | 'model-not-ready' } | null>(null)

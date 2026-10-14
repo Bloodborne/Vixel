@@ -4,6 +4,7 @@ import type { DupGroup, DupItem, DupScanProgress, DupScanResult, HiddenItem } fr
 import { formatFileSize } from '../../lib/format'
 import { thumbUrl } from '../../lib/mediaUrl'
 import { IS_MAC, IS_WEB } from '../../lib/platform'
+import { useSemanticOff } from '../../lib/semantic'
 import { Icon } from '../shell/icons'
 
 const bin = (): string => (IS_MAC ? t.cleanup.binMac : t.cleanup.binWin)
@@ -13,6 +14,7 @@ const bin = (): string => (IS_MAC ? t.cleanup.binMac : t.cleanup.binWin)
  * 点击缩略图切换保留 / 多余；双击打开详情。每组至少保留一张。
  */
 export function CleanupView({ onOpenPhoto }: { onOpenPhoto: (photoId: number) => void }): JSX.Element {
+  const semanticOff = useSemanticOff()
   const [result, setResult] = useState<DupScanResult | null>(null)
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState<DupScanProgress | null>(null)
@@ -147,6 +149,8 @@ export function CleanupView({ onOpenPhoto }: { onOpenPhoto: (photoId: number) =>
 
       {showHidden ? (
         <HiddenList items={hidden} onUnhide={unhide} />
+      ) : semanticOff ? (
+        <p className="p-6 text-callout text-ink-3" data-cleanup-unsupported>{t.cleanup.needsSemantic}</p>
       ) : !result ? (
         scanning ? null : <p className="p-6 text-callout text-ink-3">{t.cleanup.notScanned}</p>
       ) : groups.length === 0 ? (
