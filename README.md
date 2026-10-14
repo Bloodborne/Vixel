@@ -144,7 +144,18 @@ docker run -d -p 8080:8080 \
   vixel:latest
 ```
 
-部署细节（docker compose、群晖逐步说明、反代 HTTPS、备份、限制）见
+**支持哪些群晖 / NAS**：语义搜索（用一句话找照片、视频片段、声音，以图搜图）需要较新的 CPU。
+
+| | 完整支持 | 不支持语义搜索 |
+|---|---|---|
+| 群晖 x86 | AMD Ryzen 机型：DS923+、DS723+、DS1522+、DS1621+ 等 | Celeron J4125 / J4025 / J3455 机型：DS224+、DS423+、DS920+、DS720+、DS420+、DS220+、DS918+、DS718+ |
+| 群晖 ARM | RTD1619B 机型：DS223j、DS223、DS124 | RTD1296 机型：DS218、DS418、DS220j、DS118 |
+| 其他 | Intel N100 / N305、酷睿、至强、AMD 锐龙的 NAS 和服务器，树莓派 5 | N5105 / N5095 等没有 AVX 的 Celeron / Atom |
+
+"不支持"的机器也能装：图内文字（OCR）、人脸、文件名、标签、筛选、地图、收藏照常可用，界面会说明语义搜索不可用。
+拿不准就在 NAS 上执行 `grep -o -w avx /proc/cpuinfo | head -1`，有输出就是完整支持（ARM 机型看 `grep -o asimddp /proc/cpuinfo`）。
+
+部署细节（docker compose、群晖逐步说明、权限设置、反代 HTTPS、备份、限制）见
 [docs/server/README.md](docs/server/README.md)。
 
 ## 从源码运行

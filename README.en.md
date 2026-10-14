@@ -96,8 +96,22 @@ docker run -d -p 8080:8080 \
   vixel:latest
 ```
 
-Full deployment guide (compose, Synology walkthrough, reverse proxy / HTTPS, backup,
-limitations): [docs/server/README.md](docs/server/README.md).
+**Which Synology / NAS models are supported**: semantic search (describe a photo, video
+moment or sound; search by image) needs a recent CPU.
+
+| | Fully supported | No semantic search |
+|---|---|---|
+| Synology x86 | AMD Ryzen models: DS923+, DS723+, DS1522+, DS1621+, … | Celeron J4125 / J4025 / J3455 models: DS224+, DS423+, DS920+, DS720+, DS420+, DS220+, DS918+, DS718+ |
+| Synology ARM | RTD1619B models: DS223j, DS223, DS124 | RTD1296 models: DS218, DS418, DS220j, DS118 |
+| Other | NAS / servers with Intel N100 / N305, Core, Xeon, AMD Ryzen; Raspberry Pi 5 | Celeron / Atom without AVX, e.g. N5105 / N5095 |
+
+On the unsupported models Vixel still installs and runs: text-in-image (OCR), faces,
+filenames, tags, filters, map and favorites all work, and the UI says semantic search is
+unavailable. To check, run `grep -o -w avx /proc/cpuinfo | head -1` on the NAS — any output
+means full support (ARM: `grep -o asimddp /proc/cpuinfo`).
+
+Full deployment guide (compose, Synology walkthrough, permissions, reverse proxy / HTTPS,
+backup, limitations): [docs/server/README.md](docs/server/README.md).
 
 ## Build from source
 
