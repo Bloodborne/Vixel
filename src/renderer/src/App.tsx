@@ -1368,6 +1368,7 @@ function App(): JSX.Element {
           onThumbSize={handleThumbSize}
           density={isGrid ? density : undefined}
           onToggleDensity={toggleDensity}
+          folderUnreadable={folders.some((f) => f.unreadable)}
         />
       </div>
 

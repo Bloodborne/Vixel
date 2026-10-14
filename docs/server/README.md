@@ -75,14 +75,18 @@ volumes:
 
 1. **套件中心**安装 **Container Manager**（DSM 7.2+；旧版叫 Docker）。
 2. 把镜像导入群晖（正式发布到镜像仓库前）：本机 `docker save vixel:latest | gzip > vixel.tar.gz`，
-   上传到 NAS 任意目录，Container Manager → **映像 → 新增 → 从文件添加**选中它。
-3. **项目 → 新增**：项目名 `vixel`，路径随意，来源选"创建 docker-compose.yml"，
+   Container Manager → **映像 → 导入 → 从文件添加 → 从本地设备**选中它（或先传到 NAS 再选"从此 DSM"）。
+3. **项目 → 新增**：项目名 `vixel`，路径选一个共享文件夹里的目录（例如 `docker/vixel`），来源选"创建 docker-compose.yml"，
    粘贴上面的 compose 内容并改两处：
    - `VIXEL_PASSWORD`：你的登录口令（至少 4 位）；
    - `volumes` 里的 `/volume1/photo`：你的照片共享文件夹实际路径。
 4. **PUID / PGID**：填照片文件夹属主用户的 UID/GID，Vixel 以该身份读照片、写自己的
    数据目录。查法：SSH 进 NAS 执行 `id 你的用户名`（输出 `uid=1026(...) gid=100(...)`
    就填 `PUID: "1026"`、`PGID: "100"`）。照片挂载是 `:ro`（只读），Vixel 不会改动原文件。
+   **群晖权限要点**：共享文件夹默认只授权给 `administrators` 等**用户组**，管理员账号是靠这个组读照片的；
+   容器里只有主组 100 会读不到（日志 `permission denied`，界面状态栏提示"读不到媒体库文件夹"）。
+   二选一：compose 里加 `group_add: ["101"]`（101 = administrators，`id` 输出 `groups=` 里有读权限的组都行）；
+   或 **控制面板 → 共享文件夹 → 编辑 → 权限** 给这个用户勾"只读"。改完重启项目即可。
 5. 启动项目，浏览器打开 `http://<NAS-IP>:8080` 登录。
 
 **首次索引要多久？** 取决于库的大小和 NAS 的 CPU（纯 CPU 推理，没有也不需要显卡）。
@@ -195,14 +199,21 @@ For multiple photo folders, mount each one and list them in `VIXEL_LIBRARY_DIRS`
 
 1. Install **Container Manager** from Package Center (DSM 7.2+).
 2. Until the image is published to a registry, import it: on your machine run
-   `docker save vixel:latest | gzip > vixel.tar.gz`, upload it to the NAS, then
-   Container Manager → **Image → Add → From file**.
-3. **Project → Create**: paste the compose file; set `VIXEL_PASSWORD` and point the
+   `docker save vixel:latest | gzip > vixel.tar.gz`, then Container Manager →
+   **Image → Import → Add from file → From local device** (or upload it to the NAS first and pick "From this DSM").
+3. **Project → Create**: pick a folder inside a shared folder as the path (e.g. `docker/vixel`),
+   choose "Create docker-compose.yml", paste the compose file; set `VIXEL_PASSWORD` and point the
    photo volume at your shared folder (keep `:ro`).
 4. **PUID / PGID**: the UID/GID of the user that owns your photo folders. Find them
    via SSH: `id yourname` → `uid=1026(...) gid=100(...)` → `PUID: "1026"`, `PGID: "100"`.
    Vixel drops privileges to that identity on start and chowns only its own `/data`
    directory — never the photo mounts.
+   **Synology permissions**: shared folders are usually granted to *groups* (an admin account reads
+   photos through `administrators`). With only the primary group 100 the container can't read them
+   (`permission denied` in the log; the status bar says it can't read a library folder). Either add
+   `group_add: ["101"]` (101 = administrators, or any group from the `groups=` part of `id` that can
+   read the share), or grant the user Read-only under **Control Panel → Shared Folder → Edit →
+   Permissions**. Restart the project afterwards.
 5. Start the project and open `http://<nas-ip>:8080`.
 
 **How long does the first index take?** It depends on library size and the NAS CPU

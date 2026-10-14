@@ -164,6 +164,11 @@ export function FolderSettings(): JSX.Element {
                 </button>
                 )}
                 </div>
+                {folder.unreadable && (
+                  <p className="px-2.5 pb-2 text-micro text-warn/80" data-folder-unreadable>
+                    {IS_WEB ? t.settings.folderUnreadableServer : t.settings.folderUnreadableDesktop}
+                  </p>
+                )}
                 {/* 用户选的根目录本身是"照片"图库包：根目录不自动跳过，但提示它由 Photos 管理 */}
                 {isPhotosLibrary && (
                   <p className="px-2.5 pb-2 text-micro text-warn/80">{t.settings.photosLibraryRoot}</p>

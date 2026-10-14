@@ -26,6 +26,10 @@ services:
       # VIXEL_LOW_MEMORY: "0"
       # HTTPS 反代（Synology 反向代理 / Nginx / Caddy）在前面时：
       # VIXEL_TRUST_PROXY: "1"
+    # 群晖：共享文件夹通常只授权给用户组（管理员账号靠 administrators 组访问），
+    # 容器进程只有主组 PGID 时会读不到照片（日志里 permission denied）。把能读照片的组加进来：
+    # group_add:
+    #   - "101"   # administrators；`id 你的用户名` 输出里的 groups=… 都可以
     volumes:
       # 照片/视频：只读挂载（:ro），Vixel 永远不写原文件。多个库就多挂几行：
       #   - /volume1/photo:/photos/photo:ro

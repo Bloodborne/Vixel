@@ -19,6 +19,8 @@ interface StatusBarProps {
   /** 网格信息密度（G） */
   density?: 'immersive' | 'info'
   onToggleDensity?: () => void
+  /** 有媒体库文件夹读不了（权限 / 已卸载）：给出可见入口，而不是"添加文件夹开始使用" */
+  folderUnreadable?: boolean
 }
 
 /** 电源策略等待原因 → 文案（core/powerPolicy.ts；与手动暂停分开展示） */
@@ -51,7 +53,7 @@ function describeActivity(p: IndexProgress | null): { text: string; detail?: str
   return null
 }
 
-export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, onOpenActivity, thumbSize, onThumbSize, density, onToggleDensity }: StatusBarProps): JSX.Element {
+export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, onOpenActivity, thumbSize, onThumbSize, density, onToggleDensity, folderUnreadable }: StatusBarProps): JSX.Element {
   // 首个 progress 事件到来前先问一次主进程（暂停状态会跨重启保留）
   const [paused, setPaused] = useState(false)
   useEffect(() => {
@@ -119,9 +121,20 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
             )}
           </>
         ) : (
-          <span className="text-ink-3">{(progress?.totalPhotos ?? itemCount) > 0 ? t.shell.upToDate : t.shell.addFolderToStart}</span>
+          <span className="text-ink-3">{(progress?.totalPhotos ?? itemCount) > 0 ? t.shell.upToDate : folderUnreadable ? '' : t.shell.addFolderToStart}</span>
         )}
       </button>
+
+      {folderUnreadable && (
+        <button
+          onClick={() => window.api.openSettings()}
+          title={t.shell.folderUnreadableHint}
+          className="flex-shrink-0 px-1.5 rounded bg-warn/10 text-warn/80 hover:bg-warn/20 transition-colors duration-fast"
+          data-folder-unreadable
+        >
+          {t.shell.folderUnreadable} · {t.common.settings}
+        </button>
+      )}
 
       {modelIssue && (
         <button

@@ -10,7 +10,7 @@
  * 留在 src/main/*（见 apiSurface.ts 的 DESKTOP_ONLY_METHODS）。
  */
 import { join } from 'path'
-import { existsSync } from 'fs'
+import { accessSync, constants as fsConstants, existsSync } from 'fs'
 import { unlink, rm } from 'fs/promises'
 import type { DatabaseInstance } from '../core/db'
 import type { FileWatcher } from '../core/watcher'
@@ -143,7 +143,8 @@ function buildApi(ctx: ServiceContext, deps: {
       return true
     },
 
-    getFolders: async () => db.getFoldersWithStats(),
+    // 顺带检查能不能读：读不了的（权限 / 外接盘已拔）界面上要说清楚，而不是显示"0 项"
+    getFolders: async () => db.getFoldersWithStats().map((f) => (folderReadable(f.path) ? f : { ...f, unreadable: true })),
     getLibraryCounts: async () => db.getLibraryCounts(),
     getFolderStats: async (folderId: number) => db.getFolderStats(folderId),
 
@@ -472,6 +473,16 @@ function buildApi(ctx: ServiceContext, deps: {
     collect: {
       getSource: async (fileHash: string) => (typeof fileHash === 'string' ? collectStore.getSource(fileHash) : null),
     },
+  }
+}
+
+/** 目录能否列出（R + X）；读不了返回 false。按调用即时判断，权限改好后刷新即恢复 */
+export function folderReadable(path: string): boolean {
+  try {
+    accessSync(path, fsConstants.R_OK | fsConstants.X_OK)
+    return true
+  } catch {
+    return false
   }
 }
 

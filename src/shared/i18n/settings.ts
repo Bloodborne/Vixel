@@ -28,6 +28,8 @@ const zh = {
   indexAnywayDone: '已加入索引',
   // 选中的根目录本身是"照片"图库包
   photosLibraryRoot: '这是「照片」App 管理的图库包：内部结构私有、可能随系统更新变化。建议改为从「照片」导出后再索引导出的文件夹。',
+  folderUnreadableServer: '容器读不到这个目录（权限不足）。群晖上照片共享文件夹通常只授权给 administrators 等用户组：在 compose 里加 group_add: ["101"]（管理员组；或其他有读权限的组），或在 控制面板 › 共享文件夹 › 编辑 › 权限 里给 PUID 对应的用户勾选「只读」，然后重启容器。',
+  folderUnreadableDesktop: '读不到这个文件夹：可能是外接盘没连接，或系统没有授予 Vixel 访问权限。',
   removeFolderTitle: '确认移除文件夹',
   /** 名称两侧要加引号，由组件加粗显示，所以拆成前后两段 */
   removeFolderAskBefore: '确定要移除 ',
@@ -62,6 +64,8 @@ const en: typeof zh = {
   indexAnyway: 'Index anyway',
   indexAnywayDone: 'Indexing',
   photosLibraryRoot: 'This is a Photos library bundle managed by the Photos app: its internal layout is private and can change with system updates. Consider exporting from Photos and indexing the exported folder instead.',
+  folderUnreadableServer: 'The container can’t read this folder (permission denied). On Synology, shared folders are usually granted to groups such as administrators: add group_add: ["101"] to the compose file (the administrators group, or another group that can read the share), or give the PUID user Read-only access under Control Panel › Shared Folder › Edit › Permissions, then restart the container.',
+  folderUnreadableDesktop: 'Can’t read this folder: the drive may be disconnected, or the system hasn’t granted Vixel access.',
   removeFolderTitle: 'Remove Folder?',
   removeFolderAskBefore: 'Remove ',
   removeFolderAskAfter: '?',

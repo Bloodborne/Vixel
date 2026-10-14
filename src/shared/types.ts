@@ -150,6 +150,8 @@ export interface WatchedFolder {
   photoCount?: number // 该文件夹中的照片数量
   /** 收集箱（拖入 / 粘贴 / 浏览器扩展收来的内容存这里）；侧栏置顶显示 */
   isInbox?: boolean
+  /** 当前进程读不了这个目录（权限不足 / 已卸载）；群晖上常见于容器身份不在共享文件夹的授权组里 */
+  unreadable?: boolean
 }
 
 /** 命中通道：visual 图片向量 / segment 音视频片段向量 / text 图内文字 / filename 文件名或路径 */

@@ -34,7 +34,7 @@ import { restrictDesignExts } from '../core/image/design'
 import { registerServerPdfRenderer } from './pdfRender'
 import { detectScreenshot } from '../core/screenshot'
 import { resolveLocale, setLocale } from '../shared/i18n'
-import { createServices, type VixelServices } from '../services/api'
+import { createServices, folderReadable, type VixelServices } from '../services/api'
 import { createServiceEvents } from '../services/events'
 import type { ImageQueryInput, MediaFilters } from '../shared/types'
 
@@ -315,6 +315,13 @@ async function main(): Promise<void> {
     if (!existsSync(dir)) {
       console.warn(`[server] library dir does not exist, skipping: ${dir}`)
       continue
+    }
+    if (!folderReadable(dir)) {
+      // 群晖最常见：共享文件夹只授权给 administrators 等组，容器进程没有这个组
+      const ids = `uid=${process.getuid?.()} gid=${process.getgid?.()} groups=${process.getgroups?.().join(',')}`
+      console.error(`[server] cannot read library dir ${dir} (permission denied) as ${ids}. ` +
+        'On Synology add `group_add: ["101"]` (administrators) or a group that can read the shared folder, ' +
+        'or grant the PUID user read access to it; then restart the container. See docs/server/README.md')
     }
     if (!known.has(dir)) {
       const folder = db.addFolder(dir)
