@@ -44,6 +44,12 @@ const SKIP_DIR_NAMES = new Set([
   'node_modules', '__pycache__', 'bower_components',
   // 常见构建 / 缓存目录（非点开头的；点开头的由隐藏规则覆盖）
   'DerivedData', 'xcuserdata',
+  // NAS 系统目录：群晖每个照片目录里都有 @eaDir（DSM 自己生成的缩略图 SYNOPHOTO_THUMB_*.jpg），
+  // #recycle 是回收站，#snapshot 是快照（整库再来一份）；威联通是 @Recycle / @Recently-Snapshot。
+  // 不跳过的话图库里会冒出成倍的缩略图和已删除的照片
+  '@eaDir', '#recycle', '#snapshot', '@Recycle', '@Recently-Snapshot', '@Transcode',
+  // Windows 卷根的系统目录（Docker 挂载 Windows 盘 / 桌面版选整盘时）
+  '$RECYCLE.BIN', 'System Volume Information',
 ])
 
 /** 应用 / 资源包：目录名带这些扩展名的是包，内部结构由对应应用管理，整包跳过 */

@@ -31,6 +31,16 @@ describe('shouldSkipDirName / shouldIgnorePath', () => {
     }
   })
 
+  it('NAS 系统目录：群晖 @eaDir 缩略图、回收站、快照；威联通回收站', () => {
+    const root = '/photos'
+    expect(shouldIgnorePath(root, '/photos/2024/@eaDir/IMG_1.JPG/SYNOPHOTO_THUMB_XL.jpg')).toBe(true)
+    expect(shouldIgnorePath(root, '/photos/#recycle/old.jpg')).toBe(true)
+    expect(shouldIgnorePath(root, '/photos/#snapshot/GMT+08-2026.10.01/a.jpg')).toBe(true)
+    expect(shouldIgnorePath(root, '/photos/@Recycle/a.jpg')).toBe(true)
+    expect(shouldIgnorePath(root, '/photos/2024/IMG_1.JPG')).toBe(false)
+    expect(shouldSkipDirName('#2024 trip')).toBe(false)
+  })
+
   it('根目录永不忽略，哪怕它本身是 .photoslibrary', () => {
     const root = '/Users/x/Pictures/Photos Library.photoslibrary'
     expect(shouldIgnorePath(root, root)).toBe(false)
