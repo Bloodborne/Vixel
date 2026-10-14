@@ -93,7 +93,7 @@ docker run -d -p 8080:8080 \
   -e VIXEL_PASSWORD='your-password' \
   -v /path/to/photos:/photos:ro \
   -v vixel-data:/data \
-  vixel:latest
+  ghcr.io/rgb-loop/vixel:latest
 ```
 
 **Which Synology / NAS models are supported**: semantic search (describe a photo, video

@@ -3,9 +3,8 @@
 # 详细说明（含群晖逐步截图说明、反代 HTTPS、备份）：docs/server/README.md
 services:
   vixel:
-    # 本地构建：docker buildx build --platform linux/arm64 -t vixel:latest --load .
-    # （正式发布后换成 ghcr.io/rgb-loop/vixel:latest）
-    image: vixel:latest
+    # 自己构建：docker buildx build -t vixel:latest --load . 然后这里改成 vixel:latest
+    image: ghcr.io/rgb-loop/vixel:latest
     container_name: vixel
     restart: unless-stopped
     ports:

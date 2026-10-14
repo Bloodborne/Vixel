@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-15
+
 ### Added
 - **Server / NAS edition (Docker).** Multi-arch image (`linux/amd64` + `linux/arm64`) running
   the same core indexing/search pipeline as the desktop app behind a password-protected web UI
@@ -30,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (previously ≥ 3 GB was required); search results are identical to the resident mode. Desktop
   behaviour is unchanged (the mode is off unless the env var is set). Set
   `VIXEL_LOW_MEMORY=0` to keep models resident when the container has 4 GB+.
+- **Supported NAS models documented.** Semantic search needs an x86 CPU with AVX or an
+  ARMv8.2 CPU. Synology Ryzen models (DS923+ / DS723+ / DS1522+ / DS1621+), RTD1619B
+  models (DS223j / DS223 / DS124), Intel N100 / N305 and newer are fully supported;
+  Celeron J4125 / J4025 / J3455 models (DS224+ / DS423+ / DS920+ / DS720+ / DS420+ / DS220+ /
+  DS918+ / DS718+), N5105 and RTD1296 models (DS218 / DS418 / DS220j) are not. On those, the
+  server turns semantic search off up front and says so in the status bar, settings and empty
+  states — text-in-image (OCR), faces, filenames, tags, filters, map and favorites keep working,
+  with no crash or retry loops.
 
 ### Fixed
 - **Privacy: onnxruntime telemetry is now disabled.** onnxruntime 1.30 (used for OCR and
@@ -44,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web UI: no horizontal scrollbar under the grid with classic scrollbars (also the Windows
   desktop app); color swatches wrap on phones; videos play inline on iOS Safari; the
   battery-indexing setting is hidden on the server.
+- **Synology shared-folder permissions.** DSM grants shared folders to groups (e.g.
+  `administrators`); the container dropped to `PUID:PGID` without supplementary groups and
+  couldn't even list the photos. Groups from compose `group_add` are now kept, the identity is
+  logged at start, and an unreadable library folder is reported in the log, the status bar,
+  the empty state and Settings › Folders with the fix (verified on DSM 7.2.2 / Container
+  Manager / Docker 24).
+- NAS system folders are skipped when scanning: Synology `@eaDir` (DSM's own thumbnails),
+  `#recycle`, `#snapshot`; QNAP `@Recycle` / `@Recently-Snapshot`; Windows `$RECYCLE.BIN`.
+- The status bar no longer says "Add a folder to get started" when a search simply has no
+  results (desktop too).
 - `scripts/download-models.mjs` extracts the LiteRT runtime wheel on Linux (GNU tar can't
   read zip; falls back to `unzip` / `python3`).
 

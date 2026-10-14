@@ -31,7 +31,7 @@ docker run -d --name vixel \
   -v /path/to/photos:/photos:ro \
   -v vixel-data:/data \
   --restart unless-stopped \
-  vixel:latest
+  ghcr.io/rgb-loop/vixel:latest
 ```
 
 浏览器打开 `http://<主机IP>:8080`，输入口令登录。首次启动会开始索引 `/photos`
@@ -46,7 +46,7 @@ docker run -d --name vixel \
 ```yaml
 services:
   vixel:
-    image: vixel:latest
+    image: ghcr.io/rgb-loop/vixel:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -54,6 +54,9 @@ services:
       VIXEL_PASSWORD: "change-me"
       PUID: "1000"
       PGID: "1000"
+    # 群晖：照片共享文件夹授权给用户组时（管理员账号即 administrators = 101）
+    # group_add:
+    #   - "101"
     volumes:
       - /volume1/photo:/photos:ro
       - vixel-data:/data
@@ -74,8 +77,10 @@ volumes:
 ## 群晖 Container Manager 逐步说明
 
 1. **套件中心**安装 **Container Manager**（DSM 7.2+；旧版叫 Docker）。
-2. 把镜像导入群晖（正式发布到镜像仓库前）：本机 `docker save vixel:latest | gzip > vixel.tar.gz`，
-   Container Manager → **映像 → 导入 → 从文件添加 → 从本地设备**选中它（或先传到 NAS 再选"从此 DSM"）。
+2. 镜像不用手动下载：第 3 步启动项目时 Container Manager 会自动从 `ghcr.io` 拉取。
+   NAS 访问 ghcr.io 太慢或失败时，可以在能访问的电脑上 `docker pull --platform linux/amd64 ghcr.io/rgb-loop/vixel:latest`
+   （ARM 机型用 `linux/arm64`），再 `docker save ghcr.io/rgb-loop/vixel:latest | gzip > vixel.tar.gz`，
+   然后 Container Manager → **映像 → 导入 → 从文件添加 → 从本地设备**选中它。
 3. **项目 → 新增**：项目名 `vixel`，路径选一个共享文件夹里的目录（例如 `docker/vixel`），来源选"创建 docker-compose.yml"，
    粘贴上面的 compose 内容并改两处：
    - `VIXEL_PASSWORD`：你的登录口令（至少 4 位）；
@@ -180,7 +185,7 @@ docker run -d --name vixel \
   -v /path/to/photos:/photos:ro \
   -v vixel-data:/data \
   --restart unless-stopped \
-  vixel:latest
+  ghcr.io/rgb-loop/vixel:latest
 ```
 
 Open `http://<host>:8080`, log in with your password. The first start indexes everything
@@ -198,9 +203,10 @@ For multiple photo folders, mount each one and list them in `VIXEL_LIBRARY_DIRS`
 ## Synology Container Manager, step by step
 
 1. Install **Container Manager** from Package Center (DSM 7.2+).
-2. Until the image is published to a registry, import it: on your machine run
-   `docker save vixel:latest | gzip > vixel.tar.gz`, then Container Manager →
-   **Image → Import → Add from file → From local device** (or upload it to the NAS first and pick "From this DSM").
+2. No manual download needed: Container Manager pulls the image from `ghcr.io` when the project
+   starts (step 3). If the NAS can't reach ghcr.io, run `docker pull --platform linux/amd64 ghcr.io/rgb-loop/vixel:latest`
+   (`linux/arm64` for ARM models) on another machine, `docker save ghcr.io/rgb-loop/vixel:latest | gzip > vixel.tar.gz`,
+   then Container Manager → **Image → Import → Add from file → From local device**.
 3. **Project → Create**: pick a folder inside a shared folder as the path (e.g. `docker/vixel`),
    choose "Create docker-compose.yml", paste the compose file; set `VIXEL_PASSWORD` and point the
    photo volume at your shared folder (keep `:ro`).

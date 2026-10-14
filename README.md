@@ -141,7 +141,7 @@ docker run -d -p 8080:8080 \
   -e VIXEL_PASSWORD='你的口令' \
   -v /path/to/photos:/photos:ro \
   -v vixel-data:/data \
-  vixel:latest
+  ghcr.io/rgb-loop/vixel:latest
 ```
 
 **支持哪些群晖 / NAS**：语义搜索（用一句话找照片、视频片段、声音，以图搜图）需要较新的 CPU。
