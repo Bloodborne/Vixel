@@ -124,13 +124,13 @@ export function CleanupView({ onOpenPhoto }: { onOpenPhoto: (photoId: number) =>
               <button onClick={() => setShowHidden(true)} className="text-callout text-ink-3 hover:text-ink">
                 {t.cleanup.hidden(hidden.length)}
               </button>
-              <button
+              {!semanticOff && <button
                 onClick={() => void scan()}
                 disabled={scanning || busy}
                 className="px-3 py-1 rounded-md bg-accent/20 hover:bg-accent/30 disabled:opacity-50 text-accent text-callout transition-colors duration-fast"
               >
                 {result ? t.cleanup.rescan : t.cleanup.scan}
-              </button>
+              </button>}
             </>
           )}
         </div>
