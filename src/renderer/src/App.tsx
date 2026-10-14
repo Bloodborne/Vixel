@@ -110,6 +110,11 @@ function App(): JSX.Element {
   const [source, setSource] = useState<Source>({ type: 'library', kind: 'all' })
   const [counts, setCounts] = useState<LibraryCounts | null>(null)
   const [folders, setFolders] = useState<WatchedFolder[]>([])
+  // CPU 跑不了语义模型（服务器版 / 老 NAS）：无结果时的提示要说清楚，别让人"换种说法"
+  const [semanticOff, setSemanticOff] = useState(false)
+  useEffect(() => {
+    window.api.getModelStatus().then((s) => setSemanticOff(!!s.cpuUnsupported)).catch(() => {})
+  }, [])
   // 以图搜图：查询图 + 返回的提示（查询图在库里 / 解码或模型错误）；拖拽悬停时工具栏显示落点
   const [imageQuery, setImageQuery] = useState<ImageQueryState | null>(null)
   const [imageNotice, setImageNotice] = useState<{ inLibrary?: boolean; error?: 'decode-failed' | 'model-not-ready' } | null>(null)
@@ -1293,8 +1298,8 @@ function App(): JSX.Element {
           ) : imageNotice?.error ? (
             <EmptyState
               icon="search"
-              title={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeTitle : t.imagesearch.errorModelTitle}
-              hint={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeHint : t.imagesearch.errorModelHint}
+              title={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeTitle : semanticOff ? t.shell.cpuUnsupported : t.imagesearch.errorModelTitle}
+              hint={imageNotice.error === 'decode-failed' ? t.imagesearch.errorDecodeHint : semanticOff ? t.model.cpuUnsupported : t.imagesearch.errorModelHint}
             />
           ) : libraryEmpty && folders.some((f) => f.unreadable) ? (
             <EmptyState
@@ -1322,7 +1327,7 @@ function App(): JSX.Element {
                 : hasImageQuery
                 ? t.imagesearch.noMatchHint
                 : hasSearchQuery
-                ? t.shell.noMatchHint
+                ? (semanticOff ? t.shell.noMatchHintNoSemantic : t.shell.noMatchHint)
                 : hasDateFilter ? t.shell.widenDateHint : t.shell.otherCategoryHint}
             />
           )}
@@ -1375,6 +1380,7 @@ function App(): JSX.Element {
           density={isGrid ? density : undefined}
           onToggleDensity={toggleDensity}
           folderUnreadable={folders.some((f) => f.unreadable)}
+          libraryTotal={counts?.all ?? 0}
         />
       </div>
 

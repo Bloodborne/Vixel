@@ -60,6 +60,7 @@ const zh = {
   noMatchTitle: '没有找到匹配的内容',
   nothingHereTitle: '这里没有内容',
   noMatchHint: '试试其他关键词、图内的文字片段，或换种说法',
+  noMatchHintNoSemantic: '这台设备的 CPU 跑不了语义搜索，只能按文件名、图中文字和标签找。试试文件名或照片里出现的文字',
   widenDateHint: '试试放宽时间过滤',
   otherCategoryHint: '换个类别或文件夹看看',
 }
@@ -117,6 +118,7 @@ const en: typeof zh = {
   noMatchTitle: 'No matches found',
   nothingHereTitle: 'Nothing here',
   noMatchHint: 'Try other keywords, a snippet of text from the image, or a different description',
+  noMatchHintNoSemantic: 'This device’s CPU can’t run semantic search, so only filenames, text in images and tags are searched. Try a filename or words that appear in the photo',
   widenDateHint: 'Try widening the date filter',
   otherCategoryHint: 'Try another category or folder',
 }

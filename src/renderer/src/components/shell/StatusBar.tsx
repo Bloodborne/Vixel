@@ -21,6 +21,8 @@ interface StatusBarProps {
   onToggleDensity?: () => void
   /** 有媒体库文件夹读不了（权限 / 已卸载）：给出可见入口，而不是"添加文件夹开始使用" */
   folderUnreadable?: boolean
+  /** 整个资料库的条数（不是当前结果数）：决定"添加文件夹开始使用"该不该出现 */
+  libraryTotal?: number
 }
 
 /** 电源策略等待原因 → 文案（core/powerPolicy.ts；与手动暂停分开展示） */
@@ -53,7 +55,7 @@ function describeActivity(p: IndexProgress | null): { text: string; detail?: str
   return null
 }
 
-export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, onOpenActivity, thumbSize, onThumbSize, density, onToggleDensity, folderUnreadable }: StatusBarProps): JSX.Element {
+export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, onOpenActivity, thumbSize, onThumbSize, density, onToggleDensity, folderUnreadable, libraryTotal }: StatusBarProps): JSX.Element {
   // 首个 progress 事件到来前先问一次主进程（暂停状态会跨重启保留）
   const [paused, setPaused] = useState(false)
   useEffect(() => {
@@ -121,7 +123,7 @@ export function StatusBar({ progress, itemCount, breakdown, selectedCount = 0, o
             )}
           </>
         ) : (
-          <span className="text-ink-3">{(progress?.totalPhotos ?? itemCount) > 0 ? t.shell.upToDate : folderUnreadable ? '' : t.shell.addFolderToStart}</span>
+          <span className="text-ink-3">{(progress?.totalPhotos ?? libraryTotal ?? itemCount) > 0 ? t.shell.upToDate : folderUnreadable ? '' : t.shell.addFolderToStart}</span>
         )}
       </button>
 
