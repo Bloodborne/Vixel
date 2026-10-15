@@ -36,6 +36,8 @@ asarUnpack:
   - node_modules/@node-rs/jieba*/**
   # koffi（加载 LiteRT-LM 的 FFI）：原生 .node 不能从 asar 里加载
   - node_modules/koffi/**
+  # ffmpeg-static 的可执行文件由 child_process.spawn 启动，必须位于 asar 外
+  - node_modules/ffmpeg-static/**
 # 本地模型作为 extraResources（运行时通过 process.resourcesPath 访问）
 extraResources:
   - from: resources/models
