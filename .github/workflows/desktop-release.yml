@@ -1,4 +1,4 @@
-name: Desktop release
+name: macOS package
 
 on:
   push:
@@ -11,49 +11,26 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.label }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            target: mac
-            label: macOS-arm64
-          - os: windows-latest
-            target: win
-            label: Windows-x64
-          - os: ubuntu-latest
-            target: linux
-            label: Linux-x64
-
+    name: Build macOS ARM64
+    runs-on: macos-14
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
-
       - name: Install dependencies
         run: npm ci --legacy-peer-deps --no-audit --no-fund
-
-      # Downloads the shared AI models and this runner's LiteRT native runtime.
       - name: Download models and native runtime
         run: npm run models:download
-
       - name: Build application
         run: npm run build
-
-      - name: Package installer
-        run: npm run package -- --${{ matrix.target }}
-
+      - name: Package macOS installer
+        run: npm run package -- --mac
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: Vixel-${{ matrix.label }}
+          name: Vixel-macOS-arm64
           path: release/**
           if-no-files-found: error
           retention-days: 14
@@ -65,22 +42,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      - name: Check out tag
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Download installers
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          pattern: Vixel-*
+          name: Vixel-macOS-arm64
           path: release
-          merge-multiple: true
-
-      - name: Publish installers
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           name: Vixel ${{ github.ref_name }}
           generate_release_notes: true
